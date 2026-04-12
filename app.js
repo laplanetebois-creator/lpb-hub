@@ -1,0 +1,3478 @@
+/* ============================================
+   LPB Hub — La Planète Bois
+   Dashboard unifié : CRM + Publicités + SEO
+   ============================================ */
+
+// ============================================
+// CONFIG
+// ============================================
+const SUPABASE_URL = 'https://knguqijlnhkprcgnzzfz.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtuZ3VxaWpsbmhrcHJjZ256emZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5OTE5NzYsImV4cCI6MjA5MTU2Nzk3Nn0.xCzSSpniMERQfWNcD0GHG3cqHn-n_3rfjAEKP9CbytM';
+
+let db = null;
+try {
+  if (typeof supabase !== 'undefined' && supabase.createClient) {
+    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch(e) { console.error('Supabase init error', e); }
+
+// ============================================
+// UTILITIES
+// ============================================
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+const el = (tag, attrs = {}, children = []) => {
+  const e = document.createElement(tag);
+  Object.entries(attrs).forEach(([k, v]) => {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  });
+  children.forEach(c => { if (typeof c === 'string') e.appendChild(document.createTextNode(c)); else if (c) e.appendChild(c); });
+  return e;
+};
+
+function formatCurrency(n) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n || 0);
+}
+function formatNumber(n) {
+  return new Intl.NumberFormat('fr-FR').format(n || 0);
+}
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function formatDateTime(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function timeAgo(d) {
+  if (!d) return '';
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "a l'instant";
+  if (mins < 60) return `il y a ${mins}min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `il y a ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `il y a ${days}j`;
+}
+function initials(first, last) {
+  return ((first?.[0] || '') + (last?.[0] || '')).toUpperCase();
+}
+
+// ============================================
+// TOAST NOTIFICATIONS
+// ============================================
+function toast(message, type = 'success') {
+  const container = $('#toast-container');
+  const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle' };
+  const t = el('div', { class: `toast ${type}`, html: `<i class="fas ${icons[type] || icons.success}"></i> ${message}` });
+  container.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+// ============================================
+// MODAL
+// ============================================
+window.openModal = function openModal(title, bodyHtml, footerHtml) {
+  $('#modal-title').textContent = title;
+  $('#modal-body').innerHTML = bodyHtml;
+  $('#modal-footer').innerHTML = footerHtml || '';
+  $('#modal-overlay').classList.add('show');
+};
+window.closeModal = function closeModal() {
+  $('#modal-overlay').classList.remove('show');
+};
+$('#modal-close')?.addEventListener('click', closeModal);
+$('#modal-overlay')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// ============================================
+// SUPABASE HELPERS
+// ============================================
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise(function(_, reject) { setTimeout(function() { reject(new Error('timeout')); }, ms); })
+  ]);
+}
+
+async function dbSelect(table, options) {
+  options = options || {};
+  if (!db) return [];
+  try {
+    var q = db.from(table).select(options.select || '*');
+    if (options.eq) options.eq.forEach(function(pair) { q = q.eq(pair[0], pair[1]); });
+    if (options.order) q = q.order(options.order[0], { ascending: options.order[1] !== false });
+    if (options.limit) q = q.limit(options.limit);
+    if (options.ilike) options.ilike.forEach(function(pair) { q = q.ilike(pair[0], '%' + pair[1] + '%'); });
+    var result = await withTimeout(q, 8000);
+    if (result.error) { console.error('dbSelect ' + table + ':', result.error); return []; }
+    return result.data || [];
+  } catch(e) { console.error('dbSelect ' + table + ':', e.message); return []; }
+}
+async function dbInsert(table, row) {
+  if (!db) return null;
+  try {
+    var result = await withTimeout(db.from(table).insert(row).select(), 8000);
+    if (result.error) { toast('Erreur: ' + result.error.message, 'error'); return null; }
+    return result.data && result.data[0];
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); return null; }
+}
+async function dbUpdate(table, id, updates) {
+  if (!db) return null;
+  try {
+    updates.updated_at = new Date().toISOString();
+    var result = await withTimeout(db.from(table).update(updates).eq('id', id).select(), 8000);
+    if (result.error) { toast('Erreur: ' + result.error.message, 'error'); return null; }
+    return result.data && result.data[0];
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); return null; }
+}
+async function dbDelete(table, id) {
+  if (!db) return false;
+  try {
+    var result = await withTimeout(db.from(table).delete().eq('id', id), 8000);
+    if (result.error) { toast('Erreur: ' + result.error.message, 'error'); return false; }
+    return true;
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); return false; }
+}
+async function dbCount(table, filters) {
+  filters = filters || {};
+  if (!db) return 0;
+  try {
+    var q = db.from(table).select('*', { count: 'exact', head: true });
+    Object.entries(filters).forEach(function(pair) { q = q.eq(pair[0], pair[1]); });
+    var result = await withTimeout(q, 8000);
+    if (result.error) return 0;
+    return result.count || 0;
+  } catch(e) { return 0; }
+}
+
+// ============================================
+// WINDSOR.AI — SYNC ENGINE
+// ============================================
+const WINDSOR_API_BASE = 'https://connectors.windsor.ai';
+
+function getWindsorApiKey() {
+  return localStorage.getItem('windsor_api_key') || '';
+}
+function setWindsorApiKey(key) {
+  localStorage.setItem('windsor_api_key', key.trim());
+}
+
+async function windsorFetch(connector, fields, datePreset) {
+  const apiKey = getWindsorApiKey();
+  if (!apiKey) return [];
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    date_preset: datePreset || 'last_30d',
+    fields: fields,
+    _renderer: 'json'
+  });
+  try {
+    const resp = await fetch(`${WINDSOR_API_BASE}/${connector}?${params}`);
+    if (!resp.ok) {
+      console.error(`Windsor ${connector}: HTTP ${resp.status}`);
+      return [];
+    }
+    const json = await resp.json();
+    return json.data || json || [];
+  } catch (e) {
+    console.error(`Windsor ${connector}:`, e.message);
+    return [];
+  }
+}
+
+async function syncGoogleAds() {
+  const rows = await windsorFetch('google_ads',
+    'date,campaign,impressions,clicks,spend,conversions,ctr,cpc', 'last_30d');
+  if (rows.length === 0) return 0;
+  let synced = 0;
+  for (const r of rows) {
+    if (!r.date) continue;
+    const row = {
+      date: r.date,
+      campaign: r.campaign || 'Sans nom',
+      impressions: parseInt(r.impressions) || 0,
+      clicks: parseInt(r.clicks) || 0,
+      spend: parseFloat(r.spend) || 0,
+      conversions: parseInt(r.conversions) || 0,
+      ctr: parseFloat(r.ctr) || 0,
+      cpc: parseFloat(r.cpc) || 0,
+      synced_at: new Date().toISOString()
+    };
+    const { error } = await db.from('google_ads_data')
+      .upsert(row, { onConflict: 'date,campaign' });
+    if (!error) synced++;
+  }
+  return synced;
+}
+
+async function syncGA4() {
+  const rows = await windsorFetch('googleanalytics4',
+    'date,source,sessions,active_users,bounce_rate,average_session_duration,event_count', 'last_30d');
+  if (rows.length === 0) return 0;
+  let synced = 0;
+  for (const r of rows) {
+    if (!r.date) continue;
+    const row = {
+      date: r.date,
+      source: r.source || 'direct',
+      sessions: parseInt(r.sessions) || 0,
+      users: parseInt(r.active_users) || 0,
+      bounce_rate: parseFloat(r.bounce_rate) || 0,
+      avg_session_duration: parseFloat(r.average_session_duration) || 0,
+      events: parseInt(r.event_count) || 0,
+      synced_at: new Date().toISOString()
+    };
+    const { error } = await db.from('ga4_data')
+      .upsert(row, { onConflict: 'date,source' });
+    if (!error) synced++;
+  }
+  return synced;
+}
+
+async function syncSearchConsole() {
+  const rows = await windsorFetch('searchconsole',
+    'date,query,clicks,impressions,ctr,position,page,device', 'last_30d');
+  if (rows.length === 0) return 0;
+  let synced = 0;
+  for (const r of rows) {
+    if (!r.date || !r.query) continue;
+    const row = {
+      date: r.date,
+      query: r.query,
+      clicks: parseInt(r.clicks) || 0,
+      impressions: parseInt(r.impressions) || 0,
+      ctr: parseFloat(r.ctr) || 0,
+      position: parseFloat(r.position) || 0,
+      page: r.page || null,
+      device: r.device || null,
+      synced_at: new Date().toISOString()
+    };
+    const { error } = await db.from('search_console_data')
+      .upsert(row, { onConflict: 'date,query' });
+    if (!error) synced++;
+  }
+  return synced;
+}
+
+async function syncGMB() {
+  const rows = await windsorFetch('google_my_business',
+    'date,impressions,clicks,call_clicks,website_clicks,direction_requests,review_count,review_average_rating', 'last_30d');
+  if (rows.length === 0) return 0;
+  let synced = 0;
+  for (const r of rows) {
+    if (!r.date) continue;
+    const row = {
+      date: r.date,
+      impressions: parseInt(r.impressions) || 0,
+      clicks: parseInt(r.clicks) || 0,
+      call_clicks: parseInt(r.call_clicks) || 0,
+      direction_requests: parseInt(r.direction_requests) || 0,
+      website_clicks: parseInt(r.website_clicks) || 0,
+      reviews: parseInt(r.review_count) || 0,
+      avg_rating: parseFloat(r.review_average_rating) || 0,
+      synced_at: new Date().toISOString()
+    };
+    const { error } = await db.from('gmb_data')
+      .upsert(row, { onConflict: 'date' });
+    if (!error) synced++;
+  }
+  return synced;
+}
+
+async function syncAllWindsor(silent) {
+  const apiKey = getWindsorApiKey();
+  if (!apiKey) {
+    if (!silent) toast('Cle API Windsor.ai non configuree — allez dans Parametres', 'warning');
+    return;
+  }
+  if (!db) {
+    if (!silent) toast('Base de donnees non connectee', 'error');
+    return;
+  }
+  if (!silent) toast('Synchronisation Windsor.ai en cours...', 'warning');
+  try {
+    const [ads, ga4, sc, gmb] = await Promise.all([
+      syncGoogleAds(),
+      syncGA4(),
+      syncSearchConsole(),
+      syncGMB()
+    ]);
+    const total = ads + ga4 + sc + gmb;
+    localStorage.setItem('windsor_last_sync', new Date().toISOString());
+    if (!silent) toast(`Sync terminee — ${total} lignes (Ads: ${ads}, GA4: ${ga4}, SC: ${sc}, GMB: ${gmb})`);
+    return total;
+  } catch (e) {
+    if (!silent) toast('Erreur sync Windsor: ' + e.message, 'error');
+    console.error('Windsor sync error:', e);
+    return 0;
+  }
+}
+
+// Auto-sync on page load (every 30 minutes max)
+function autoSyncWindsor() {
+  const lastSync = localStorage.getItem('windsor_last_sync');
+  const thirtyMin = 30 * 60 * 1000;
+  if (!lastSync || (Date.now() - new Date(lastSync).getTime()) > thirtyMin) {
+    syncAllWindsor(true);
+  }
+}
+
+// ============================================
+// ROUTER
+// ============================================
+var pages = {};
+var currentPage = 'dashboard';
+
+window.navigate = function navigate(page) {
+  currentPage = page;
+  $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  const titles = {
+    dashboard: 'Tableau de bord', crm: 'CRM', ads: 'Ads — FB / Google',
+    seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
+    devis: 'Devis', suivi: 'Suivi client',
+    commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres'
+  };
+  $('#page-title').textContent = titles[page] || page;
+  if (pages[page]) pages[page]();
+  else $('#content').innerHTML = `<div class="empty-state"><i class="fas fa-tools"></i><h4>Module en construction</h4></div>`;
+}
+
+$$('.sidebar-nav a[data-page]').forEach(a => {
+  a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
+});
+
+$('#btn-refresh')?.addEventListener('click', () => navigate(currentPage));
+
+// ============================================
+// DASHBOARD MODULE
+// ============================================
+pages.dashboard = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  const [contacts, deals, campaigns, keywords, activities, ga4, gmbData] = await Promise.all([
+    dbSelect('contacts', { order: ['created_at', false] }),
+    dbSelect('deals'),
+    dbSelect('ad_campaigns'),
+    dbSelect('seo_keywords'),
+    dbSelect('activities', { order: ['created_at', false], limit: 10 }),
+    dbSelect('ga4_data', { order: ['date', false] }),
+    dbSelect('gmb_data', { order: ['date', false] })
+  ]);
+
+  const totalLeads = contacts.length;
+  const totalClients = contacts.filter(c => c.status === 'client').length;
+  const pipelineValue = deals.reduce((s, d) => s + (parseFloat(d.value) || 0), 0);
+
+  // Google Analytics KPIs
+  const ga4Sessions = ga4.reduce((s, r) => s + (r.sessions || 0), 0);
+  const ga4Users = ga4.reduce((s, r) => s + (r.users || 0), 0);
+  // GMB KPIs
+  const gmbImpressions = gmbData.reduce((s, r) => s + (r.impressions || 0), 0);
+  const gmbDirections = gmbData.reduce((s, r) => s + (r.direction_requests || 0), 0);
+
+  // Stage counts for pipeline chart
+  const stages = ['nouveaux_leads', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2'];
+  const stageLabels = ['Nvx leads', 'NRP', 'Suivi', 'RDV', 'Devis', 'Att. rep.', 'R2'];
+  const stageCounts = stages.map(s => deals.filter(d => d.stage === s).length);
+  const stageValues = stages.map(s => deals.filter(d => d.stage === s).reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0));
+
+  // GA4 sessions by date (last 14 days for sparkline)
+  const ga4ByDate = {};
+  ga4.forEach(r => { ga4ByDate[r.date] = (ga4ByDate[r.date] || 0) + (r.sessions || 0); });
+  const ga4Dates = Object.keys(ga4ByDate).sort().slice(-14);
+
+  content.innerHTML = `
+    <!-- KPI Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-users"></i></div>
+        <div class="stat-info">
+          <h3>${formatNumber(totalLeads)}</h3>
+          <p>Contacts totaux</p>
+          <span class="trend up"><i class="fas fa-arrow-up"></i> ${totalClients} clients</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon gold"><i class="fas fa-hand-holding-usd"></i></div>
+        <div class="stat-info">
+          <h3>${formatCurrency(pipelineValue)}</h3>
+          <p>Valeur pipeline</p>
+          <span class="trend up"><i class="fas fa-chart-line"></i> ${deals.length} deals</span>
+        </div>
+      </div>
+      <div class="stat-card" style="cursor:pointer" onclick="navigate('analytics')">
+        <div class="stat-icon blue"><i class="fas fa-chart-line"></i></div>
+        <div class="stat-info">
+          <h3>${formatNumber(ga4Sessions)}</h3>
+          <p>Sessions site (30j)</p>
+          <span class="trend up"><i class="fas fa-users"></i> ${formatNumber(ga4Users)} visiteurs</span>
+        </div>
+      </div>
+      <div class="stat-card" style="cursor:pointer" onclick="navigate('gbp')">
+        <div class="stat-icon purple"><i class="fab fa-google"></i></div>
+        <div class="stat-info">
+          <h3>${formatNumber(gmbImpressions)}</h3>
+          <p>Impressions GMB (30j)</p>
+          <span class="trend up"><i class="fas fa-directions"></i> ${formatNumber(gmbDirections)} itineraires</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid-2 mb-24">
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-funnel-dollar"></i> Pipeline des ventes</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-pipeline"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-line"></i> Sessions site web (14j)</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-ga4-mini"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- Bottom Row -->
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header">
+          <h3><i class="fas fa-clock"></i> Activites recentes</h3>
+          <a data-page="activities" class="btn btn-sm btn-outline" onclick="navigate('activities')">Voir tout</a>
+        </div>
+        <div class="panel-body">
+          <div class="activity-feed" id="dash-activities"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-bolt"></i> Actions rapides</h3></div>
+        <div class="panel-body">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn btn-primary" onclick="navigate('crm'); setTimeout(()=>document.getElementById('btn-add-contact')?.click(),200)"><i class="fas fa-user-plus"></i> Ajouter un contact</button>
+            <button class="btn btn-accent" onclick="navigate('devis')"><i class="fas fa-file-invoice-dollar"></i> Nouveau devis</button>
+            <button class="btn btn-outline" onclick="navigate('planning')"><i class="fas fa-calendar-alt"></i> Planning</button>
+            <button class="btn btn-outline" onclick="navigate('crm'); setTimeout(()=>pages.crm('pipeline'),100)"><i class="fas fa-stream"></i> Pipeline</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render activities
+  const actFeed = $('#dash-activities');
+  if (activities.length === 0) {
+    actFeed.innerHTML = '<div class="empty-state"><p>Aucune activite recente</p></div>';
+  } else {
+    actFeed.innerHTML = activities.slice(0, 6).map(a => {
+      const icons = { appel: 'call', email: 'email', reunion: 'meeting', note: 'note', relance: 'email' };
+      const iconClass = icons[a.type] || 'note';
+      const faIcons = { appel: 'fa-phone', email: 'fa-envelope', reunion: 'fa-handshake', note: 'fa-sticky-note', relance: 'fa-redo' };
+      return `<div class="activity-item">
+        <div class="activity-icon ${iconClass}"><i class="fas ${faIcons[a.type] || 'fa-circle'}"></i></div>
+        <div class="activity-text">
+          <p><strong>${a.type}</strong> — ${a.description || 'Pas de description'}</p>
+          <div class="time">${timeAgo(a.created_at)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Charts
+  if (document.getElementById('chart-pipeline')) {
+    new Chart($('#chart-pipeline'), {
+      type: 'bar',
+      data: {
+        labels: stageLabels,
+        datasets: [{
+          label: 'Valeur (EUR)',
+          data: stageValues,
+          backgroundColor: ['#3498db', '#9b59b6', '#1abc9c', '#2ecc71', '#e0a030', '#e67e22', '#8e44ad'],
+          borderRadius: 6,
+          barThickness: 40
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => formatCurrency(v) } } }
+      }
+    });
+  }
+
+  if (ga4Dates.length > 0 && document.getElementById('chart-ga4-mini')) {
+    new Chart($('#chart-ga4-mini'), {
+      type: 'line',
+      data: {
+        labels: ga4Dates.map(d => formatDate(d)),
+        datasets: [{
+          label: 'Sessions',
+          data: ga4Dates.map(d => ga4ByDate[d] || 0),
+          borderColor: '#3498db',
+          backgroundColor: 'rgba(52,152,219,0.15)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+  }
+};
+
+// ============================================
+// CRM MODULE
+// ============================================
+pages.crm = async function(subTab) {
+  subTab = subTab || 'contacts';
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  if (subTab === 'pipeline') { return renderPipeline(content); }
+
+  let contacts = await dbSelect('contacts', { order: ['created_at', false] });
+  let filterStatus = 'all';
+  let searchTerm = '';
+
+  function render() {
+    let filtered = contacts;
+    if (filterStatus !== 'all') filtered = filtered.filter(c => c.status === filterStatus);
+    if (searchTerm) {
+      const s = searchTerm.toLowerCase();
+      filtered = filtered.filter(c =>
+        (c.first_name + ' ' + c.last_name + ' ' + (c.email || '') + ' ' + (c.company || '') + ' ' + (c.city || '')).toLowerCase().includes(s)
+      );
+    }
+
+    const statusCounts = {
+      all: contacts.length,
+      lead: contacts.filter(c => c.status === 'lead').length,
+      prospect: contacts.filter(c => c.status === 'prospect').length,
+      client: contacts.filter(c => c.status === 'client').length,
+      lost: contacts.filter(c => c.status === 'lost').length
+    };
+
+    content.innerHTML = `
+      <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
+        <button class="tab-btn active" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-users"></i> Contacts</button>
+        <button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>
+      </div>
+    ` + `
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="filter-group">
+            <button class="${filterStatus === 'all' ? 'active' : ''}" data-filter="all">Tous (${statusCounts.all})</button>
+            <button class="${filterStatus === 'lead' ? 'active' : ''}" data-filter="lead">Leads (${statusCounts.lead})</button>
+            <button class="${filterStatus === 'prospect' ? 'active' : ''}" data-filter="prospect">Prospects (${statusCounts.prospect})</button>
+            <button class="${filterStatus === 'client' ? 'active' : ''}" data-filter="client">Clients (${statusCounts.client})</button>
+            <button class="${filterStatus === 'lost' ? 'active' : ''}" data-filter="lost">Perdus (${statusCounts.lost})</button>
+          </div>
+          <div class="search-input">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Rechercher un contact..." id="crm-search" value="${searchTerm}">
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-outline btn-sm" id="btn-import-contacts"><i class="fas fa-file-import"></i> Importer</button>
+          <button class="btn btn-primary" id="btn-add-contact"><i class="fas fa-plus"></i> Ajouter</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-body" style="padding:0">
+          ${filtered.length === 0 ? `
+            <div class="empty-state">
+              <i class="fas fa-user-slash"></i>
+              <h4>Aucun contact</h4>
+              <p>Ajoutez votre premier contact pour commencer</p>
+            </div>
+          ` : `
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Contact</th>
+                  <th>Email</th>
+                  <th>Telephone</th>
+                  <th>Entreprise</th>
+                  <th>Source</th>
+                  <th>Statut</th>
+                  <th>Date</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.map(c => `
+                  <tr>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <div class="avatar-sm">${initials(c.first_name, c.last_name)}</div>
+                        <div>
+                          <strong>${c.first_name} ${c.last_name}</strong>
+                          ${c.city ? `<br><span class="text-small text-muted">${c.city}</span>` : ''}
+                        </div>
+                      </div>
+                    </td>
+                    <td class="text-small">${c.email || '—'}</td>
+                    <td class="text-small nowrap">${c.phone || '—'}</td>
+                    <td class="text-small">${c.company || '—'}</td>
+                    <td><span class="text-small">${c.source || '—'}</span></td>
+                    <td><span class="badge-status ${c.status}">${c.status}</span></td>
+                    <td class="text-small text-muted nowrap">${formatDate(c.created_at)}</td>
+                    <td class="text-right nowrap">
+                      <button class="btn-ghost" title="Modifier" onclick="crmEdit('${c.id}')"><i class="fas fa-pen"></i></button>
+                      <button class="btn-ghost" title="Supprimer" onclick="crmDelete('${c.id}','${c.first_name} ${c.last_name}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `}
+        </div>
+      </div>
+    `;
+
+    // Filters
+    content.querySelectorAll('.filter-group button').forEach(btn => {
+      btn.addEventListener('click', () => { filterStatus = btn.dataset.filter; render(); });
+    });
+    // Search
+    const si = content.querySelector('#crm-search');
+    if (si) si.addEventListener('input', e => { searchTerm = e.target.value; render(); });
+    // Add button
+    content.querySelector('#btn-add-contact')?.addEventListener('click', () => crmForm());
+    // Import button
+    content.querySelector('#btn-import-contacts')?.addEventListener('click', crmImport);
+    // CRM sub-tabs
+    content.querySelectorAll('[data-crm-tab]').forEach(function(btn) {
+      btn.addEventListener('click', function() { pages.crm(btn.dataset.crmTab); });
+    });
+  }
+
+  render();
+};
+
+function crmForm(contact = null) {
+  const isEdit = !!contact;
+  const c = contact || {};
+  openModal(isEdit ? 'Modifier le contact' : 'Nouveau contact', `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Prenom *</label>
+        <input type="text" id="f-fname" value="${c.first_name || ''}" required>
+      </div>
+      <div class="form-group">
+        <label>Nom *</label>
+        <input type="text" id="f-lname" value="${c.last_name || ''}" required>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="f-email" value="${c.email || ''}">
+      </div>
+      <div class="form-group">
+        <label>Telephone</label>
+        <input type="text" id="f-phone" value="${c.phone || ''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Entreprise</label>
+        <input type="text" id="f-company" value="${c.company || ''}">
+      </div>
+      <div class="form-group">
+        <label>Poste</label>
+        <input type="text" id="f-job" value="${c.job_title || ''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Source</label>
+        <select id="f-source">
+          ${['manual','website','linkedin','referral','scraping','salon','google'].map(s => `<option value="${s}" ${c.source === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Statut</label>
+        <select id="f-status">
+          ${['lead','prospect','client','lost'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Ville</label>
+        <input type="text" id="f-city" value="${c.city || ''}">
+      </div>
+      <div class="form-group">
+        <label>Code postal</label>
+        <input type="text" id="f-postal" value="${c.postal_code || ''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="f-notes">${c.notes || ''}</textarea>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-contact">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
+  `);
+
+  $('#btn-save-contact').addEventListener('click', async () => {
+    const fname = $('#f-fname').value.trim();
+    const lname = $('#f-lname').value.trim();
+    if (!fname || !lname) { toast('Prenom et nom requis', 'error'); return; }
+    const row = {
+      first_name: fname, last_name: lname,
+      email: $('#f-email').value.trim() || null,
+      phone: $('#f-phone').value.trim() || null,
+      company: $('#f-company').value.trim() || null,
+      job_title: $('#f-job').value.trim() || null,
+      source: $('#f-source').value,
+      status: $('#f-status').value,
+      city: $('#f-city').value.trim() || null,
+      postal_code: $('#f-postal').value.trim() || null,
+      notes: $('#f-notes').value.trim() || null
+    };
+    if (isEdit) {
+      await dbUpdate('contacts', c.id, row);
+      toast('Contact mis a jour');
+    } else {
+      await dbInsert('contacts', row);
+      toast('Contact cree');
+    }
+    closeModal();
+    pages.crm();
+  });
+}
+
+window.crmEdit = async function(id) {
+  const data = await dbSelect('contacts', { eq: [['id', id]] });
+  if (data[0]) crmForm(data[0]);
+};
+
+window.crmDelete = async function(id, name) {
+  openModal('Supprimer le contact', `<p>Voulez-vous vraiment supprimer <strong>${name}</strong> ?</p><p class="text-small text-muted mt-8">Cette action est irreversible.</p>`, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-danger" id="btn-confirm-del">Supprimer</button>
+  `);
+  $('#btn-confirm-del').addEventListener('click', async () => {
+    await dbDelete('contacts', id);
+    toast('Contact supprime');
+    closeModal();
+    pages.crm();
+  });
+};
+
+function crmImport() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,.xls,.csv';
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+        let imported = 0;
+        for (const row of rows) {
+          const contact = {
+            first_name: row['Prenom'] || row['prenom'] || row['first_name'] || row['Nom'] || 'Inconnu',
+            last_name: row['Nom'] || row['nom'] || row['last_name'] || '',
+            email: row['Email'] || row['email'] || row['Mail'] || null,
+            phone: row['Telephone'] || row['telephone'] || row['phone'] || row['Tel'] || null,
+            company: row['Entreprise'] || row['entreprise'] || row['company'] || row['Societe'] || null,
+            city: row['Ville'] || row['ville'] || row['city'] || null,
+            postal_code: row['CP'] || row['Code postal'] || row['postal_code'] || null,
+            source: 'import',
+            status: 'lead'
+          };
+          if (contact.first_name) {
+            await dbInsert('contacts', contact);
+            imported++;
+          }
+        }
+        toast(`${imported} contacts importes`);
+        pages.crm();
+      } catch (err) {
+        toast(`Erreur d'import: ${err.message}`, 'error');
+      }
+    };
+    reader.readAsBinaryString(file);
+  });
+  input.click();
+}
+
+// ============================================
+// PIPELINE MODULE
+// ============================================
+async function renderPipeline(content) {
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  const [deals, contacts] = await Promise.all([
+    dbSelect('deals', { order: ['created_at', false] }),
+    dbSelect('contacts')
+  ]);
+
+  const contactMap = {};
+  contacts.forEach(c => { contactMap[c.id] = c; });
+
+  const stages = [
+    { key: 'nouveaux_leads', label: 'Nouveaux leads', color: '#3498db' },
+    { key: 'nrp', label: 'NRP', color: '#9b59b6' },
+    { key: 'suivi', label: 'Suivi', color: '#1abc9c' },
+    { key: 'rdv_sur_place', label: 'RDV sur place', color: '#2ecc71' },
+    { key: 'devis', label: 'Devis', color: '#e0a030' },
+    { key: 'attente_reponse', label: 'Attente reponse devis', color: '#e67e22' },
+    { key: 'r2', label: 'R2', color: '#8e44ad' },
+    { key: 'gagne', label: 'Gagne', color: '#2d6a4f' },
+    { key: 'perdu', label: 'Perdu', color: '#e74c3c' }
+  ];
+
+  const now = new Date();
+
+  content.innerHTML = `
+    <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
+      <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
+      <button class="tab-btn active" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-stream"></i> Pipeline</button>
+    </div>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="text-muted"><i class="fas fa-stream"></i> ${deals.length} opportunite(s) — Valeur totale: <strong>${formatCurrency(deals.reduce((s, d) => s + (parseFloat(d.value) || 0), 0))}</strong></span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-add-deal"><i class="fas fa-plus"></i> Nouvelle opportunite</button>
+      </div>
+    </div>
+    <div class="pipeline">
+      ${stages.map(st => {
+        const stageDeals = deals.filter(d => d.stage === st.key);
+        const stageValue = stageDeals.reduce((s, d) => s + (parseFloat(d.value) || 0), 0);
+        return '<div class="pipeline-col">' +
+          '<div class="pipeline-col-header" style="border-bottom-color:' + st.color + '">' +
+            '<span>' + st.label + '</span>' +
+            '<span class="count">' + stageDeals.length + '</span>' +
+          '</div>' +
+          '<div class="pipeline-col-body" data-stage="' + st.key + '">' +
+            (stageDeals.length === 0 ? '<div class="text-center text-muted text-small" style="padding:20px">—</div>' : '') +
+            stageDeals.map(function(d) {
+              var c = contactMap[d.contact_id];
+              var contactName = c ? c.first_name + ' ' + c.last_name : d.title;
+              var company = c && c.company ? ' (' + c.company + ')' : '';
+              var daysLate = 0;
+              if (d.expected_close) {
+                var diff = now - new Date(d.expected_close);
+                daysLate = Math.floor(diff / 86400000);
+              }
+              var lateHtml = daysLate > 0 ? '<div style="margin-top:6px"><span style="background:#fee;color:#e74c3c;font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px"><i class="fas fa-exclamation-triangle"></i> ' + daysLate + 'j en retard</span></div>' : '';
+              var dateStr = d.created_at ? formatDate(d.created_at) : '';
+              return '<div class="deal-card" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+                  '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + (c ? initials(c.first_name, c.last_name) : 'NN') + '</div>' +
+                  '<div style="flex:1;min-width:0"><strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + contactName + company + '</strong></div>' +
+                '</div>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-light);margin-top:4px">' +
+                  '<span><i class="fas fa-calendar"></i> ' + dateStr + '</span>' +
+                  (d.notes ? '<span><i class="fas fa-comment"></i> 1</span>' : '') +
+                '</div>' +
+                (d.value > 0 ? '<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-top:4px">' + formatCurrency(d.value) + '</div>' : '') +
+                lateHtml +
+              '</div>';
+            }).join('') +
+          '</div>' +
+          '<div class="text-center text-small text-muted" style="padding:6px;border-top:1px solid var(--border)">' +
+            '<i class="fas fa-coins"></i> ' + stageDeals.length + ' Opportunites &nbsp; ' + formatCurrency(stageValue) +
+          '</div>' +
+        '</div>';
+      }).join('')}
+    </div>
+  `;
+
+  content.querySelector('#btn-add-deal')?.addEventListener('click', () => dealForm(null, contacts));
+
+  // Drag & Drop
+  content.querySelectorAll('.deal-card').forEach(function(card) {
+    card.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', card.dataset.dealId);
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', function() {
+      card.classList.remove('dragging');
+      content.querySelectorAll('.pipeline-col-body').forEach(function(col) { col.classList.remove('drag-over'); });
+    });
+  });
+
+  content.querySelectorAll('.pipeline-col-body').forEach(function(col) {
+    col.addEventListener('dragover', function(e) { e.preventDefault(); });
+    col.addEventListener('dragenter', function(e) {
+      e.preventDefault();
+      col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', function(e) {
+      if (!col.contains(e.relatedTarget)) col.classList.remove('drag-over');
+    });
+    col.addEventListener('drop', async function(e) {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      var dealId = e.dataTransfer.getData('text/plain');
+      var newStage = col.dataset.stage;
+      if (!dealId || !newStage) return;
+      await dbUpdate('deals', dealId, { stage: newStage });
+      toast('Deal deplace vers ' + newStage.replace(/_/g, ' '));
+      pages.crm('pipeline');
+    });
+  });
+
+  // CRM sub-tabs
+  content.querySelectorAll('[data-crm-tab]').forEach(function(btn) {
+    btn.addEventListener('click', function() { pages.crm(btn.dataset.crmTab); });
+  });
+}
+
+function dealForm(deal = null, contacts = []) {
+  const isEdit = !!deal;
+  const d = deal || {};
+  openModal(isEdit ? 'Modifier le deal' : 'Nouveau deal', `
+    <div class="form-group">
+      <label>Titre *</label>
+      <input type="text" id="f-dtitle" value="${d.title || ''}" placeholder="Ex: Maison ossature bois 120m2">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Valeur (EUR)</label>
+        <input type="number" id="f-dvalue" value="${d.value || ''}" step="100">
+      </div>
+      <div class="form-group">
+        <label>Probabilite (%)</label>
+        <input type="number" id="f-dprob" value="${d.probability || ''}" min="0" max="100">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Etape</label>
+        <select id="f-dstage">
+          ${['nouveaux_leads','nrp','suivi','rdv_sur_place','devis','attente_reponse','r2','gagne','perdu'].map(s => `<option value="${s}" ${d.stage === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Cloture prevue</label>
+        <input type="date" id="f-dclose" value="${d.expected_close || ''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Contact associe</label>
+      <select id="f-dcontact">
+        <option value="">— Aucun —</option>
+        ${contacts.map(c => `<option value="${c.id}" ${d.contact_id === c.id ? 'selected' : ''}>${c.first_name} ${c.last_name}${c.company ? ' (' + c.company + ')' : ''}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="f-dnotes">${d.notes || ''}</textarea>
+    </div>
+  `, `
+    ${isEdit ? '<button class="btn btn-danger btn-sm" id="btn-del-deal"><i class="fas fa-trash"></i> Supprimer</button>' : ''}
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-deal">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
+  `);
+
+  $('#btn-save-deal').addEventListener('click', async () => {
+    const title = $('#f-dtitle').value.trim();
+    if (!title) { toast('Titre requis', 'error'); return; }
+    const row = {
+      title,
+      value: parseFloat($('#f-dvalue').value) || 0,
+      probability: parseInt($('#f-dprob').value) || 0,
+      stage: $('#f-dstage').value,
+      expected_close: $('#f-dclose').value || null,
+      contact_id: $('#f-dcontact').value || null,
+      notes: $('#f-dnotes').value.trim() || null
+    };
+    if (isEdit) { await dbUpdate('deals', d.id, row); toast('Deal mis a jour'); }
+    else { await dbInsert('deals', row); toast('Deal cree'); }
+    closeModal();
+    pages.crm('pipeline');
+  });
+
+  if (isEdit) {
+    $('#btn-del-deal')?.addEventListener('click', async () => {
+      await dbDelete('deals', d.id);
+      toast('Deal supprime');
+      closeModal();
+      pages.crm('pipeline');
+    });
+  }
+}
+
+window.dealEdit = async function(id) {
+  const [deals, contacts] = await Promise.all([
+    dbSelect('deals', { eq: [['id', id]] }),
+    dbSelect('contacts')
+  ]);
+  if (deals[0]) dealForm(deals[0], contacts);
+};
+
+// ============================================
+// DEAL DETAIL VIEW (noCRM style)
+// ============================================
+window.dealView = async function(id) {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+  $('#page-title').textContent = 'Detail du lead';
+
+  const [deals, contacts, activities] = await Promise.all([
+    dbSelect('deals', { eq: [['id', id]] }),
+    dbSelect('contacts'),
+    dbSelect('activities', { order: ['created_at', false] })
+  ]);
+
+  const d = deals[0];
+  if (!d) { content.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Lead introuvable</h4></div>'; return; }
+
+  const contactMap = {};
+  contacts.forEach(function(c) { contactMap[c.id] = c; });
+  const contact = contactMap[d.contact_id];
+  const dealActivities = activities.filter(function(a) { return a.deal_id === d.id || a.contact_id === d.contact_id; });
+
+  // Parse description for structured fields
+  var parsedFields = parseDescription(d.notes || '');
+  var stageColors = {
+    nouveaux_leads: '#3498db', nrp: '#9b59b6', suivi: '#1abc9c',
+    rdv_sur_place: '#2ecc71', devis: '#e0a030', attente_reponse: '#e67e22',
+    r2: '#8e44ad', gagne: '#2d6a4f', perdu: '#e74c3c'
+  };
+  var stageLabels = {
+    nouveaux_leads: 'Nouveaux leads', nrp: 'NRP', suivi: 'Suivi',
+    rdv_sur_place: 'RDV sur place', devis: 'Devis', attente_reponse: 'Attente reponse',
+    r2: 'R2', gagne: 'Gagne', perdu: 'Perdu'
+  };
+  var stageColor = stageColors[d.stage] || '#888';
+  var stageLabel = stageLabels[d.stage] || d.stage;
+  var contactName = contact ? contact.first_name + ' ' + contact.last_name : d.title;
+  var contactInits = contact ? initials(contact.first_name, contact.last_name) : (d.title ? d.title.replace(/[^A-Za-z\u00C0-\u024F ]/g, '').trim().split(/\s+/).map(function(w) { return w[0] || ''; }).join('').toUpperCase().substring(0, 2) : 'NN');
+
+  // Extract phone & email from parsed fields or contact
+  var phone = parsedFields.tel || parsedFields.telephone || parsedFields['tel.'] || parsedFields['tél'] || (contact && contact.phone) || '';
+  var email = parsedFields.mail || parsedFields.email || (contact && contact.email) || '';
+  var ville = parsedFields.commune || parsedFields.ville || parsedFields.city || (contact && contact.city) || '';
+
+  // Extract attachments from notes (look for [FICHIER: ...] patterns)
+  var attachments = extractAttachments(d.notes || '');
+
+  // Build info fields from parsed description
+  var infoFieldsHtml = '';
+  var hiddenKeys = ['__raw'];
+  var fieldsToShow = Object.entries(parsedFields).filter(function(kv) {
+    if (hiddenKeys.indexOf(kv[0]) >= 0) return false;
+    if (!kv[1] || !kv[1].trim()) return false;
+    // Hide separator lines
+    if (kv[1].trim() === '---') return false;
+    return true;
+  });
+  fieldsToShow.forEach(function(kv) {
+    var label = kv[0];
+    var val = kv[1];
+    // Format special fields
+    var labelLC = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (['tel', 'telephone', 'tel.', 'tel:'].indexOf(labelLC) >= 0 || label.toLowerCase().match(/^t[eé]l/)) {
+      val = '<a href="tel:' + val.replace(/\s/g, '') + '"><i class="fas fa-phone"></i> ' + escHtml(val) + '</a>';
+    } else if (['mail', 'email'].indexOf(labelLC) >= 0) {
+      val = '<a href="mailto:' + val + '"><i class="fas fa-envelope"></i> ' + escHtml(val) + '</a>';
+    } else {
+      val = escHtml(val);
+    }
+    infoFieldsHtml += '<div class="deal-info-row"><div class="deal-info-label">' + escHtml(capitalize(label)) + '</div><div class="deal-info-value">' + val + '</div></div>';
+  });
+
+  // Raw description (text that wasn't parsed as key-value)
+  var rawDesc = parsedFields.__raw || '';
+
+  // Attachments HTML
+  var attHtml = '';
+  if (attachments.length > 0) {
+    attHtml = '<div class="deal-attachments"><div class="att-header"><i class="fas fa-paperclip"></i> Pieces jointes (' + attachments.length + ')</div><div class="att-grid">' +
+      attachments.map(function(att) {
+        var iconClass = 'fas fa-file';
+        var colorClass = '';
+        var nameLC = att.name.toLowerCase();
+        if (nameLC.match(/\.(jpg|jpeg|png|gif|heic|webp|bmp|svg)$/)) { iconClass = 'fas fa-file-image'; colorClass = 'img'; }
+        else if (nameLC.match(/\.(pdf)$/)) { iconClass = 'fas fa-file-pdf'; colorClass = 'pdf'; }
+        else if (nameLC.match(/\.(doc|docx)$/)) { iconClass = 'fas fa-file-word'; colorClass = 'doc'; }
+        else if (nameLC.match(/\.(xls|xlsx)$/)) { iconClass = 'fas fa-file-excel'; colorClass = 'doc'; }
+        var wrapStart = att.url ? '<a href="' + escHtml(att.url) + '" target="_blank" class="att-item" style="text-decoration:none;color:inherit;cursor:pointer">' : '<div class="att-item">';
+        var wrapEnd = att.url ? '</a>' : '</div>';
+        return wrapStart + '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div><div class="att-name" title="' + escHtml(att.name) + '">' + escHtml(att.name) + '</div>' +
+          (att.date ? '<div class="att-date">' + att.date + '</div>' : '') + wrapEnd;
+      }).join('') +
+    '</div></div>';
+  }
+
+  // Timeline / activities HTML
+  var timelineHtml = '';
+  // First add comments from notes (parsed sections starting with dates or names)
+  var commentsFromNotes = extractComments(d.notes || '');
+  var allTimelineItems = [];
+
+  commentsFromNotes.forEach(function(c) {
+    allTimelineItems.push({
+      type: 'comment',
+      author: c.author || 'Yoann Contal',
+      date: c.date || '',
+      text: c.text,
+      sortDate: c.sortDate || new Date(0)
+    });
+  });
+
+  dealActivities.forEach(function(a) {
+    allTimelineItems.push({
+      type: a.type || 'activity',
+      author: 'Yoann Contal',
+      date: formatDateTime(a.created_at),
+      text: a.notes || a.description || (a.type === 'call' ? 'Appel telephonique' : a.type === 'email' ? 'Email envoye' : a.type === 'meeting' ? 'Rendez-vous' : 'Activite'),
+      sortDate: new Date(a.created_at)
+    });
+  });
+
+  // Sort by date descending
+  allTimelineItems.sort(function(a, b) { return b.sortDate - a.sortDate; });
+
+  if (allTimelineItems.length > 0) {
+    timelineHtml = '<div class="deal-timeline"><div class="tl-header"><i class="fas fa-history"></i> Historique & Commentaires (' + allTimelineItems.length + ')</div><div class="tl-list">' +
+      allTimelineItems.map(function(item) {
+        var authorInits = item.author.split(' ').map(function(w) { return w[0] || ''; }).join('').toUpperCase().substring(0, 2);
+        var typeClass = item.type === 'comment' ? 'comment' : item.type === 'status' ? 'status' : 'activity';
+        var typeLabel = item.type === 'comment' ? 'Commentaire' : item.type === 'call' ? 'Appel' : item.type === 'email' ? 'Email' : item.type === 'meeting' ? 'RDV' : item.type === 'status' ? 'Statut' : 'Note';
+        return '<div class="tl-item">' +
+          '<div class="tl-avatar">' + authorInits + '</div>' +
+          '<div class="tl-content">' +
+            '<div class="tl-meta">' +
+              '<span class="tl-author">' + escHtml(item.author) + '</span>' +
+              '<span class="tl-date">' + escHtml(item.date) + '</span>' +
+              '<span class="tl-type ' + typeClass + '">' + typeLabel + '</span>' +
+            '</div>' +
+            '<div class="tl-text">' + escHtml(item.text) + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+    '</div></div>';
+  }
+
+  content.innerHTML = `
+    <div class="deal-header">
+      <div class="deal-header-left">
+        <div class="deal-avatar" style="background:${stageColor}">${contactInits}</div>
+        <div>
+          <h2>${escHtml(d.title || contactName)}</h2>
+          <span class="deal-stage-badge" style="background:${stageColor}">${stageLabel}</span>
+          ${ville ? ' <span style="font-size:0.82rem;color:var(--text-light);margin-left:8px"><i class="fas fa-map-marker-alt"></i> ' + escHtml(ville) + '</span>' : ''}
+        </div>
+      </div>
+      <div class="deal-header-actions">
+        ${phone ? '<a href="tel:' + phone.replace(/\s/g, '') + '" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> Appeler</a>' : ''}
+        ${email ? '<a href="mailto:' + email + '" class="btn btn-outline btn-sm"><i class="fas fa-envelope"></i> Email</a>' : ''}
+        <button class="btn btn-primary btn-sm" onclick="dealEditFromView('${d.id}')"><i class="fas fa-pen"></i> Modifier</button>
+        <button class="btn btn-outline btn-sm" onclick="pages.crm('pipeline')"><i class="fas fa-arrow-left"></i> Retour</button>
+      </div>
+    </div>
+
+    <div class="deal-detail">
+      <div class="deal-detail-main">
+        ${infoFieldsHtml ? `
+          <div class="deal-description-block">
+            <div class="desc-header"><i class="fas fa-list-alt"></i> Informations du lead</div>
+            <div class="deal-info-grid">${infoFieldsHtml}</div>
+          </div>
+        ` : ''}
+
+        ${rawDesc ? `
+          <div class="deal-description-block">
+            <div class="desc-header"><i class="fas fa-align-left"></i> Description</div>
+            <div class="desc-body">${escHtml(rawDesc)}</div>
+          </div>
+        ` : ''}
+
+        ${timelineHtml}
+      </div>
+
+      <div class="deal-detail-sidebar">
+        <div class="deal-sidebar-card">
+          <div class="deal-value-big">
+            ${formatCurrency(d.value || 0)}
+            <small>Valeur du deal</small>
+          </div>
+        </div>
+
+        <div class="deal-sidebar-card">
+          <div class="sc-header"><i class="fas fa-info-circle"></i> Details</div>
+          <div class="sc-body">
+            <div class="sc-row"><span class="sc-label">Etape</span><span class="sc-val"><span class="deal-stage-badge" style="background:${stageColor};font-size:0.68rem">${stageLabel}</span></span></div>
+            <div class="sc-row"><span class="sc-label">Probabilite</span><span class="sc-val">${d.probability || 0}%</span></div>
+            <div class="sc-row"><span class="sc-label">Cloture prevue</span><span class="sc-val">${d.expected_close ? formatDate(d.expected_close) : '—'}</span></div>
+            <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDate(d.created_at)}</span></div>
+            <div class="sc-row"><span class="sc-label">Mis a jour</span><span class="sc-val">${formatDate(d.updated_at)}</span></div>
+          </div>
+        </div>
+
+        ${contact ? `
+          <div class="deal-sidebar-card">
+            <div class="sc-header"><i class="fas fa-user"></i> Contact</div>
+            <div class="sc-body">
+              <div class="sc-row"><span class="sc-label">Nom</span><span class="sc-val">${escHtml(contact.first_name + ' ' + contact.last_name)}</span></div>
+              ${contact.company ? '<div class="sc-row"><span class="sc-label">Societe</span><span class="sc-val">' + escHtml(contact.company) + '</span></div>' : ''}
+              ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:' + contact.email + '">' + escHtml(contact.email) + '</a></span></div>' : ''}
+              ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '">' + escHtml(contact.phone) + '</a></span></div>' : ''}
+              ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + '</span></div>' : ''}
+            </div>
+          </div>
+        ` : ''}
+
+        ${attHtml}
+      </div>
+    </div>
+  `;
+};
+
+window.dealEditFromView = async function(id) {
+  const [deals, contacts] = await Promise.all([
+    dbSelect('deals', { eq: [['id', id]] }),
+    dbSelect('contacts')
+  ]);
+  if (deals[0]) dealForm(deals[0], contacts);
+};
+
+// Helper: escape HTML
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Helper: capitalize first letter
+function capitalize(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Parse description text into key-value fields
+function parseDescription(text) {
+  if (!text) return { __raw: '' };
+  var result = {};
+  var rawLines = [];
+  var lines = text.split('\n');
+  var inRawSection = false;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    // Stop parsing key-value when we reach special sections
+    if (line.match(/^---\s*(COMMENTAIRES|COMMENTS|HISTORIQUE|PIECES JOINTES|FICHIERS|ATTACHMENTS)/i)) {
+      break;
+    }
+    // Bare "---" separator means switch to raw description
+    if (line.trim() === '---') {
+      inRawSection = true;
+      continue;
+    }
+    if (inRawSection) {
+      if (line.trim()) rawLines.push(line);
+      continue;
+    }
+
+    // Try to parse key: value pairs (handle accented chars like tél, référence, etc.)
+    var match = line.match(/^([A-Za-z\u00C0-\u024F\s._'-]+?)\s*:\s*(.*)$/);
+    if (match && match[1].length < 40) {
+      var key = match[1].trim();
+      var val = (match[2] || '').trim();
+      var keyLC = key.toLowerCase();
+      // Skip keys that look like timestamps
+      if (!keyLC.match(/^\d+\/\d+\/\d+/) && !keyLC.match(/^http/)) {
+        // Only store if value is not empty
+        if (val) {
+          result[keyLC] = val;
+        }
+      } else {
+        rawLines.push(line);
+      }
+    } else if (line.trim()) {
+      rawLines.push(line);
+    }
+  }
+
+  result.__raw = rawLines.join('\n').trim();
+  return result;
+}
+
+// Extract attachments from notes text
+function extractAttachments(text) {
+  var attachments = [];
+  // Pattern: [FICHIER: name.ext] or [FICHIER: name.ext - date]
+  var regex = /\[FICHIER:\s*([^\]]+)\]/gi;
+  var match;
+  while ((match = regex.exec(text)) !== null) {
+    var parts = match[1].split(' - ');
+    attachments.push({
+      name: parts[0].trim(),
+      date: parts[1] ? parts[1].trim() : ''
+    });
+  }
+  // Also look for lines like "- filename.ext (date) [url]" in attachment sections
+  var inAttSection = false;
+  text.split('\n').forEach(function(line) {
+    if (line.match(/^---\s*(PIECES JOINTES|FICHIERS|ATTACHMENTS)/i) || line.match(/PIECES JOINTES/i)) {
+      inAttSection = true;
+      return;
+    }
+    if (inAttSection && line.match(/^---/)) { inAttSection = false; return; }
+    if (inAttSection && line.trim()) {
+      var m = line.match(/^[-*]\s*(.+?)\s*(?:\(([^)]+)\))?\s*(?:\[([^\]]+)\])?$/);
+      if (m) {
+        var name = m[1].trim();
+        if (name && !attachments.find(function(a) { return a.name === name; })) {
+          attachments.push({ name: name, date: m[2] ? m[2].trim() : '', url: m[3] ? m[3].trim() : '' });
+        }
+      }
+    }
+  });
+  return attachments;
+}
+
+// Extract comments from notes text
+function extractComments(text) {
+  var comments = [];
+  var inComments = false;
+  var currentComment = null;
+  var lines = text.split('\n');
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (line.match(/^---\s*(COMMENTAIRES|COMMENTS|HISTORIQUE)/i) || line.match(/^=+\s*(COMMENTAIRES|COMMENTS)/i)) {
+      inComments = true;
+      continue;
+    }
+    if (line.match(/^---\s*(PIECES JOINTES|FICHIERS)/i)) {
+      inComments = false;
+      continue;
+    }
+    if (!inComments) continue;
+
+    // Detect comment header: "Name DD/MM/YYYY HH:MM" or similar
+    var headerMatch = line.match(/^([A-Za-z\u00C0-\u024F][\w\u00C0-\u024F ]+?)\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}(?:\s+\d{1,2}[h:]\d{2})?)/);
+    if (headerMatch) {
+      if (currentComment) comments.push(currentComment);
+      var dateStr = headerMatch[2].trim();
+      var parsedDate = parseFlexDate(dateStr);
+      currentComment = {
+        author: headerMatch[1].trim(),
+        date: dateStr,
+        text: line.substring(headerMatch[0].length).replace(/^\s*[-:]\s*/, '').trim(),
+        sortDate: parsedDate
+      };
+    } else if (currentComment && line.trim()) {
+      currentComment.text += (currentComment.text ? '\n' : '') + line.trim();
+    }
+  }
+  if (currentComment) comments.push(currentComment);
+  return comments;
+}
+
+// Parse flexible date formats
+function parseFlexDate(str) {
+  if (!str) return new Date(0);
+  var m = str.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})(?:\s+(\d{1,2})[h:](\d{2}))?/);
+  if (m) {
+    var year = parseInt(m[3]);
+    if (year < 100) year += 2000;
+    return new Date(year, parseInt(m[2]) - 1, parseInt(m[1]), parseInt(m[4] || 0), parseInt(m[5] || 0));
+  }
+  return new Date(0);
+}
+
+// ============================================
+// ADS MODULE
+// ============================================
+pages.ads = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  let adsTab = 'google';
+  let [campaigns, googleAds] = await Promise.all([
+    dbSelect('ad_campaigns', { order: ['created_at', false] }),
+    dbSelect('google_ads_data', { order: ['date', false] })
+  ]);
+  let filterPlatform = 'all';
+
+  function render() {
+    const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
+    const gaTotalClicks = googleAds.reduce((s, r) => s + (r.clicks || 0), 0);
+    const gaTotalSpend = googleAds.reduce((s, r) => s + (parseFloat(r.spend) || 0), 0);
+    const gaCtr = gaTotalImpr > 0 ? (gaTotalClicks / gaTotalImpr * 100).toFixed(2) : 0;
+
+    content.innerHTML = `
+      <div class="tabs" style="margin-bottom:20px">
+        <button class="tab-btn ${adsTab === 'google' ? 'active' : ''}" data-adtab="google"><i class="fab fa-google"></i> Google Ads (live)</button>
+        <button class="tab-btn ${adsTab === 'manual' ? 'active' : ''}" data-adtab="manual"><i class="fas fa-edit"></i> Campagnes manuelles</button>
+      </div>
+      <div id="ads-tab-content"></div>
+    `;
+    content.querySelectorAll('.tab-btn[data-adtab]').forEach(btn => {
+      btn.addEventListener('click', () => { adsTab = btn.dataset.adtab; render(); });
+    });
+    const tabContent = content.querySelector('#ads-tab-content');
+
+    if (adsTab === 'google') {
+      const byCampaign = {};
+      const byDate = {};
+      googleAds.forEach(r => {
+        const c = r.campaign || 'Sans nom';
+        if (!byCampaign[c]) byCampaign[c] = { impressions: 0, clicks: 0, spend: 0, conversions: 0 };
+        byCampaign[c].impressions += r.impressions || 0;
+        byCampaign[c].clicks += r.clicks || 0;
+        byCampaign[c].spend += parseFloat(r.spend) || 0;
+        byCampaign[c].conversions += r.conversions || 0;
+        if (r.date) {
+          if (!byDate[r.date]) byDate[r.date] = { spend: 0, clicks: 0, impressions: 0 };
+          byDate[r.date].spend += parseFloat(r.spend) || 0;
+          byDate[r.date].clicks += r.clicks || 0;
+          byDate[r.date].impressions += r.impressions || 0;
+        }
+      });
+      const sortedDates = Object.keys(byDate).sort();
+      const gaTotalConv = googleAds.reduce((s, r) => s + (r.conversions || 0), 0);
+      const gaAvgCpc = gaTotalClicks > 0 ? (gaTotalSpend / gaTotalClicks).toFixed(2) : 0;
+      const gaConvRate = gaTotalClicks > 0 ? (gaTotalConv / gaTotalClicks * 100).toFixed(2) : 0;
+      tabContent.innerHTML = `
+        <div class="stats-grid" style="margin-bottom:20px">
+          <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-eye"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalImpr)}</h3><p>Impressions</p></div></div>
+          <div class="stat-card"><div class="stat-icon green"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalClicks)}</h3><p>Clics</p></div></div>
+          <div class="stat-card"><div class="stat-icon gold"><i class="fas fa-percentage"></i></div><div class="stat-info"><h3>${gaCtr}%</h3><p>CTR</p></div></div>
+          <div class="stat-card"><div class="stat-icon red"><i class="fas fa-euro-sign"></i></div><div class="stat-info"><h3>${formatCurrency(gaTotalSpend)}</h3><p>Depense totale</p></div></div>
+          <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-bullseye"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalConv)}</h3><p>Conversions</p></div></div>
+          <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-coins"></i></div><div class="stat-info"><h3>${gaAvgCpc} EUR</h3><p>CPC moyen</p></div></div>
+        </div>
+        ${sortedDates.length > 1 ? `
+        <div class="grid-2 mb-24">
+          <div class="panel">
+            <div class="panel-header"><h3><i class="fas fa-chart-area"></i> Depense / jour</h3></div>
+            <div class="panel-body"><div class="chart-container"><canvas id="chart-ads-spend"></canvas></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h3><i class="fas fa-chart-line"></i> Clics / jour</h3></div>
+            <div class="panel-body"><div class="chart-container"><canvas id="chart-ads-clicks"></canvas></div></div>
+          </div>
+        </div>
+        ` : ''}
+        <div class="panel">
+          <div class="panel-header">
+            <h3><i class="fab fa-google"></i> Campagnes Google Ads</h3>
+            <button class="btn btn-sm btn-outline" id="btn-refresh-ads"><i class="fas fa-sync-alt"></i> Actualiser</button>
+          </div>
+          <div class="panel-body" style="padding:0">
+            ${Object.keys(byCampaign).length === 0 ? '<div class="empty-state"><i class="fab fa-google"></i><h4>Aucune donnee Google Ads</h4><p>Configurez Windsor.ai dans les Parametres pour synchroniser.</p></div>' : `
+              <table class="data-table">
+                <thead><tr><th>Campagne</th><th>Impressions</th><th>Clics</th><th>CTR</th><th>CPC moy.</th><th>Depense</th><th>Conversions</th><th>Taux conv.</th></tr></thead>
+                <tbody>
+                  ${Object.entries(byCampaign).sort((a, b) => b[1].spend - a[1].spend).map(([name, data]) => {
+                    const ctr = data.impressions > 0 ? (data.clicks / data.impressions * 100).toFixed(2) : 0;
+                    const cpc = data.clicks > 0 ? (data.spend / data.clicks).toFixed(2) : 0;
+                    const convRate = data.clicks > 0 ? (data.conversions / data.clicks * 100).toFixed(1) : 0;
+                    return `<tr><td><strong>${name}</strong></td><td>${formatNumber(data.impressions)}</td><td>${formatNumber(data.clicks)}</td><td>${ctr}%</td><td>${cpc} EUR</td><td>${formatCurrency(data.spend)}</td><td>${formatNumber(data.conversions)}</td><td>${convRate}%</td></tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            `}
+          </div>
+        </div>
+        <div class="text-small text-muted mt-16" style="text-align:right">
+          <i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google Ads — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}
+        </div>
+      `;
+      content.querySelector('#btn-refresh-ads')?.addEventListener('click', async () => {
+        toast('Sync Google Ads...', 'warning');
+        await syncGoogleAds();
+        localStorage.setItem('windsor_last_sync', new Date().toISOString());
+        googleAds = await dbSelect('google_ads_data', { order: ['date', false] });
+        render();
+        toast('Google Ads actualise');
+      });
+      if (sortedDates.length > 1) {
+        if (document.getElementById('chart-ads-spend')) {
+          new Chart($('#chart-ads-spend'), {
+            type: 'bar',
+            data: {
+              labels: sortedDates.map(d => formatDate(d)),
+              datasets: [{ label: 'Depense (EUR)', data: sortedDates.map(d => byDate[d].spend.toFixed(2)), backgroundColor: 'rgba(231,76,60,0.7)', borderColor: '#e74c3c', borderWidth: 1 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+          });
+        }
+        if (document.getElementById('chart-ads-clicks')) {
+          new Chart($('#chart-ads-clicks'), {
+            type: 'line',
+            data: {
+              labels: sortedDates.map(d => formatDate(d)),
+              datasets: [
+                { label: 'Clics', data: sortedDates.map(d => byDate[d].clicks), borderColor: '#2d6a4f', backgroundColor: 'rgba(45,106,79,0.1)', tension: 0.3, fill: true },
+                { label: 'Impressions (÷100)', data: sortedDates.map(d => Math.round(byDate[d].impressions / 100)), borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', tension: 0.3, fill: true }
+              ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+          });
+        }
+      }
+      return;
+    }
+
+    // Manual campaigns tab
+    let filtered = campaigns;
+    if (filterPlatform !== 'all') filtered = filtered.filter(c => c.platform === filterPlatform);
+    const totalBudget = campaigns.reduce((s, c) => s + (parseFloat(c.budget_total) || 0), 0);
+    const totalSpent = campaigns.reduce((s, c) => s + (parseFloat(c.spent) || 0), 0);
+    const activeCount = campaigns.filter(c => c.status === 'actif').length;
+
+    tabContent.innerHTML = `
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-bullhorn"></i></div>
+          <div class="stat-info"><h3>${campaigns.length}</h3><p>Campagnes totales</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-play-circle"></i></div>
+          <div class="stat-info"><h3>${activeCount}</h3><p>Actives</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon gold"><i class="fas fa-wallet"></i></div>
+          <div class="stat-info"><h3>${formatCurrency(totalBudget)}</h3><p>Budget total</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><i class="fas fa-receipt"></i></div>
+          <div class="stat-info">
+            <h3>${formatCurrency(totalSpent)}</h3><p>Total depense</p>
+            ${totalBudget > 0 ? `<div class="progress-bar mt-8" style="width:120px"><div class="progress-bar-fill ${(totalSpent/totalBudget)>0.9?'danger':(totalSpent/totalBudget)>0.7?'warning':''}" style="width:${Math.min(100,totalSpent/totalBudget*100)}%"></div></div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="filter-group">
+            <button class="${filterPlatform === 'all' ? 'active' : ''}" data-pf="all">Toutes</button>
+            <button class="${filterPlatform === 'google' ? 'active' : ''}" data-pf="google"><i class="fab fa-google"></i> Google</button>
+            <button class="${filterPlatform === 'facebook' ? 'active' : ''}" data-pf="facebook"><i class="fab fa-facebook"></i> Facebook</button>
+            <button class="${filterPlatform === 'instagram' ? 'active' : ''}" data-pf="instagram"><i class="fab fa-instagram"></i> Instagram</button>
+            <button class="${filterPlatform === 'linkedin' ? 'active' : ''}" data-pf="linkedin"><i class="fab fa-linkedin"></i> LinkedIn</button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-primary" id="btn-add-campaign"><i class="fas fa-plus"></i> Nouvelle campagne</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-body" style="padding:0">
+          ${filtered.length === 0 ? `
+            <div class="empty-state">
+              <i class="fas fa-ad"></i>
+              <h4>Aucune campagne</h4>
+              <p>Creez votre premiere campagne publicitaire</p>
+            </div>
+          ` : `
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Campagne</th>
+                  <th>Plateforme</th>
+                  <th>Statut</th>
+                  <th>Budget</th>
+                  <th>Depense</th>
+                  <th>Progression</th>
+                  <th>Periode</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.map(c => {
+                  const pct = c.budget_total > 0 ? Math.round((parseFloat(c.spent) || 0) / c.budget_total * 100) : 0;
+                  return `
+                    <tr>
+                      <td>
+                        <strong>${c.name}</strong>
+                        ${c.objective ? `<br><span class="text-small text-muted">${c.objective}</span>` : ''}
+                      </td>
+                      <td><span class="badge-platform ${c.platform}"><i class="fab fa-${c.platform}"></i> ${c.platform}</span></td>
+                      <td><span class="badge-status ${c.status}">${c.status}</span></td>
+                      <td class="nowrap">${formatCurrency(c.budget_total)}</td>
+                      <td class="nowrap">${formatCurrency(c.spent)}</td>
+                      <td>
+                        <div class="progress-bar" style="width:100px">
+                          <div class="progress-bar-fill ${pct > 90 ? 'danger' : pct > 70 ? 'warning' : ''}" style="width:${Math.min(100, pct)}%"></div>
+                        </div>
+                        <span class="text-small text-muted">${pct}%</span>
+                      </td>
+                      <td class="text-small text-muted nowrap">${formatDate(c.start_date)} - ${formatDate(c.end_date)}</td>
+                      <td class="text-right nowrap">
+                        <button class="btn-ghost" title="Metriques" onclick="adMetrics('${c.id}','${c.name}')"><i class="fas fa-chart-bar"></i></button>
+                        <button class="btn-ghost" title="Modifier" onclick="adEdit('${c.id}')"><i class="fas fa-pen"></i></button>
+                        <button class="btn-ghost" title="Supprimer" onclick="adDelete('${c.id}','${c.name}')"><i class="fas fa-trash"></i></button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          `}
+        </div>
+      </div>
+    `;
+
+    content.querySelectorAll('.filter-group button[data-pf]').forEach(btn => {
+      btn.addEventListener('click', () => { filterPlatform = btn.dataset.pf; render(); });
+    });
+    content.querySelector('#btn-add-campaign')?.addEventListener('click', () => adForm());
+  }
+  render();
+};
+
+function adForm(campaign = null) {
+  const isEdit = !!campaign;
+  const c = campaign || {};
+  openModal(isEdit ? 'Modifier la campagne' : 'Nouvelle campagne', `
+    <div class="form-group">
+      <label>Nom de la campagne *</label>
+      <input type="text" id="f-aname" value="${c.name || ''}" placeholder="Ex: Maisons bois - Sud France">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Plateforme</label>
+        <select id="f-aplatform">
+          ${['google','facebook','instagram','linkedin'].map(p => `<option value="${p}" ${c.platform === p ? 'selected' : ''}>${p.charAt(0).toUpperCase() + p.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Objectif</label>
+        <select id="f-aobjective">
+          ${['traffic','leads','conversions','notoriete'].map(o => `<option value="${o}" ${c.objective === o ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Budget journalier (EUR)</label>
+        <input type="number" id="f-abudget-daily" value="${c.budget_daily || ''}" step="1">
+      </div>
+      <div class="form-group">
+        <label>Budget total (EUR)</label>
+        <input type="number" id="f-abudget-total" value="${c.budget_total || ''}" step="10">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Depense actuelle (EUR)</label>
+        <input type="number" id="f-aspent" value="${c.spent || ''}" step="1">
+      </div>
+      <div class="form-group">
+        <label>Statut</label>
+        <select id="f-astatus">
+          ${['brouillon','actif','en_pause','termine'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date debut</label>
+        <input type="date" id="f-astart" value="${c.start_date || ''}">
+      </div>
+      <div class="form-group">
+        <label>Date fin</label>
+        <input type="date" id="f-aend" value="${c.end_date || ''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Audience ciblee</label>
+      <input type="text" id="f-aaudience" value="${c.target_audience || ''}" placeholder="Ex: 30-55 ans, proprietaires, Sud France">
+    </div>
+    <div class="form-group">
+      <label>Zone geographique</label>
+      <input type="text" id="f-alocation" value="${c.target_location || ''}" placeholder="Ex: Occitanie, PACA">
+    </div>
+    <div class="form-group">
+      <label>Texte publicitaire</label>
+      <textarea id="f-acopy">${c.ad_copy || ''}</textarea>
+    </div>
+    <div class="form-group">
+      <label>URL de destination</label>
+      <input type="url" id="f-aurl" value="${c.landing_url || ''}">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="f-anotes">${c.notes || ''}</textarea>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-ad">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
+  `);
+
+  $('#btn-save-ad').addEventListener('click', async () => {
+    const name = $('#f-aname').value.trim();
+    if (!name) { toast('Nom requis', 'error'); return; }
+    const row = {
+      name,
+      platform: $('#f-aplatform').value,
+      objective: $('#f-aobjective').value,
+      budget_daily: parseFloat($('#f-abudget-daily').value) || 0,
+      budget_total: parseFloat($('#f-abudget-total').value) || 0,
+      spent: parseFloat($('#f-aspent').value) || 0,
+      status: $('#f-astatus').value,
+      start_date: $('#f-astart').value || null,
+      end_date: $('#f-aend').value || null,
+      target_audience: $('#f-aaudience').value.trim() || null,
+      target_location: $('#f-alocation').value.trim() || null,
+      ad_copy: $('#f-acopy').value.trim() || null,
+      landing_url: $('#f-aurl').value.trim() || null,
+      notes: $('#f-anotes').value.trim() || null
+    };
+    if (isEdit) { await dbUpdate('ad_campaigns', c.id, row); toast('Campagne mise a jour'); }
+    else { await dbInsert('ad_campaigns', row); toast('Campagne creee'); }
+    closeModal();
+    pages.ads();
+  });
+}
+
+window.adEdit = async function(id) {
+  const data = await dbSelect('ad_campaigns', { eq: [['id', id]] });
+  if (data[0]) adForm(data[0]);
+};
+
+window.adDelete = async function(id, name) {
+  openModal('Supprimer la campagne', `<p>Supprimer <strong>${name}</strong> et toutes ses metriques ?</p>`, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-danger" id="btn-confirm-del-ad">Supprimer</button>
+  `);
+  $('#btn-confirm-del-ad').addEventListener('click', async () => {
+    await dbDelete('ad_campaigns', id);
+    toast('Campagne supprimee');
+    closeModal();
+    pages.ads();
+  });
+};
+
+window.adMetrics = async function(campaignId, campaignName) {
+  const metrics = await dbSelect('ad_metrics', { eq: [['campaign_id', campaignId]], order: ['date'] });
+
+  const totalImpressions = metrics.reduce((s, m) => s + (m.impressions || 0), 0);
+  const totalClicks = metrics.reduce((s, m) => s + (m.clicks || 0), 0);
+  const totalConversions = metrics.reduce((s, m) => s + (m.conversions || 0), 0);
+  const totalCost = metrics.reduce((s, m) => s + (parseFloat(m.cost) || 0), 0);
+  const totalRevenue = metrics.reduce((s, m) => s + (parseFloat(m.revenue) || 0), 0);
+  const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : 0;
+  const cpc = totalClicks > 0 ? (totalCost / totalClicks).toFixed(2) : 0;
+  const roas = totalCost > 0 ? (totalRevenue / totalCost).toFixed(2) : 0;
+
+  openModal(`Metriques — ${campaignName}`, `
+    <div class="stats-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:20px">
+      <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:1.3rem;font-weight:800">${formatNumber(totalImpressions)}</div>
+        <div class="text-small text-muted">Impressions</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:1.3rem;font-weight:800">${formatNumber(totalClicks)}</div>
+        <div class="text-small text-muted">Clics (CTR: ${ctr}%)</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:1.3rem;font-weight:800">${formatNumber(totalConversions)}</div>
+        <div class="text-small text-muted">Conversions</div>
+      </div>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:20px">
+      <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:1.3rem;font-weight:800">${formatCurrency(totalCost)}</div>
+        <div class="text-small text-muted">Cout total</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:1.3rem;font-weight:800">${cpc} EUR</div>
+        <div class="text-small text-muted">CPC moyen</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:1.3rem;font-weight:800">${roas}x</div>
+        <div class="text-small text-muted">ROAS</div>
+      </div>
+    </div>
+    ${metrics.length > 0 ? '<div class="chart-container" style="height:200px"><canvas id="chart-metrics"></canvas></div>' : '<p class="text-center text-muted">Aucune metrique enregistree</p>'}
+    <div class="mt-16">
+      <button class="btn btn-sm btn-outline" id="btn-add-metric"><i class="fas fa-plus"></i> Ajouter une metrique</button>
+    </div>
+  `, '<button class="btn btn-outline" onclick="closeModal()">Fermer</button>');
+
+  if (metrics.length > 0 && document.getElementById('chart-metrics')) {
+    new Chart($('#chart-metrics'), {
+      type: 'line',
+      data: {
+        labels: metrics.map(m => formatDate(m.date)),
+        datasets: [
+          { label: 'Clics', data: metrics.map(m => m.clicks), borderColor: '#3498db', tension: 0.3, fill: false },
+          { label: 'Conversions', data: metrics.map(m => m.conversions), borderColor: '#2d6a4f', tension: 0.3, fill: false }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+
+  $('#btn-add-metric')?.addEventListener('click', () => {
+    closeModal();
+    metricForm(campaignId, campaignName);
+  });
+};
+
+function metricForm(campaignId, campaignName) {
+  openModal(`Nouvelle metrique — ${campaignName}`, `
+    <div class="form-group">
+      <label>Date *</label>
+      <input type="date" id="f-mdate" value="${new Date().toISOString().slice(0, 10)}">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Impressions</label><input type="number" id="f-mimpr" value="0"></div>
+      <div class="form-group"><label>Clics</label><input type="number" id="f-mclicks" value="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Conversions</label><input type="number" id="f-mconv" value="0"></div>
+      <div class="form-group"><label>Cout (EUR)</label><input type="number" id="f-mcost" value="0" step="0.01"></div>
+    </div>
+    <div class="form-group"><label>Revenu (EUR)</label><input type="number" id="f-mrev" value="0" step="0.01"></div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-metric">Enregistrer</button>
+  `);
+
+  $('#btn-save-metric').addEventListener('click', async () => {
+    await dbInsert('ad_metrics', {
+      campaign_id: campaignId,
+      date: $('#f-mdate').value,
+      impressions: parseInt($('#f-mimpr').value) || 0,
+      clicks: parseInt($('#f-mclicks').value) || 0,
+      conversions: parseInt($('#f-mconv').value) || 0,
+      cost: parseFloat($('#f-mcost').value) || 0,
+      revenue: parseFloat($('#f-mrev').value) || 0
+    });
+    toast('Metrique ajoutee');
+    closeModal();
+    adMetrics(campaignId, campaignName);
+  });
+}
+
+// ============================================
+// SEO MODULE
+// ============================================
+pages.seo = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  let activeTab = 'search_console';
+
+  async function render() {
+    const [keywords, tasks, seoPages, scData] = await Promise.all([
+      dbSelect('seo_keywords', { order: ['position'] }),
+      dbSelect('seo_tasks', { order: ['created_at', false] }),
+      dbSelect('seo_pages', { order: ['score', false] }),
+      dbSelect('search_console_data', { order: ['date', false] })
+    ]);
+
+    // Search Console aggregates
+    const scByQuery = {};
+    scData.forEach(r => {
+      if (!scByQuery[r.query]) scByQuery[r.query] = { clicks: 0, impressions: 0, positions: [] };
+      scByQuery[r.query].clicks += r.clicks || 0;
+      scByQuery[r.query].impressions += r.impressions || 0;
+      scByQuery[r.query].positions.push(r.position || 0);
+    });
+    Object.values(scByQuery).forEach(q => {
+      q.avgPosition = q.positions.length ? (q.positions.reduce((a, b) => a + b, 0) / q.positions.length).toFixed(1) : 0;
+      q.ctr = q.impressions > 0 ? (q.clicks / q.impressions * 100).toFixed(2) : 0;
+    });
+    const scQueries = Object.entries(scByQuery).sort((a, b) => b[1].impressions - a[1].impressions);
+    const scTotalClicks = scQueries.reduce((s, q) => s + q[1].clicks, 0);
+    const scTop10 = scQueries.filter(q => parseFloat(q[1].avgPosition) <= 10).length;
+    const scAvgPos = scQueries.length ? (scQueries.reduce((s, q) => s + parseFloat(q[1].avgPosition), 0) / scQueries.length).toFixed(1) : '—';
+
+    const avgPos = keywords.length ? (keywords.reduce((s, k) => s + (k.position || 0), 0) / keywords.length).toFixed(1) : '—';
+    const top10 = keywords.filter(k => k.position && k.position <= 10).length;
+    const tasksDone = tasks.filter(t => t.status === 'fait').length;
+
+    content.innerHTML = `
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card">
+          <div class="stat-icon purple"><i class="fas fa-key"></i></div>
+          <div class="stat-info"><h3>${scQueries.length || keywords.length}</h3><p>Requetes suivies</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-trophy"></i></div>
+          <div class="stat-info"><h3>${scTop10 || top10}</h3><p>Top 10 Google</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-crosshairs"></i></div>
+          <div class="stat-info"><h3>${scAvgPos !== '—' ? scAvgPos : avgPos}</h3><p>Position moyenne</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon gold"><i class="fas fa-mouse-pointer"></i></div>
+          <div class="stat-info"><h3>${formatNumber(scTotalClicks)}</h3><p>Clics Search (30j)</p></div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn ${activeTab === 'search_console' ? 'active' : ''}" data-tab="search_console"><i class="fab fa-google"></i> Search Console (live)</button>
+        <button class="tab-btn ${activeTab === 'keywords' ? 'active' : ''}" data-tab="keywords"><i class="fas fa-key"></i> Mots-cles manuels</button>
+        <button class="tab-btn ${activeTab === 'tasks' ? 'active' : ''}" data-tab="tasks"><i class="fas fa-tasks"></i> Taches SEO</button>
+        <button class="tab-btn ${activeTab === 'pages' ? 'active' : ''}" data-tab="pages"><i class="fas fa-file-alt"></i> Pages</button>
+      </div>
+
+      <div id="seo-tab-content"></div>
+    `;
+
+    content.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => { activeTab = btn.dataset.tab; render(); });
+    });
+
+    const tabContent = content.querySelector('#seo-tab-content');
+
+    if (activeTab === 'search_console') {
+      tabContent.innerHTML = `
+        <div class="panel">
+          <div class="panel-header">
+            <h3><i class="fab fa-google"></i> Requetes Search Console</h3>
+            <button class="btn btn-sm btn-outline" id="btn-refresh-sc"><i class="fas fa-sync-alt"></i> Actualiser</button>
+          </div>
+          <div class="panel-body" style="padding:0">
+            ${scQueries.length === 0 ? '<div class="empty-state"><i class="fab fa-google"></i><h4>Aucune donnee Search Console</h4><p>Configurez Windsor.ai dans les Parametres pour synchroniser.</p></div>' : `
+              <table class="data-table">
+                <thead><tr><th>Requete</th><th>Position moy.</th><th>Impressions</th><th>Clics</th><th>CTR</th></tr></thead>
+                <tbody>
+                  ${scQueries.map(([query, data]) => {
+                    const posColor = parseFloat(data.avgPosition) <= 3 ? 'var(--success)' : parseFloat(data.avgPosition) <= 10 ? 'var(--info)' : parseFloat(data.avgPosition) <= 20 ? 'var(--warning)' : 'var(--danger)';
+                    return `<tr>
+                      <td><strong>${query}</strong></td>
+                      <td><span style="font-weight:700;color:${posColor}">${data.avgPosition}</span></td>
+                      <td>${formatNumber(data.impressions)}</td>
+                      <td>${formatNumber(data.clicks)}</td>
+                      <td>${data.ctr}%</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            `}
+          </div>
+        </div>
+        <div class="text-small text-muted mt-16" style="text-align:right"><i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google Search Console — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}</div>
+      `;
+      tabContent.querySelector('#btn-refresh-sc')?.addEventListener('click', async () => {
+        toast('Sync Search Console...', 'warning');
+        await syncSearchConsole();
+        localStorage.setItem('windsor_last_sync', new Date().toISOString());
+        toast('Search Console actualise');
+        render();
+      });
+    }
+
+    else if (activeTab === 'keywords') {
+      tabContent.innerHTML = `
+        <div class="toolbar">
+          <div class="toolbar-left"><span class="text-muted">${keywords.length} mot(s)-cle(s)</span></div>
+          <div class="toolbar-right">
+            <button class="btn btn-primary" id="btn-add-kw"><i class="fas fa-plus"></i> Ajouter</button>
+          </div>
+        </div>
+        <div class="panel"><div class="panel-body" style="padding:0">
+          ${keywords.length === 0 ? '<div class="empty-state"><i class="fas fa-search"></i><h4>Aucun mot-cle</h4><p>Commencez a suivre vos positions Google</p></div>' : `
+            <table class="data-table">
+              <thead><tr><th>Mot-cle</th><th>Position</th><th>Evolution</th><th>Volume</th><th>Difficulte</th><th>URL ciblee</th><th>Statut</th><th></th></tr></thead>
+              <tbody>
+                ${keywords.map(k => {
+                  const diff = k.previous_position && k.position ? k.previous_position - k.position : 0;
+                  const diffClass = diff > 0 ? 'up' : diff < 0 ? 'down' : 'stable';
+                  const diffIcon = diff > 0 ? 'fa-arrow-up' : diff < 0 ? 'fa-arrow-down' : 'fa-minus';
+                  const scoreClass = k.difficulty <= 30 ? 'good' : k.difficulty <= 60 ? 'medium' : 'bad';
+                  return `<tr>
+                    <td><strong>${k.keyword}</strong>${k.category ? `<br><span class="text-small text-muted">${k.category}</span>` : ''}</td>
+                    <td><strong style="font-size:1.1rem">${k.position || '—'}</strong></td>
+                    <td><span class="position-change ${diffClass}"><i class="fas ${diffIcon}"></i> ${Math.abs(diff) || '='}</span></td>
+                    <td>${formatNumber(k.search_volume)}</td>
+                    <td><div class="score-bar"><div class="score-bar-fill ${scoreClass}" style="width:${k.difficulty}%"></div></div>${k.difficulty}%</td>
+                    <td class="text-small truncate">${k.target_url || '—'}</td>
+                    <td><span class="badge-status ${k.status === 'suivi' ? 'lead' : k.status === 'optimizing' ? 'prospect' : 'client'}">${k.status}</span></td>
+                    <td class="text-right nowrap">
+                      <button class="btn-ghost" onclick="seoEditKw('${k.id}')"><i class="fas fa-pen"></i></button>
+                      <button class="btn-ghost" onclick="seoDeleteKw('${k.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          `}
+        </div></div>
+      `;
+      tabContent.querySelector('#btn-add-kw')?.addEventListener('click', () => seoKwForm());
+    }
+
+    else if (activeTab === 'tasks') {
+      const taskStatuses = ['a_faire', 'en_cours', 'fait'];
+      const taskStatusLabels = { a_faire: 'A faire', en_cours: 'En cours', fait: 'Fait' };
+
+      tabContent.innerHTML = `
+        <div class="toolbar">
+          <div class="toolbar-left"><span class="text-muted">${tasks.length} tache(s)</span></div>
+          <div class="toolbar-right">
+            <button class="btn btn-primary" id="btn-add-task"><i class="fas fa-plus"></i> Nouvelle tache</button>
+          </div>
+        </div>
+        <div class="panel"><div class="panel-body" style="padding:0">
+          ${tasks.length === 0 ? '<div class="empty-state"><i class="fas fa-clipboard-check"></i><h4>Aucune tache SEO</h4></div>' : `
+            <table class="data-table">
+              <thead><tr><th>Tache</th><th>Type</th><th>Priorite</th><th>Statut</th><th>Echeance</th><th></th></tr></thead>
+              <tbody>
+                ${tasks.map(t => `<tr>
+                  <td>
+                    <strong>${t.title}</strong>
+                    ${t.description ? `<br><span class="text-small text-muted">${t.description.slice(0, 60)}...</span>` : ''}
+                  </td>
+                  <td class="text-small">${t.type}</td>
+                  <td><span class="badge-priority ${t.priority}">${t.priority}</span></td>
+                  <td>
+                    <select class="btn btn-xs btn-outline" onchange="seoUpdateTask('${t.id}', this.value)">
+                      ${taskStatuses.map(s => `<option value="${s}" ${t.status === s ? 'selected' : ''}>${taskStatusLabels[s]}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td class="text-small text-muted">${formatDate(t.due_date)}</td>
+                  <td class="text-right nowrap">
+                    <button class="btn-ghost" onclick="seoEditTask('${t.id}')"><i class="fas fa-pen"></i></button>
+                    <button class="btn-ghost" onclick="seoDeleteTask('${t.id}')"><i class="fas fa-trash"></i></button>
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          `}
+        </div></div>
+      `;
+      tabContent.querySelector('#btn-add-task')?.addEventListener('click', () => seoTaskForm());
+    }
+
+    else if (activeTab === 'pages') {
+      tabContent.innerHTML = `
+        <div class="toolbar">
+          <div class="toolbar-left"><span class="text-muted">${seoPages.length} page(s) auditee(s)</span></div>
+          <div class="toolbar-right">
+            <button class="btn btn-primary" id="btn-add-page"><i class="fas fa-plus"></i> Auditer une page</button>
+          </div>
+        </div>
+        <div class="panel"><div class="panel-body" style="padding:0">
+          ${seoPages.length === 0 ? '<div class="empty-state"><i class="fas fa-file-alt"></i><h4>Aucune page auditee</h4></div>' : `
+            <table class="data-table">
+              <thead><tr><th>URL</th><th>Titre</th><th>Score</th><th>Mots</th><th>Dernier audit</th><th></th></tr></thead>
+              <tbody>
+                ${seoPages.map(p => {
+                  const scoreClass = p.score >= 70 ? 'good' : p.score >= 40 ? 'medium' : 'bad';
+                  return `<tr>
+                    <td class="text-small truncate">${p.url}</td>
+                    <td>${p.title || '—'}</td>
+                    <td><div class="score-bar"><div class="score-bar-fill ${scoreClass}" style="width:${p.score}%"></div></div><strong>${p.score}/100</strong></td>
+                    <td>${formatNumber(p.word_count)}</td>
+                    <td class="text-small text-muted">${formatDate(p.last_audit)}</td>
+                    <td class="text-right nowrap">
+                      <button class="btn-ghost" onclick="seoEditPage('${p.id}')"><i class="fas fa-pen"></i></button>
+                      <button class="btn-ghost" onclick="seoDeletePage('${p.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          `}
+        </div></div>
+      `;
+      tabContent.querySelector('#btn-add-page')?.addEventListener('click', () => seoPageForm());
+    }
+  }
+
+  render();
+};
+
+// SEO Keyword form
+function seoKwForm(kw = null) {
+  const isEdit = !!kw;
+  const k = kw || {};
+  openModal(isEdit ? 'Modifier le mot-cle' : 'Ajouter un mot-cle', `
+    <div class="form-group"><label>Mot-cle *</label><input type="text" id="f-kword" value="${k.keyword || ''}" placeholder="Ex: maison bois ecologique"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Position actuelle</label><input type="number" id="f-kpos" value="${k.position || ''}" min="1"></div>
+      <div class="form-group"><label>Position precedente</label><input type="number" id="f-kprev" value="${k.previous_position || ''}" min="1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Volume de recherche</label><input type="number" id="f-kvol" value="${k.search_volume || ''}"></div>
+      <div class="form-group"><label>Difficulte (0-100)</label><input type="number" id="f-kdiff" value="${k.difficulty || ''}" min="0" max="100"></div>
+    </div>
+    <div class="form-group"><label>URL ciblee</label><input type="url" id="f-kurl" value="${k.target_url || ''}"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Categorie</label>
+        <select id="f-kcat">
+          ${['','brand','produit','local','informationnel'].map(c => `<option value="${c}" ${k.category === c ? 'selected' : ''}>${c || '— Aucune —'}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Statut</label>
+        <select id="f-kstatus">
+          ${['suivi','optimisation','atteint'].map(s => `<option value="${s}" ${k.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-kw">${isEdit ? 'Mettre a jour' : 'Ajouter'}</button>
+  `);
+  $('#btn-save-kw').addEventListener('click', async () => {
+    const keyword = $('#f-kword').value.trim();
+    if (!keyword) { toast('Mot-cle requis', 'error'); return; }
+    const row = {
+      keyword,
+      position: parseInt($('#f-kpos').value) || null,
+      previous_position: parseInt($('#f-kprev').value) || null,
+      search_volume: parseInt($('#f-kvol').value) || 0,
+      difficulty: parseInt($('#f-kdiff').value) || 0,
+      target_url: $('#f-kurl').value.trim() || null,
+      category: $('#f-kcat').value || null,
+      status: $('#f-kstatus').value,
+      last_checked: new Date().toISOString()
+    };
+    if (isEdit) { await dbUpdate('seo_keywords', k.id, row); toast('Mot-cle mis a jour'); }
+    else { await dbInsert('seo_keywords', row); toast('Mot-cle ajoute'); }
+    closeModal();
+    pages.seo();
+  });
+}
+
+window.seoEditKw = async function(id) {
+  const data = await dbSelect('seo_keywords', { eq: [['id', id]] });
+  if (data[0]) seoKwForm(data[0]);
+};
+window.seoDeleteKw = async function(id) {
+  await dbDelete('seo_keywords', id);
+  toast('Mot-cle supprime');
+  pages.seo();
+};
+
+// SEO Task form
+function seoTaskForm(task = null) {
+  const isEdit = !!task;
+  const t = task || {};
+  openModal(isEdit ? 'Modifier la tache' : 'Nouvelle tache SEO', `
+    <div class="form-group"><label>Titre *</label><input type="text" id="f-ttitle" value="${t.title || ''}"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select id="f-ttype">
+          ${['contenu','technique','backlink','local','on_page'].map(tp => `<option value="${tp}" ${t.type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Priorite</label>
+        <select id="f-tpriority">
+          ${['basse','moyenne','haute','urgente'].map(p => `<option value="${p}" ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Statut</label>
+        <select id="f-tstatus">
+          ${['a_faire','en_cours','fait'].map(s => `<option value="${s}" ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label>Echeance</label><input type="date" id="f-tdue" value="${t.due_date || ''}"></div>
+    </div>
+    <div class="form-group"><label>URL concernee</label><input type="url" id="f-turl" value="${t.target_url || ''}"></div>
+    <div class="form-group"><label>Description</label><textarea id="f-tdesc">${t.description || ''}</textarea></div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-task">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
+  `);
+  $('#btn-save-task').addEventListener('click', async () => {
+    const title = $('#f-ttitle').value.trim();
+    if (!title) { toast('Titre requis', 'error'); return; }
+    const row = {
+      title,
+      type: $('#f-ttype').value,
+      priority: $('#f-tpriority').value,
+      status: $('#f-tstatus').value,
+      due_date: $('#f-tdue').value || null,
+      target_url: $('#f-turl').value.trim() || null,
+      description: $('#f-tdesc').value.trim() || null
+    };
+    if (isEdit) { await dbUpdate('seo_tasks', t.id, row); toast('Tache mise a jour'); }
+    else { await dbInsert('seo_tasks', row); toast('Tache creee'); }
+    closeModal();
+    pages.seo();
+  });
+}
+
+window.seoEditTask = async function(id) {
+  const data = await dbSelect('seo_tasks', { eq: [['id', id]] });
+  if (data[0]) seoTaskForm(data[0]);
+};
+window.seoDeleteTask = async function(id) {
+  await dbDelete('seo_tasks', id);
+  toast('Tache supprimee');
+  pages.seo();
+};
+window.seoUpdateTask = async function(id, status) {
+  await dbUpdate('seo_tasks', id, { status });
+  toast('Statut mis a jour');
+};
+
+// SEO Page form
+function seoPageForm(page = null) {
+  const isEdit = !!page;
+  const p = page || {};
+  openModal(isEdit ? 'Modifier la page' : 'Auditer une page', `
+    <div class="form-group"><label>URL *</label><input type="url" id="f-purl" value="${p.url || ''}" placeholder="https://laplanetebois.fr/..."></div>
+    <div class="form-row">
+      <div class="form-group"><label>Titre (balise title)</label><input type="text" id="f-ptitle" value="${p.title || ''}"></div>
+      <div class="form-group"><label>H1</label><input type="text" id="f-ph1" value="${p.h1 || ''}"></div>
+    </div>
+    <div class="form-group"><label>Meta description</label><textarea id="f-pmeta" style="min-height:50px">${p.meta_description || ''}</textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre de mots</label><input type="number" id="f-pwords" value="${p.word_count || ''}"></div>
+      <div class="form-group"><label>Score (0-100)</label><input type="number" id="f-pscore" value="${p.score || ''}" min="0" max="100"></div>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-page">${isEdit ? 'Mettre a jour' : 'Enregistrer'}</button>
+  `);
+  $('#btn-save-page').addEventListener('click', async () => {
+    const url = $('#f-purl').value.trim();
+    if (!url) { toast('URL requise', 'error'); return; }
+    const row = {
+      url,
+      title: $('#f-ptitle').value.trim() || null,
+      h1: $('#f-ph1').value.trim() || null,
+      meta_description: $('#f-pmeta').value.trim() || null,
+      word_count: parseInt($('#f-pwords').value) || 0,
+      score: parseInt($('#f-pscore').value) || 0,
+      last_audit: new Date().toISOString()
+    };
+    if (isEdit) { await dbUpdate('seo_pages', p.id, row); toast('Page mise a jour'); }
+    else { await dbInsert('seo_pages', row); toast('Page enregistree'); }
+    closeModal();
+    pages.seo();
+  });
+}
+
+window.seoEditPage = async function(id) {
+  const data = await dbSelect('seo_pages', { eq: [['id', id]] });
+  if (data[0]) seoPageForm(data[0]);
+};
+window.seoDeletePage = async function(id) {
+  await dbDelete('seo_pages', id);
+  toast('Page supprimee');
+  pages.seo();
+};
+
+// ============================================
+// ACTIVITIES MODULE
+// ============================================
+pages.activities = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  const [activities, contacts] = await Promise.all([
+    dbSelect('activities', { order: ['created_at', false] }),
+    dbSelect('contacts')
+  ]);
+
+  const contactMap = {};
+  contacts.forEach(c => { contactMap[c.id] = c; });
+
+  content.innerHTML = `
+    <div class="toolbar">
+      <div class="toolbar-left"><span class="text-muted">${activities.length} activite(s)</span></div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-add-activity"><i class="fas fa-plus"></i> Nouvelle activite</button>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body">
+      ${activities.length === 0 ? '<div class="empty-state"><i class="fas fa-clock"></i><h4>Aucune activite</h4></div>' : `
+        <div class="activity-feed">
+          ${activities.map(a => {
+            const c = contactMap[a.contact_id];
+            const icons = { appel: 'call', email: 'email', reunion: 'meeting', note: 'note', relance: 'email' };
+            const faIcons = { appel: 'fa-phone', email: 'fa-envelope', reunion: 'fa-handshake', note: 'fa-sticky-note', relance: 'fa-redo' };
+            return `<div class="activity-item">
+              <div class="activity-icon ${icons[a.type] || 'note'}"><i class="fas ${faIcons[a.type] || 'fa-circle'}"></i></div>
+              <div class="activity-text" style="flex:1">
+                <p>
+                  <strong>${a.type}</strong>
+                  ${c ? ` — ${c.first_name} ${c.last_name}` : ''}
+                </p>
+                <p>${a.description || ''}</p>
+                <div class="time">${formatDateTime(a.scheduled_at || a.created_at)} ${a.completed ? '<span class="badge-status client">fait</span>' : ''}</div>
+              </div>
+              <div>
+                ${!a.completed ? `<button class="btn btn-xs btn-outline" onclick="actComplete('${a.id}')"><i class="fas fa-check"></i></button>` : ''}
+                <button class="btn-ghost" onclick="actDelete('${a.id}')"><i class="fas fa-trash"></i></button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      `}
+    </div></div>
+  `;
+
+  content.querySelector('#btn-add-activity')?.addEventListener('click', () => activityForm(contacts));
+};
+
+function activityForm(contacts = []) {
+  openModal('Nouvelle activite', `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type *</label>
+        <select id="f-acttype">
+          ${['appel','email','reunion','note','relance'].map(t => `<option value="${t}">${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Contact</label>
+        <select id="f-actcontact">
+          <option value="">— Aucun —</option>
+          ${contacts.map(c => `<option value="${c.id}">${c.first_name} ${c.last_name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="f-actdesc"></textarea></div>
+    <div class="form-group"><label>Date planifiee</label><input type="datetime-local" id="f-actdate"></div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-act">Creer</button>
+  `);
+  $('#btn-save-act').addEventListener('click', async () => {
+    await dbInsert('activities', {
+      type: $('#f-acttype').value,
+      contact_id: $('#f-actcontact').value || null,
+      description: $('#f-actdesc').value.trim() || null,
+      scheduled_at: $('#f-actdate').value ? new Date($('#f-actdate').value).toISOString() : null,
+      completed: false
+    });
+    toast('Activite creee');
+    closeModal();
+    pages.activities();
+  });
+}
+
+window.actComplete = async function(id) {
+  await dbUpdate('activities', id, { completed: true });
+  toast('Activite terminee');
+  pages.activities();
+};
+window.actDelete = async function(id) {
+  await dbDelete('activities', id);
+  toast('Activite supprimee');
+  pages.activities();
+};
+
+// ============================================
+// DEVIS MODULE
+// ============================================
+pages.devis = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  const [devisList, contacts] = await Promise.all([
+    dbSelect('devis', { order: ['created_at', false] }),
+    dbSelect('contacts')
+  ]);
+  const contactMap = {};
+  contacts.forEach(function(c) { contactMap[c.id] = c; });
+
+  const statusLabels = { brouillon: 'Brouillon', envoye: 'Envoye', accepte: 'Accepte', refuse: 'Refuse', expire: 'Expire' };
+  const statusColors = { brouillon: '#95a5a6', envoye: '#3498db', accepte: '#27ae60', refuse: '#e74c3c', expire: '#f39c12' };
+
+  content.innerHTML = `
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="text-muted">${devisList.length} devis</span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-add-devis"><i class="fas fa-plus"></i> Nouveau devis</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-body" style="padding:0">
+        ${devisList.length === 0 ? '<div class="empty-state"><i class="fas fa-file-invoice-dollar"></i><h4>Aucun devis</h4></div>' : `
+          <table class="data-table">
+            <thead><tr>
+              <th>N°</th><th>Objet</th><th>Client</th><th>Total</th><th>Statut</th><th>Validite</th><th>Date</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${devisList.map(function(d) {
+                var c = contactMap[d.contact_id];
+                var cName = c ? c.first_name + ' ' + c.last_name : '—';
+                return '<tr>' +
+                  '<td><strong>' + d.numero + '</strong></td>' +
+                  '<td>' + (d.objet || '—') + '</td>' +
+                  '<td>' + cName + '</td>' +
+                  '<td><strong>' + formatCurrency(d.total) + '</strong></td>' +
+                  '<td><span style="background:' + (statusColors[d.status] || '#95a5a6') + ';color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem">' + (statusLabels[d.status] || d.status) + '</span></td>' +
+                  '<td class="text-small">' + formatDate(d.valid_until) + '</td>' +
+                  '<td class="text-small text-muted">' + formatDate(d.created_at) + '</td>' +
+                  '<td class="text-right nowrap">' +
+                    '<button class="btn-ghost" onclick="devisEdit(\'' + d.id + '\')"><i class="fas fa-pen"></i></button>' +
+                    '<button class="btn-ghost" onclick="devisDelete(\'' + d.id + '\')"><i class="fas fa-trash"></i></button>' +
+                  '</td>' +
+                '</tr>';
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  content.querySelector('#btn-add-devis')?.addEventListener('click', function() { devisForm(null, contacts); });
+};
+
+function devisForm(devis, contacts) {
+  var isEdit = !!devis;
+  var d = devis || {};
+  var nextNum = 'DEV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-4);
+  openModal(isEdit ? 'Modifier le devis' : 'Nouveau devis', `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Numero *</label>
+        <input type="text" id="f-devnum" value="${d.numero || nextNum}">
+      </div>
+      <div class="form-group">
+        <label>Statut</label>
+        <select id="f-devstatus">
+          ${['brouillon','envoye','accepte','refuse','expire'].map(function(s) { return '<option value="' + s + '"' + (d.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Objet</label>
+      <input type="text" id="f-devobjet" value="${d.objet || ''}" placeholder="Ex: Construction maison ossature bois">
+    </div>
+    <div class="form-group">
+      <label>Client</label>
+      <select id="f-devcontact">
+        <option value="">— Aucun —</option>
+        ${contacts.map(function(c) { return '<option value="' + c.id + '"' + (d.contact_id === c.id ? ' selected' : '') + '>' + c.first_name + ' ' + c.last_name + (c.company ? ' (' + c.company + ')' : '') + '</option>'; }).join('')}
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Total HT (EUR)</label>
+        <input type="number" id="f-devsoustotal" value="${d.sous_total || ''}" step="100">
+      </div>
+      <div class="form-group">
+        <label>TVA (EUR)</label>
+        <input type="number" id="f-devtva" value="${d.tva || ''}" step="10">
+      </div>
+      <div class="form-group">
+        <label>Total TTC (EUR)</label>
+        <input type="number" id="f-devtotal" value="${d.total || ''}" step="100">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Valide jusqu'au</label>
+      <input type="date" id="f-devvalid" value="${d.valid_until || ''}">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="f-devnotes">${d.notes || ''}</textarea>
+    </div>
+  `, `
+    ${isEdit ? '<button class="btn btn-danger btn-sm" id="btn-del-devis"><i class="fas fa-trash"></i> Supprimer</button>' : ''}
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-devis">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
+  `);
+
+  $('#btn-save-devis').addEventListener('click', async function() {
+    var num = $('#f-devnum').value.trim();
+    if (!num) { toast('Numero requis', 'error'); return; }
+    var row = {
+      numero: num,
+      objet: $('#f-devobjet').value.trim() || null,
+      contact_id: $('#f-devcontact').value || null,
+      sous_total: parseFloat($('#f-devsoustotal').value) || 0,
+      tva: parseFloat($('#f-devtva').value) || 0,
+      total: parseFloat($('#f-devtotal').value) || 0,
+      status: $('#f-devstatus').value,
+      valid_until: $('#f-devvalid').value || null,
+      notes: $('#f-devnotes').value.trim() || null
+    };
+    if (isEdit) { await dbUpdate('devis', d.id, row); toast('Devis mis a jour'); }
+    else { await dbInsert('devis', row); toast('Devis cree'); }
+    closeModal();
+    pages.devis();
+  });
+  if (isEdit && $('#btn-del-devis')) {
+    $('#btn-del-devis').addEventListener('click', async function() {
+      await dbDelete('devis', d.id);
+      toast('Devis supprime');
+      closeModal();
+      pages.devis();
+    });
+  }
+}
+
+window.devisEdit = async function(id) {
+  var [devisList, contacts] = await Promise.all([dbSelect('devis'), dbSelect('contacts')]);
+  var d = devisList.find(function(x) { return x.id === id; });
+  if (d) devisForm(d, contacts);
+};
+window.devisDelete = async function(id) {
+  if (!confirm('Supprimer ce devis ?')) return;
+  await dbDelete('devis', id);
+  toast('Devis supprime');
+  pages.devis();
+};
+
+// ============================================
+// SUIVI CLIENT MODULE
+// ============================================
+pages.suivi = async function() {
+  var content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var [contacts, activities, deals] = await Promise.all([
+    dbSelect('contacts', { order: ['last_name', true] }),
+    dbSelect('activities', { order: ['scheduled_at', false] }),
+    dbSelect('deals')
+  ]);
+
+  var clients = contacts.filter(function(c) { return c.status === 'client' || c.status === 'prospect'; });
+
+  content.innerHTML = `
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="text-muted"><i class="fas fa-handshake"></i> ${clients.length} client(s) / prospect(s) a suivre</span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-add-suivi"><i class="fas fa-plus"></i> Nouvelle activite</button>
+      </div>
+    </div>
+    <div class="grid-1">
+      ${clients.length === 0 ? '<div class="empty-state"><i class="fas fa-handshake"></i><h4>Aucun client/prospect</h4><p>Ajoutez des contacts avec le statut client ou prospect dans le CRM.</p></div>' :
+        clients.map(function(c) {
+          var cActivities = activities.filter(function(a) { return a.contact_id === c.id; });
+          var cDeals = deals.filter(function(d) { return d.contact_id === c.id; });
+          var lastActivity = cActivities[0];
+          var pendingCount = cActivities.filter(function(a) { return !a.completed; }).length;
+          return '<div class="panel mb-16">' +
+            '<div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">' +
+              '<h3 style="display:flex;align-items:center;gap:10px"><div class="avatar-sm">' + initials(c.first_name, c.last_name) + '</div> ' + c.first_name + ' ' + c.last_name + (c.company ? ' <span class="text-muted text-small">(' + c.company + ')</span>' : '') + '</h3>' +
+              '<div style="display:flex;gap:8px">' +
+                '<span class="badge-status ' + c.status + '">' + c.status + '</span>' +
+                (pendingCount > 0 ? '<span style="background:var(--warning-light);color:var(--warning);padding:2px 10px;border-radius:12px;font-size:0.75rem">' + pendingCount + ' en attente</span>' : '<span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:0.75rem">A jour</span>') +
+              '</div>' +
+            '</div>' +
+            '<div class="panel-body">' +
+              '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px">' +
+                '<div class="text-small"><i class="fas fa-phone"></i> ' + (c.phone || '—') + '</div>' +
+                '<div class="text-small"><i class="fas fa-envelope"></i> ' + (c.email || '—') + '</div>' +
+                '<div class="text-small"><i class="fas fa-handshake"></i> ' + cDeals.length + ' deal(s)</div>' +
+                '<div class="text-small"><i class="fas fa-clock"></i> Derniere activite: ' + (lastActivity ? formatDate(lastActivity.created_at) : 'Aucune') + '</div>' +
+              '</div>' +
+              (cActivities.length > 0 ? '<div style="border-top:1px solid var(--border);padding-top:10px"><strong class="text-small">Historique recent:</strong>' +
+                cActivities.slice(0, 5).map(function(a) {
+                  var icon = a.type === 'appel' ? 'phone' : a.type === 'email' ? 'envelope' : a.type === 'reunion' ? 'users' : a.type === 'relance' ? 'redo' : 'sticky-note';
+                  return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.82rem' + (a.completed ? ';opacity:0.5;text-decoration:line-through' : '') + '">' +
+                    '<i class="fas fa-' + icon + '" style="width:16px;color:var(--text-light)"></i> ' +
+                    '<span>' + (a.description || a.type) + '</span>' +
+                    '<span class="text-muted text-small" style="margin-left:auto">' + formatDate(a.scheduled_at || a.created_at) + '</span>' +
+                  '</div>';
+                }).join('') +
+              '</div>' : '') +
+            '</div>' +
+          '</div>';
+        }).join('')
+      }
+    </div>
+  `;
+
+  content.querySelector('#btn-add-suivi')?.addEventListener('click', function() {
+    activityForm(contacts);
+  });
+};
+
+// ============================================
+// COMMANDES MODULE
+// ============================================
+pages.commandes = async function() {
+  var content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var [commandesList, contacts] = await Promise.all([
+    dbSelect('commandes', { order: ['created_at', false] }),
+    dbSelect('contacts')
+  ]);
+  var contactMap = {};
+  contacts.forEach(function(c) { contactMap[c.id] = c; });
+
+  var statusLabels = { en_attente: 'En attente', en_production: 'En production', livraison: 'Livraison', termine: 'Termine', annule: 'Annule' };
+  var statusColors = { en_attente: '#f39c12', en_production: '#3498db', livraison: '#9b59b6', termine: '#27ae60', annule: '#e74c3c' };
+
+  content.innerHTML = `
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="text-muted">${commandesList.length} commande(s)</span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-add-commande"><i class="fas fa-plus"></i> Nouvelle commande</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-body" style="padding:0">
+        ${commandesList.length === 0 ? '<div class="empty-state"><i class="fas fa-box"></i><h4>Aucune commande</h4></div>' : `
+          <table class="data-table">
+            <thead><tr>
+              <th>N°</th><th>Objet</th><th>Client</th><th>Total</th><th>Statut</th><th>Livraison</th><th>Date</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${commandesList.map(function(cmd) {
+                var c = contactMap[cmd.contact_id];
+                var cName = c ? c.first_name + ' ' + c.last_name : '—';
+                return '<tr>' +
+                  '<td><strong>' + cmd.numero + '</strong></td>' +
+                  '<td>' + (cmd.objet || '—') + '</td>' +
+                  '<td>' + cName + '</td>' +
+                  '<td><strong>' + formatCurrency(cmd.total) + '</strong></td>' +
+                  '<td><span style="background:' + (statusColors[cmd.status] || '#95a5a6') + ';color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem">' + (statusLabels[cmd.status] || cmd.status) + '</span></td>' +
+                  '<td class="text-small">' + formatDate(cmd.date_livraison) + '</td>' +
+                  '<td class="text-small text-muted">' + formatDate(cmd.created_at) + '</td>' +
+                  '<td class="text-right nowrap">' +
+                    '<button class="btn-ghost" onclick="cmdEdit(\'' + cmd.id + '\')"><i class="fas fa-pen"></i></button>' +
+                    '<button class="btn-ghost" onclick="cmdDelete(\'' + cmd.id + '\')"><i class="fas fa-trash"></i></button>' +
+                  '</td>' +
+                '</tr>';
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  content.querySelector('#btn-add-commande')?.addEventListener('click', function() { cmdForm(null, contacts); });
+};
+
+function cmdForm(cmd, contacts) {
+  var isEdit = !!cmd;
+  var d = cmd || {};
+  var nextNum = 'CMD-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-4);
+  openModal(isEdit ? 'Modifier la commande' : 'Nouvelle commande', `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Numero *</label>
+        <input type="text" id="f-cmdnum" value="${d.numero || nextNum}">
+      </div>
+      <div class="form-group">
+        <label>Statut</label>
+        <select id="f-cmdstatus">
+          ${['en_attente','en_production','livraison','termine','annule'].map(function(s) { return '<option value="' + s + '"' + (d.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Objet</label>
+      <input type="text" id="f-cmdobjet" value="${d.objet || ''}" placeholder="Ex: Maison ossature bois 120m2">
+    </div>
+    <div class="form-group">
+      <label>Client</label>
+      <select id="f-cmdcontact">
+        <option value="">— Aucun —</option>
+        ${contacts.map(function(c) { return '<option value="' + c.id + '"' + (d.contact_id === c.id ? ' selected' : '') + '>' + c.first_name + ' ' + c.last_name + (c.company ? ' (' + c.company + ')' : '') + '</option>'; }).join('')}
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Total (EUR)</label>
+        <input type="number" id="f-cmdtotal" value="${d.total || ''}" step="100">
+      </div>
+      <div class="form-group">
+        <label>Date de livraison</label>
+        <input type="date" id="f-cmdliv" value="${d.date_livraison || ''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="f-cmdnotes">${d.notes || ''}</textarea>
+    </div>
+  `, `
+    ${isEdit ? '<button class="btn btn-danger btn-sm" id="btn-del-cmd"><i class="fas fa-trash"></i> Supprimer</button>' : ''}
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-cmd">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
+  `);
+
+  $('#btn-save-cmd').addEventListener('click', async function() {
+    var num = $('#f-cmdnum').value.trim();
+    if (!num) { toast('Numero requis', 'error'); return; }
+    var row = {
+      numero: num,
+      objet: $('#f-cmdobjet').value.trim() || null,
+      contact_id: $('#f-cmdcontact').value || null,
+      total: parseFloat($('#f-cmdtotal').value) || 0,
+      status: $('#f-cmdstatus').value,
+      date_livraison: $('#f-cmdliv').value || null,
+      notes: $('#f-cmdnotes').value.trim() || null
+    };
+    if (isEdit) { await dbUpdate('commandes', d.id, row); toast('Commande mise a jour'); }
+    else { await dbInsert('commandes', row); toast('Commande creee'); }
+    closeModal();
+    pages.commandes();
+  });
+  if (isEdit && $('#btn-del-cmd')) {
+    $('#btn-del-cmd').addEventListener('click', async function() {
+      await dbDelete('commandes', d.id);
+      toast('Commande supprimee');
+      closeModal();
+      pages.commandes();
+    });
+  }
+}
+
+window.cmdEdit = async function(id) {
+  var [cmds, contacts] = await Promise.all([dbSelect('commandes'), dbSelect('contacts')]);
+  var c = cmds.find(function(x) { return x.id === id; });
+  if (c) cmdForm(c, contacts);
+};
+window.cmdDelete = async function(id) {
+  if (!confirm('Supprimer cette commande ?')) return;
+  await dbDelete('commandes', id);
+  toast('Commande supprimee');
+  pages.commandes();
+};
+
+// ============================================
+// PLANNING MODULE
+// ============================================
+pages.planning = async function() {
+  var content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var [events, contacts, commandes] = await Promise.all([
+    dbSelect('planning', { order: ['start_date', true] }),
+    dbSelect('contacts'),
+    dbSelect('commandes')
+  ]);
+  var contactMap = {};
+  contacts.forEach(function(c) { contactMap[c.id] = c; });
+
+  // Build calendar for current month
+  var now = new Date();
+  var currentMonth = now.getMonth();
+  var currentYear = now.getFullYear();
+  var firstDay = new Date(currentYear, currentMonth, 1);
+  var lastDay = new Date(currentYear, currentMonth + 1, 0);
+  var startDow = firstDay.getDay() || 7; // Monday = 1
+  var daysInMonth = lastDay.getDate();
+  var monthNames = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
+
+  // Group events by date
+  var eventsByDate = {};
+  events.forEach(function(ev) {
+    var d = ev.start_date;
+    if (!d) return;
+    var key = d.substring(0, 10);
+    if (!eventsByDate[key]) eventsByDate[key] = [];
+    eventsByDate[key].push(ev);
+  });
+
+  // Add commande delivery dates
+  commandes.forEach(function(cmd) {
+    if (!cmd.date_livraison) return;
+    var key = cmd.date_livraison.substring(0, 10);
+    if (!eventsByDate[key]) eventsByDate[key] = [];
+    eventsByDate[key].push({ title: 'Livraison: ' + (cmd.objet || cmd.numero), type: 'livraison', color: '#9b59b6', id: 'cmd-' + cmd.id });
+  });
+
+  var calendarHtml = '';
+  // Empty cells before first day
+  for (var i = 1; i < startDow; i++) calendarHtml += '<div class="cal-cell cal-empty"></div>';
+  for (var day = 1; day <= daysInMonth; day++) {
+    var dateKey = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    var dayEvents = eventsByDate[dateKey] || [];
+    var isToday = day === now.getDate() && currentMonth === now.getMonth();
+    calendarHtml += '<div class="cal-cell' + (isToday ? ' cal-today' : '') + '" data-date="' + dateKey + '">' +
+      '<div class="cal-day">' + day + '</div>' +
+      dayEvents.slice(0, 3).map(function(ev) {
+        return '<div class="cal-event" style="background:' + (ev.color || '#2d6a4f') + '">' + ev.title + '</div>';
+      }).join('') +
+      (dayEvents.length > 3 ? '<div class="text-muted text-small">+' + (dayEvents.length - 3) + '</div>' : '') +
+    '</div>';
+  }
+
+  var typeLabels = { tache: 'Tache', rdv: 'RDV', chantier: 'Chantier', livraison: 'Livraison', autre: 'Autre' };
+
+  content.innerHTML = `
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <h3 style="margin:0"><i class="fas fa-calendar-alt"></i> ${monthNames[currentMonth]} ${currentYear}</h3>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-add-event"><i class="fas fa-plus"></i> Nouvel evenement</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-body">
+        <div class="cal-grid">
+          <div class="cal-header">Lun</div><div class="cal-header">Mar</div><div class="cal-header">Mer</div>
+          <div class="cal-header">Jeu</div><div class="cal-header">Ven</div><div class="cal-header">Sam</div><div class="cal-header">Dim</div>
+          ${calendarHtml}
+        </div>
+      </div>
+    </div>
+    <div class="panel mt-24">
+      <div class="panel-header"><h3><i class="fas fa-list"></i> Evenements a venir</h3></div>
+      <div class="panel-body" style="padding:0">
+        ${events.length === 0 ? '<div class="empty-state"><i class="fas fa-calendar-check"></i><h4>Aucun evenement</h4></div>' : `
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Titre</th><th>Type</th><th>Client</th><th>Statut</th><th></th></tr></thead>
+            <tbody>
+              ${events.map(function(ev) {
+                var c = contactMap[ev.contact_id];
+                var cName = c ? c.first_name + ' ' + c.last_name : '—';
+                return '<tr>' +
+                  '<td class="text-small">' + formatDate(ev.start_date) + (ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : '') + '</td>' +
+                  '<td><strong>' + ev.title + '</strong></td>' +
+                  '<td class="text-small">' + (typeLabels[ev.type] || ev.type) + '</td>' +
+                  '<td class="text-small">' + cName + '</td>' +
+                  '<td><span style="background:' + (ev.status === 'termine' ? 'var(--success)' : ev.status === 'annule' ? 'var(--danger)' : 'var(--info)') + ';color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem">' + ev.status + '</span></td>' +
+                  '<td class="text-right nowrap">' +
+                    '<button class="btn-ghost" onclick="planEdit(\'' + ev.id + '\')"><i class="fas fa-pen"></i></button>' +
+                    '<button class="btn-ghost" onclick="planDelete(\'' + ev.id + '\')"><i class="fas fa-trash"></i></button>' +
+                  '</td>' +
+                '</tr>';
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  content.querySelector('#btn-add-event')?.addEventListener('click', function() { planForm(null, contacts); });
+
+  // Click on calendar cell to add event
+  content.querySelectorAll('.cal-cell[data-date]').forEach(function(cell) {
+    cell.addEventListener('dblclick', function() {
+      planForm({ start_date: cell.dataset.date }, contacts);
+    });
+  });
+};
+
+function planForm(ev, contacts) {
+  var isEdit = ev && ev.id;
+  var d = ev || {};
+  openModal(isEdit ? 'Modifier l\'evenement' : 'Nouvel evenement', `
+    <div class="form-group">
+      <label>Titre *</label>
+      <input type="text" id="f-evtitle" value="${d.title || ''}" placeholder="Ex: Chantier Villa Martin">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select id="f-evtype">
+          ${['tache','rdv','chantier','livraison','autre'].map(function(s) { return '<option value="' + s + '"' + (d.type === s ? ' selected' : '') + '>' + s + '</option>'; }).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Couleur</label>
+        <input type="color" id="f-evcolor" value="${d.color || '#2d6a4f'}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date debut *</label>
+        <input type="date" id="f-evstart" value="${d.start_date || ''}">
+      </div>
+      <div class="form-group">
+        <label>Date fin</label>
+        <input type="date" id="f-evend" value="${d.end_date || ''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Client</label>
+      <select id="f-evcontact">
+        <option value="">— Aucun —</option>
+        ${contacts.map(function(c) { return '<option value="' + c.id + '"' + (d.contact_id === c.id ? ' selected' : '') + '>' + c.first_name + ' ' + c.last_name + '</option>'; }).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Statut</label>
+      <select id="f-evstatus">
+        ${['planifie','en_cours','termine','annule'].map(function(s) { return '<option value="' + s + '"' + (d.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="f-evnotes">${d.notes || ''}</textarea>
+    </div>
+  `, `
+    ${isEdit ? '<button class="btn btn-danger btn-sm" id="btn-del-event"><i class="fas fa-trash"></i> Supprimer</button>' : ''}
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-event">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
+  `);
+
+  $('#btn-save-event').addEventListener('click', async function() {
+    var title = $('#f-evtitle').value.trim();
+    var start = $('#f-evstart').value;
+    if (!title || !start) { toast('Titre et date requis', 'error'); return; }
+    var row = {
+      title: title,
+      type: $('#f-evtype').value,
+      color: $('#f-evcolor').value,
+      start_date: start,
+      end_date: $('#f-evend').value || null,
+      contact_id: $('#f-evcontact').value || null,
+      status: $('#f-evstatus').value,
+      notes: $('#f-evnotes').value.trim() || null
+    };
+    if (isEdit) { await dbUpdate('planning', d.id, row); toast('Evenement mis a jour'); }
+    else { await dbInsert('planning', row); toast('Evenement cree'); }
+    closeModal();
+    pages.planning();
+  });
+  if (isEdit && $('#btn-del-event')) {
+    $('#btn-del-event').addEventListener('click', async function() {
+      await dbDelete('planning', d.id);
+      toast('Evenement supprime');
+      closeModal();
+      pages.planning();
+    });
+  }
+}
+
+window.planEdit = async function(id) {
+  var [events, contacts] = await Promise.all([dbSelect('planning'), dbSelect('contacts')]);
+  var ev = events.find(function(x) { return x.id === id; });
+  if (ev) planForm(ev, contacts);
+};
+window.planDelete = async function(id) {
+  if (!confirm('Supprimer cet evenement ?')) return;
+  await dbDelete('planning', id);
+  toast('Evenement supprime');
+  pages.planning();
+};
+
+// ============================================
+// ANALYTICS (GA4) MODULE
+// ============================================
+pages.analytics = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+  const ga4 = await dbSelect('ga4_data', { order: ['date', false] });
+
+  const byDate = {};
+  ga4.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = { sessions: 0, users: 0, bounceRates: [], durations: [], events: 0 };
+    byDate[r.date].sessions += r.sessions || 0;
+    byDate[r.date].users += r.users || 0;
+    byDate[r.date].events += r.events || 0;
+    if (r.bounce_rate) byDate[r.date].bounceRates.push(parseFloat(r.bounce_rate));
+    if (r.avg_session_duration) byDate[r.date].durations.push(parseFloat(r.avg_session_duration));
+  });
+  const dates = Object.keys(byDate).sort();
+  const totalSessions = dates.reduce((s, d) => s + byDate[d].sessions, 0);
+  const totalUsers = dates.reduce((s, d) => s + byDate[d].users, 0);
+  const totalEvents = dates.reduce((s, d) => s + byDate[d].events, 0);
+  const avgSessionsDay = dates.length ? Math.round(totalSessions / dates.length) : 0;
+
+  const allBounceRates = ga4.filter(r => r.bounce_rate).map(r => parseFloat(r.bounce_rate));
+  const avgBounceRate = allBounceRates.length ? (allBounceRates.reduce((a, b) => a + b, 0) / allBounceRates.length * 100).toFixed(1) : '—';
+  const allDurations = ga4.filter(r => r.avg_session_duration).map(r => parseFloat(r.avg_session_duration));
+  const avgDuration = allDurations.length ? Math.round(allDurations.reduce((a, b) => a + b, 0) / allDurations.length) : 0;
+  const durationFormatted = avgDuration > 0 ? `${Math.floor(avgDuration / 60)}m${(avgDuration % 60).toString().padStart(2, '0')}s` : '—';
+
+  const bySource = {};
+  ga4.forEach(r => {
+    const src = r.source || '(direct)';
+    if (!bySource[src]) bySource[src] = { sessions: 0, users: 0, events: 0 };
+    bySource[src].sessions += r.sessions || 0;
+    bySource[src].users += r.users || 0;
+    bySource[src].events += r.events || 0;
+  });
+  const sources = Object.entries(bySource).sort((a, b) => b[1].sessions - a[1].sessions);
+  const srcColors = { '(direct)': '#3498db', 'google': '#e74c3c', 'm.facebook.com': '#3b5998', 'ig': '#c13584', 'facebook': '#3b5998', 'lovable.dev': '#8b5cf6', 'search.google.com': '#f39c12', 'direct': '#3498db' };
+
+  content.innerHTML = `
+    <div class="stats-grid" style="margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>${formatNumber(totalSessions)}</h3><p>Sessions (30j)</p></div></div>
+      <div class="stat-card"><div class="stat-icon green"><i class="fas fa-users"></i></div><div class="stat-info"><h3>${formatNumber(totalUsers)}</h3><p>Utilisateurs (30j)</p></div></div>
+      <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-chart-bar"></i></div><div class="stat-info"><h3>${avgSessionsDay}</h3><p>Sessions / jour moy.</p></div></div>
+      <div class="stat-card"><div class="stat-icon gold"><i class="fas fa-stopwatch"></i></div><div class="stat-info"><h3>${durationFormatted}</h3><p>Duree moy. session</p></div></div>
+      <div class="stat-card"><div class="stat-icon red"><i class="fas fa-sign-out-alt"></i></div><div class="stat-info"><h3>${avgBounceRate}${avgBounceRate !== '—' ? '%' : ''}</h3><p>Taux de rebond</p></div></div>
+      <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-bolt"></i></div><div class="stat-info"><h3>${formatNumber(totalEvents)}</h3><p>Evenements (30j)</p></div></div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-line"></i> Sessions par jour</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-ga4-sessions"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-pie"></i> Sources de trafic</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-ga4-sources"></canvas></div></div>
+      </div>
+    </div>
+    <div class="panel mt-24">
+      <div class="panel-header">
+        <h3><i class="fas fa-list"></i> Detail par source</h3>
+        <button class="btn btn-sm btn-outline" id="btn-refresh-ga4"><i class="fas fa-sync-alt"></i> Actualiser</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        ${sources.length === 0 ? '<div class="empty-state"><i class="fas fa-chart-line"></i><h4>Aucune donnee Analytics</h4><p>Configurez Windsor.ai dans les Parametres pour synchroniser.</p></div>' : `
+          <table class="data-table">
+            <thead><tr><th>Source</th><th>Sessions</th><th>Utilisateurs</th><th>Evenements</th><th>% du trafic</th></tr></thead>
+            <tbody>
+              ${sources.map(([src, data]) => {
+                const pct = totalSessions > 0 ? (data.sessions / totalSessions * 100).toFixed(1) : 0;
+                return `<tr><td><strong>${src}</strong></td><td>${formatNumber(data.sessions)}</td><td>${formatNumber(data.users)}</td><td>${formatNumber(data.events)}</td><td><div class="progress-bar" style="width:100px;display:inline-block;vertical-align:middle"><div class="progress-bar-fill" style="width:${pct}%;background:${srcColors[src] || '#95a5a6'}"></div></div> <span class="text-small text-muted">${pct}%</span></td></tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+    <div class="text-small text-muted mt-16" style="text-align:right"><i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google Analytics 4 — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}</div>
+  `;
+
+  content.querySelector('#btn-refresh-ga4')?.addEventListener('click', async () => {
+    toast('Sync GA4...', 'warning');
+    await syncGA4();
+    localStorage.setItem('windsor_last_sync', new Date().toISOString());
+    toast('GA4 actualise');
+    pages.analytics();
+  });
+
+  if (dates.length > 0 && document.getElementById('chart-ga4-sessions')) {
+    new Chart($('#chart-ga4-sessions'), {
+      type: 'line',
+      data: {
+        labels: dates.map(d => formatDate(d)),
+        datasets: [
+          { label: 'Sessions', data: dates.map(d => byDate[d].sessions), borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', tension: 0.3, fill: true },
+          { label: 'Utilisateurs', data: dates.map(d => byDate[d].users), borderColor: '#2d6a4f', backgroundColor: 'rgba(45,106,79,0.1)', tension: 0.3, fill: true }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+  if (sources.length > 0 && document.getElementById('chart-ga4-sources')) {
+    new Chart($('#chart-ga4-sources'), {
+      type: 'doughnut',
+      data: {
+        labels: sources.map(s => s[0]),
+        datasets: [{ data: sources.map(s => s[1].sessions), backgroundColor: sources.map(s => srcColors[s[0]] || '#95a5a6') }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+};
+
+// ============================================
+// GOOGLE BUSINESS PROFILE MODULE
+// ============================================
+pages.gbp = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+  const gmb = await dbSelect('gmb_data', { order: ['date'] });
+
+  const totalImpressions = gmb.reduce((s, r) => s + (r.impressions || 0), 0);
+  const totalClicks = gmb.reduce((s, r) => s + (r.clicks || 0), 0);
+  const totalCallClicks = gmb.reduce((s, r) => s + (r.call_clicks || 0), 0);
+  const totalDirections = gmb.reduce((s, r) => s + (r.direction_requests || 0), 0);
+  const totalWebClicks = gmb.reduce((s, r) => s + (r.website_clicks || 0), 0);
+  const latestWithRating = [...gmb].reverse().find(r => r.avg_rating > 0);
+  const avgRating = latestWithRating ? parseFloat(latestWithRating.avg_rating).toFixed(1) : '—';
+  const totalReviews = latestWithRating ? latestWithRating.reviews || 0 : 0;
+  const dates = gmb.map(r => r.date);
+
+  const starsHtml = avgRating !== '—' ? Array.from({length: 5}, (_, i) => {
+    const val = parseFloat(avgRating);
+    if (i + 1 <= Math.floor(val)) return '<i class="fas fa-star" style="color:#f1c40f"></i>';
+    if (i < val) return '<i class="fas fa-star-half-alt" style="color:#f1c40f"></i>';
+    return '<i class="far fa-star" style="color:#ddd"></i>';
+  }).join('') : '';
+
+  content.innerHTML = `
+    <div class="stats-grid" style="margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-eye"></i></div><div class="stat-info"><h3>${formatNumber(totalImpressions)}</h3><p>Impressions (30j)</p></div></div>
+      <div class="stat-card"><div class="stat-icon green"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>${formatNumber(totalClicks)}</h3><p>Clics totaux (30j)</p></div></div>
+      <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-directions"></i></div><div class="stat-info"><h3>${formatNumber(totalDirections)}</h3><p>Demandes itineraire</p></div></div>
+      <div class="stat-card"><div class="stat-icon gold"><i class="fas fa-external-link-alt"></i></div><div class="stat-info"><h3>${formatNumber(totalWebClicks)}</h3><p>Clics vers le site</p></div></div>
+      <div class="stat-card"><div class="stat-icon red"><i class="fas fa-phone"></i></div><div class="stat-info"><h3>${formatNumber(totalCallClicks)}</h3><p>Appels (30j)</p></div></div>
+      <div class="stat-card"><div class="stat-icon gold"><i class="fas fa-star"></i></div><div class="stat-info"><h3>${avgRating} ${starsHtml}</h3><p>${totalReviews} avis Google</p></div></div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-area"></i> Impressions par jour</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-gmb-impressions"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-bar"></i> Actions par jour</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-gmb-actions"></canvas></div></div>
+      </div>
+    </div>
+    <div class="panel mt-24">
+      <div class="panel-header">
+        <h3><i class="fas fa-table"></i> Donnees quotidiennes</h3>
+        <button class="btn btn-sm btn-outline" id="btn-refresh-gmb"><i class="fas fa-sync-alt"></i> Actualiser</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        ${gmb.length === 0 ? '<div class="empty-state"><i class="fab fa-google"></i><h4>Aucune donnee Google Business</h4><p>Configurez Windsor.ai dans les Parametres pour synchroniser.</p></div>' : `
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Impressions</th><th>Clics</th><th>Appels</th><th>Itineraires</th><th>Clics site</th></tr></thead>
+            <tbody>
+              ${[...gmb].reverse().map(r => `<tr><td>${formatDate(r.date)}</td><td>${formatNumber(r.impressions)}</td><td>${formatNumber(r.clicks)}</td><td>${formatNumber(r.call_clicks || 0)}</td><td>${formatNumber(r.direction_requests)}</td><td>${formatNumber(r.website_clicks)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+    <div class="text-small text-muted mt-16" style="text-align:right"><i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google My Business — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}</div>
+  `;
+
+  content.querySelector('#btn-refresh-gmb')?.addEventListener('click', async () => {
+    toast('Sync Google Business...', 'warning');
+    await syncGMB();
+    localStorage.setItem('windsor_last_sync', new Date().toISOString());
+    toast('Google Business actualise');
+    pages.gbp();
+  });
+
+  if (gmb.length > 0 && document.getElementById('chart-gmb-impressions')) {
+    new Chart($('#chart-gmb-impressions'), {
+      type: 'line',
+      data: {
+        labels: dates.map(d => formatDate(d)),
+        datasets: [{ label: 'Impressions', data: gmb.map(r => r.impressions), borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.15)', tension: 0.3, fill: true }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+  if (gmb.length > 0 && document.getElementById('chart-gmb-actions')) {
+    new Chart($('#chart-gmb-actions'), {
+      type: 'bar',
+      data: {
+        labels: dates.map(d => formatDate(d)),
+        datasets: [
+          { label: 'Clics', data: gmb.map(r => r.clicks), backgroundColor: '#2d6a4f' },
+          { label: 'Appels', data: gmb.map(r => r.call_clicks || 0), backgroundColor: '#e74c3c' },
+          { label: 'Itineraires', data: gmb.map(r => r.direction_requests), backgroundColor: '#d4a04a' },
+          { label: 'Site web', data: gmb.map(r => r.website_clicks), backgroundColor: '#3498db' }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+};
+
+// ============================================
+// SETTINGS MODULE
+// ============================================
+pages.settings = function() {
+  const content = $('#content');
+  const windsorKey = getWindsorApiKey();
+  const lastSync = localStorage.getItem('windsor_last_sync');
+  content.innerHTML = `
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-database"></i> Base de donnees</h3></div>
+        <div class="panel-body">
+          <div class="form-group">
+            <label>Supabase URL</label>
+            <input type="text" value="${SUPABASE_URL}" readonly style="background:var(--bg)">
+          </div>
+          <div class="form-group">
+            <label>Statut de connexion</label>
+            <div id="db-status" class="mt-8">Verification...</div>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btn-test-db"><i class="fas fa-plug"></i> Tester la connexion</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-cloud-download-alt"></i> Windsor.ai — Integration Google</h3></div>
+        <div class="panel-body">
+          <p class="text-small text-muted mb-16">Connectez Windsor.ai pour synchroniser automatiquement vos donnees Google Ads, Analytics, Search Console et Business Profile.</p>
+          <div class="form-group">
+            <label>Cle API Windsor.ai</label>
+            <input type="password" id="windsor-api-key" value="${windsorKey}" placeholder="Collez votre cle API Windsor.ai ici">
+          </div>
+          <div class="form-group">
+            <button class="btn btn-primary btn-sm" id="btn-save-windsor"><i class="fas fa-save"></i> Enregistrer la cle</button>
+            <button class="btn btn-accent btn-sm" id="btn-sync-windsor" ${!windsorKey ? 'disabled' : ''}><i class="fas fa-sync-alt"></i> Synchroniser maintenant</button>
+          </div>
+          <div id="windsor-status" class="mt-8">
+            ${windsorKey ? `<span style="color:var(--success)"><i class="fas fa-check-circle"></i> Cle configuree</span>` : `<span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> Non configure</span>`}
+            ${lastSync ? `<br><span class="text-small text-muted">Derniere sync: ${formatDateTime(lastSync)}</span>` : ''}
+          </div>
+          <div id="windsor-sync-results" class="mt-16"></div>
+          <div class="mt-16" style="background:var(--bg);padding:12px;border-radius:8px">
+            <p class="text-small text-muted"><strong>Connecteurs actifs :</strong></p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <span class="badge-platform google" style="padding:4px 10px;border-radius:6px;font-size:0.8rem"><i class="fab fa-google"></i> Google Ads</span>
+              <span class="badge-platform google" style="padding:4px 10px;border-radius:6px;font-size:0.8rem"><i class="fas fa-chart-line"></i> Analytics 4</span>
+              <span class="badge-platform google" style="padding:4px 10px;border-radius:6px;font-size:0.8rem"><i class="fas fa-search"></i> Search Console</span>
+              <span class="badge-platform google" style="padding:4px 10px;border-radius:6px;font-size:0.8rem"><i class="fas fa-store"></i> Business Profile</span>
+            </div>
+            <p class="text-small text-muted mt-8"><i class="fas fa-info-circle"></i> Synchronisation automatique toutes les 30 minutes. Plan gratuit: 1 source, 30 jours d'historique.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-database"></i> Initialisation</h3></div>
+        <div class="panel-body">
+          <p class="text-small text-muted mb-16">Si les tables n'existent pas encore, executez le script SQL dans l'editeur Supabase.</p>
+          <button class="btn btn-outline btn-sm" id="btn-copy-sql"><i class="fas fa-copy"></i> Copier le SQL de setup</button>
+          <div class="mt-16">
+            <button class="btn btn-primary btn-sm" id="btn-check-tables"><i class="fas fa-check-double"></i> Verifier les tables</button>
+          </div>
+          <div id="table-check-results" class="mt-16"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-info-circle"></i> A propos</h3></div>
+        <div class="panel-body">
+          <p><strong>LPB Hub</strong> — Dashboard unifie La Planete Bois</p>
+          <p class="text-small text-muted mt-8">Version 2.0 — CRM, Publicites, SEO, Analytics, GBP</p>
+          <p class="text-small text-muted">Connecte a Supabase + Windsor.ai pour la synchronisation en direct.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-download"></i> Export</h3></div>
+        <div class="panel-body">
+          <p class="text-small text-muted mb-16">Exportez vos donnees au format Excel.</p>
+          <button class="btn btn-outline btn-sm mb-16" id="btn-export-contacts"><i class="fas fa-file-excel"></i> Exporter les contacts</button><br>
+          <button class="btn btn-outline btn-sm mb-16" id="btn-export-deals"><i class="fas fa-file-excel"></i> Exporter les deals</button><br>
+          <button class="btn btn-outline btn-sm" id="btn-export-keywords"><i class="fas fa-file-excel"></i> Exporter les mots-cles</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Windsor.ai config
+  $('#btn-save-windsor')?.addEventListener('click', () => {
+    const key = $('#windsor-api-key').value.trim();
+    if (!key) { toast('Saisissez une cle API', 'warning'); return; }
+    setWindsorApiKey(key);
+    toast('Cle API Windsor.ai enregistree');
+    $('#windsor-status').innerHTML = '<span style="color:var(--success)"><i class="fas fa-check-circle"></i> Cle configuree</span>';
+    $('#btn-sync-windsor').disabled = false;
+  });
+  $('#btn-sync-windsor')?.addEventListener('click', async () => {
+    const btn = $('#btn-sync-windsor');
+    const results = $('#windsor-sync-results');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Synchronisation...';
+    results.innerHTML = '<div class="text-muted"><i class="fas fa-spinner fa-spin"></i> Recuperation des donnees Windsor.ai...</div>';
+    try {
+      const [ads, ga4, sc, gmb] = await Promise.all([
+        syncGoogleAds(), syncGA4(), syncSearchConsole(), syncGMB()
+      ]);
+      localStorage.setItem('windsor_last_sync', new Date().toISOString());
+      results.innerHTML = `
+        <div style="background:var(--bg);padding:12px;border-radius:8px">
+          <p style="color:var(--success);font-weight:600"><i class="fas fa-check-circle"></i> Synchronisation terminee</p>
+          <table style="width:100%;margin-top:8px;font-size:0.85rem">
+            <tr><td><i class="fab fa-google"></i> Google Ads</td><td style="text-align:right;font-weight:600">${ads} lignes</td></tr>
+            <tr><td><i class="fas fa-chart-line"></i> Analytics (GA4)</td><td style="text-align:right;font-weight:600">${ga4} lignes</td></tr>
+            <tr><td><i class="fas fa-search"></i> Search Console</td><td style="text-align:right;font-weight:600">${sc} lignes</td></tr>
+            <tr><td><i class="fas fa-store"></i> Business Profile</td><td style="text-align:right;font-weight:600">${gmb} lignes</td></tr>
+            <tr style="border-top:1px solid var(--border)"><td><strong>Total</strong></td><td style="text-align:right;font-weight:700">${ads+ga4+sc+gmb} lignes</td></tr>
+          </table>
+          <p class="text-small text-muted mt-8">${formatDateTime(new Date().toISOString())}</p>
+        </div>
+      `;
+    } catch(e) {
+      results.innerHTML = `<span style="color:var(--danger)"><i class="fas fa-times-circle"></i> Erreur: ${e.message}</span>`;
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sync-alt"></i> Synchroniser maintenant';
+  });
+
+  // Test DB
+  const checkDb = async () => {
+    const statusEl = $('#db-status');
+    try {
+      const { data, error } = await db.from('contacts').select('id', { count: 'exact', head: true });
+      if (error) throw error;
+      statusEl.innerHTML = '<span style="color:var(--success)"><i class="fas fa-check-circle"></i> Connecte</span>';
+    } catch (e) {
+      statusEl.innerHTML = `<span style="color:var(--danger)"><i class="fas fa-times-circle"></i> Erreur: ${e.message}</span>`;
+    }
+  };
+  checkDb();
+  $('#btn-test-db')?.addEventListener('click', checkDb);
+
+  // Copy SQL
+  $('#btn-copy-sql')?.addEventListener('click', async () => {
+    try {
+      const resp = await fetch('setup.sql');
+      const sql = await resp.text();
+      await navigator.clipboard.writeText(sql);
+      toast('SQL copie dans le presse-papiers');
+    } catch (e) {
+      toast('Impossible de copier — ouvrez setup.sql manuellement', 'warning');
+    }
+  });
+
+  // Check tables
+  $('#btn-check-tables')?.addEventListener('click', async () => {
+    const tables = ['contacts', 'deals', 'activities', 'ad_campaigns', 'ad_metrics', 'seo_keywords', 'seo_tasks', 'seo_pages', 'devis', 'commandes', 'planning', 'google_ads_data', 'ga4_data', 'search_console_data', 'gmb_data'];
+    const results = $('#table-check-results');
+    results.innerHTML = 'Verification en cours...';
+    const checks = [];
+    for (const t of tables) {
+      try {
+        const { error } = await db.from(t).select('id', { count: 'exact', head: true });
+        checks.push({ table: t, ok: !error, error: error?.message });
+      } catch (e) {
+        checks.push({ table: t, ok: false, error: e.message });
+      }
+    }
+    results.innerHTML = checks.map(c =>
+      `<div style="padding:4px 0"><span style="color:${c.ok ? 'var(--success)' : 'var(--danger)'}"><i class="fas fa-${c.ok ? 'check' : 'times'}-circle"></i></span> ${c.table} ${c.ok ? '' : `<span class="text-small text-muted">(${c.error})</span>`}</div>`
+    ).join('');
+  });
+
+  // Exports
+  async function exportToXlsx(table, filename) {
+    const data = await dbSelect(table);
+    if (data.length === 0) { toast('Aucune donnee a exporter', 'warning'); return; }
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, table);
+    XLSX.writeFile(wb, filename);
+    toast(`${data.length} lignes exportees`);
+  }
+  $('#btn-export-contacts')?.addEventListener('click', () => exportToXlsx('contacts', 'contacts_lpb.xlsx'));
+  $('#btn-export-deals')?.addEventListener('click', () => exportToXlsx('deals', 'deals_lpb.xlsx'));
+  $('#btn-export-keywords')?.addEventListener('click', () => exportToXlsx('seo_keywords', 'seo_keywords_lpb.xlsx'));
+};
+
+// ============================================
+// GLOBAL SEARCH
+// ============================================
+$('#global-search')?.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const term = e.target.value.trim();
+  if (!term) return;
+
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+  $('#page-title').textContent = `Recherche: "${term}"`;
+
+  const [contacts, deals, campaigns, keywords] = await Promise.all([
+    dbSelect('contacts'),
+    dbSelect('deals'),
+    dbSelect('ad_campaigns'),
+    dbSelect('seo_keywords')
+  ]);
+
+  const t = term.toLowerCase();
+  const matchContacts = contacts.filter(c => `${c.first_name} ${c.last_name} ${c.email || ''} ${c.company || ''} ${c.city || ''}`.toLowerCase().includes(t));
+  const matchDeals = deals.filter(d => (d.title || '').toLowerCase().includes(t));
+  const matchCampaigns = campaigns.filter(c => (c.name || '').toLowerCase().includes(t));
+  const matchKeywords = keywords.filter(k => (k.keyword || '').toLowerCase().includes(t));
+
+  const total = matchContacts.length + matchDeals.length + matchCampaigns.length + matchKeywords.length;
+
+  content.innerHTML = `
+    <p class="text-muted mb-24">${total} resultat(s) pour "${term}"</p>
+    ${matchContacts.length > 0 ? `
+      <div class="panel mb-24">
+        <div class="panel-header"><h3><i class="fas fa-users"></i> Contacts (${matchContacts.length})</h3></div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table"><tbody>
+            ${matchContacts.slice(0, 10).map(c => `<tr>
+              <td><div class="avatar-sm" style="display:inline-flex">${initials(c.first_name, c.last_name)}</div> ${c.first_name} ${c.last_name}</td>
+              <td>${c.email || '—'}</td>
+              <td><span class="badge-status ${c.status}">${c.status}</span></td>
+              <td><button class="btn btn-xs btn-outline" onclick="crmEdit('${c.id}')">Voir</button></td>
+            </tr>`).join('')}
+          </tbody></table>
+        </div>
+      </div>
+    ` : ''}
+    ${matchDeals.length > 0 ? `
+      <div class="panel mb-24">
+        <div class="panel-header"><h3><i class="fas fa-handshake"></i> Deals (${matchDeals.length})</h3></div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table"><tbody>
+            ${matchDeals.map(d => `<tr><td>${d.title}</td><td>${formatCurrency(d.value)}</td><td>${d.stage}</td><td><button class="btn btn-xs btn-outline" onclick="dealView('${d.id}')">Voir</button></td></tr>`).join('')}
+          </tbody></table>
+        </div>
+      </div>
+    ` : ''}
+    ${matchCampaigns.length > 0 ? `
+      <div class="panel mb-24">
+        <div class="panel-header"><h3><i class="fas fa-bullhorn"></i> Campagnes (${matchCampaigns.length})</h3></div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table"><tbody>
+            ${matchCampaigns.map(c => `<tr><td>${c.name}</td><td><span class="badge-platform ${c.platform}">${c.platform}</span></td><td><button class="btn btn-xs btn-outline" onclick="adEdit('${c.id}')">Voir</button></td></tr>`).join('')}
+          </tbody></table>
+        </div>
+      </div>
+    ` : ''}
+    ${matchKeywords.length > 0 ? `
+      <div class="panel mb-24">
+        <div class="panel-header"><h3><i class="fas fa-search"></i> Mots-cles (${matchKeywords.length})</h3></div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table"><tbody>
+            ${matchKeywords.map(k => `<tr><td>${k.keyword}</td><td>#${k.position || '—'}</td><td><button class="btn btn-xs btn-outline" onclick="seoEditKw('${k.id}')">Voir</button></td></tr>`).join('')}
+          </tbody></table>
+        </div>
+      </div>
+    ` : ''}
+    ${total === 0 ? '<div class="empty-state"><i class="fas fa-search"></i><h4>Aucun resultat</h4></div>' : ''}
+  `;
+});
+
+// ============================================
+// PRESENTATION MODULE
+// ============================================
+pages.presentation = function() {
+  const content = $('#content');
+  content.innerHTML = `
+    <div class="panel" style="padding:0;overflow:hidden;border-radius:var(--radius);height:calc(100vh - var(--topbar-h) - 48px)">
+      <iframe src="presentation.html"
+              style="width:100%;height:100%;border:none;display:block"
+              title="Présentation commerciale La Planète Bois"></iframe>
+    </div>
+  `;
+};
+
+// ============================================
+// INIT
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+  navigate('dashboard');
+
+  // Windsor.ai sync button in header
+  $('#btn-windsor-sync')?.addEventListener('click', async () => {
+    const btn = $('#btn-windsor-sync');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+    await syncAllWindsor(false);
+    btn.innerHTML = '<i class="fab fa-google"></i>';
+    btn.disabled = false;
+    if (pages[currentPage]) pages[currentPage]();
+  });
+
+  // Auto-sync Windsor.ai on load
+  autoSyncWindsor();
+});
