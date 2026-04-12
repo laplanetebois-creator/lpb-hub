@@ -3459,8 +3459,74 @@ pages.presentation = function() {
 // ============================================
 // INIT
 // ============================================
-document.addEventListener('DOMContentLoaded', () => {
+// ============================================
+// AUTH
+// ============================================
+async function checkAuth() {
+  if (!db) return false;
+  const { data: { session } } = await db.auth.getSession();
+  return !!session;
+}
+
+async function handleLogin() {
+  const btn = $('#login-btn');
+  const errEl = $('#login-error');
+  const email = $('#login-email').value.trim();
+  const password = $('#login-password').value;
+  errEl.style.display = 'none';
+
+  if (!email || !password) {
+    errEl.textContent = 'Veuillez remplir tous les champs';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connexion...';
+
+  const { error } = await db.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    errEl.textContent = 'Email ou mot de passe incorrect';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Se connecter';
+    return;
+  }
+
+  showApp();
+}
+
+async function handleLogout() {
+  await db.auth.signOut();
+  $('#login-overlay').classList.remove('hidden');
+  document.querySelector('.sidebar').style.display = 'none';
+  document.querySelector('.main').style.display = 'none';
+}
+
+function showApp() {
+  $('#login-overlay').classList.add('hidden');
+  document.querySelector('.sidebar').style.display = '';
+  document.querySelector('.main').style.display = '';
   navigate('dashboard');
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Hide app until auth check
+  document.querySelector('.sidebar').style.display = 'none';
+  document.querySelector('.main').style.display = 'none';
+
+  // Login form handlers
+  $('#login-btn').addEventListener('click', handleLogin);
+  $('#login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+
+  // Check existing session
+  const loggedIn = await checkAuth();
+  if (loggedIn) {
+    showApp();
+  } else {
+    $('#login-overlay').classList.remove('hidden');
+  }
 
   // Windsor.ai sync button in header
   $('#btn-windsor-sync')?.addEventListener('click', async () => {

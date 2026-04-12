@@ -35,7 +35,10 @@
       <div class="section-label">Outils</div>
       <a data-page="settings"><i class="fas fa-cog"></i> Parametres</a>
     </nav>
-    <div class="sidebar-footer">LPB Hub v2.0 &mdash; 2025</div>
+    <div class="sidebar-footer">
+      <button onclick="handleLogout()" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
+      <small>LPB Hub v2.0 &mdash; 2025</small>
+    </div>
   </aside>
 
   <!-- MAIN -->
@@ -72,6 +75,21 @@
       </div>
       <div class="modal-body" id="modal-body"></div>
       <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-box">
+      <div class="login-logo"><i class="fas fa-tree"></i></div>
+      <h2>LPB Hub</h2>
+      <p style="color:var(--text-secondary);margin-bottom:1.5rem">Connectez-vous pour accéder au dashboard</p>
+      <div id="login-error" style="display:none;color:#e74c3c;margin-bottom:1rem;font-size:.9rem"></div>
+      <input type="email" id="login-email" placeholder="Email" autocomplete="email">
+      <input type="password" id="login-password" placeholder="Mot de passe" autocomplete="current-password">
+      <button id="login-btn" class="btn btn-primary" style="width:100%;margin-top:.5rem">
+        <i class="fas fa-sign-in-alt"></i> Se connecter
+      </button>
     </div>
   </div>
 
