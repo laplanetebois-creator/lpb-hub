@@ -1597,17 +1597,23 @@ var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', aut
 function planningToGcalEvent(ev) {
   var startDate = (ev.start_date || '').substring(0, 10);
   var endDate = ev.end_date ? ev.end_date.substring(0, 10) : startDate;
-  // Google Calendar all-day end date is exclusive (next day)
-  var endParts = endDate.split('-');
-  var endDt = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]) + 1);
-  var endExclusive = endDt.getFullYear() + '-' + String(endDt.getMonth() + 1).padStart(2, '0') + '-' + String(endDt.getDate()).padStart(2, '0');
-  return {
+  var gcalEvent = {
     summary: ev.title || '',
     description: [ev.notes || '', '', 'Source: LPB Hub', 'Type: ' + (ev.type || ''), 'Statut: ' + (ev.status || '')].join('\n').trim(),
-    start: { date: startDate },
-    end: { date: endExclusive },
     colorId: GCAL_COLOR_MAP[ev.type] || '8'
   };
+  if (ev.start_time) {
+    gcalEvent.start = { dateTime: startDate + 'T' + ev.start_time + ':00', timeZone: 'Europe/Paris' };
+    var et = ev.end_time || (parseInt(ev.start_time.split(':')[0]) + 1 + ':' + ev.start_time.split(':')[1]);
+    gcalEvent.end = { dateTime: (endDate || startDate) + 'T' + et + ':00', timeZone: 'Europe/Paris' };
+  } else {
+    var endParts = endDate.split('-');
+    var endDt = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]) + 1);
+    var endExclusive = endDt.getFullYear() + '-' + String(endDt.getMonth() + 1).padStart(2, '0') + '-' + String(endDt.getDate()).padStart(2, '0');
+    gcalEvent.start = { date: startDate };
+    gcalEvent.end = { date: endExclusive };
+  }
+  return gcalEvent;
 }
 
 async function gcalPushEvent(planningEvent) {
@@ -1840,85 +1846,6 @@ async function dbCount(table, filters) {
 }
 
 // ============================================
-// DATE RANGE FILTER
-// ============================================
-var DATA_START_DATE = '2026-04-10';
-var dateFilterFrom = null;
-var dateFilterTo = null;
-var datePresetActive = 'all';
-var DATE_PAGES = ['dashboard', 'ads', 'seo', 'analytics', 'gbp'];
-
-function initDateBar() {
-  var bar = document.getElementById('date-bar');
-  var inputFrom = document.getElementById('date-from');
-  var inputTo = document.getElementById('date-to');
-  var today = new Date().toISOString().slice(0, 10);
-
-  inputFrom.value = DATA_START_DATE;
-  inputTo.value = today;
-  inputTo.max = today;
-  inputFrom.max = today;
-
-  function applyDateFilter() {
-    dateFilterFrom = inputFrom.value || null;
-    dateFilterTo = inputTo.value || null;
-    bar.querySelectorAll('.date-presets button').forEach(function(b) {
-      b.classList.toggle('active', b.dataset.preset === datePresetActive);
-    });
-    if (pages[currentPage]) pages[currentPage]();
-  }
-
-  inputFrom.addEventListener('change', function() {
-    datePresetActive = '';
-    applyDateFilter();
-  });
-  inputTo.addEventListener('change', function() {
-    datePresetActive = '';
-    applyDateFilter();
-  });
-
-  bar.querySelectorAll('.date-presets button').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      datePresetActive = btn.dataset.preset;
-      var t = new Date();
-      inputTo.value = t.toISOString().slice(0, 10);
-      if (btn.dataset.preset === 'all') {
-        inputFrom.value = DATA_START_DATE;
-      } else {
-        var days = parseInt(btn.dataset.preset);
-        var from = new Date(t);
-        from.setDate(from.getDate() - days + 1);
-        var fromStr = from.toISOString().slice(0, 10);
-        inputFrom.value = fromStr < DATA_START_DATE ? DATA_START_DATE : fromStr;
-      }
-      applyDateFilter();
-    });
-  });
-}
-
-function filterByDate(rows, dateField) {
-  dateField = dateField || 'date';
-  if (!dateFilterFrom && !dateFilterTo) return rows;
-  return rows.filter(function(r) {
-    var d = r[dateField];
-    if (!d) return true;
-    var ds = typeof d === 'string' ? d.slice(0, 10) : d;
-    if (dateFilterFrom && ds < dateFilterFrom) return false;
-    if (dateFilterTo && ds > dateFilterTo) return false;
-    return true;
-  });
-}
-
-function updateDateBarVisibility() {
-  var bar = document.getElementById('date-bar');
-  if (DATE_PAGES.indexOf(currentPage) >= 0) {
-    bar.classList.add('visible');
-  } else {
-    bar.classList.remove('visible');
-  }
-}
-
-// ============================================
 // WINDSOR.AI — SYNC ENGINE
 // ============================================
 const WINDSOR_API_BASE = 'https://connectors.windsor.ai';
@@ -2106,7 +2033,6 @@ window.navigate = function navigate(page) {
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres'
   };
   $('#page-title').textContent = titles[page] || page;
-  updateDateBarVisibility();
   if (pages[page]) pages[page]();
   else $('#content').innerHTML = `<div class="empty-state"><i class="fas fa-tools"></i><h4>Module en construction</h4></div>`;
 }
@@ -2138,14 +2064,12 @@ pages.dashboard = async function() {
   const totalClients = contacts.filter(c => c.status === 'client').length;
   const pipelineValue = deals.reduce((s, d) => s + (parseFloat(d.value) || 0), 0);
 
-  // Google Analytics KPIs — filtered by date
-  const ga4Filtered = filterByDate(ga4);
-  const ga4Sessions = ga4Filtered.reduce((s, r) => s + (r.sessions || 0), 0);
-  const ga4Users = ga4Filtered.reduce((s, r) => s + (r.users || 0), 0);
-  // GMB KPIs — filtered by date
-  const gmbFiltered = filterByDate(gmbData);
-  const gmbImpressions = gmbFiltered.reduce((s, r) => s + (r.impressions || 0), 0);
-  const gmbDirections = gmbFiltered.reduce((s, r) => s + (r.direction_requests || 0), 0);
+  // Google Analytics KPIs
+  const ga4Sessions = ga4.reduce((s, r) => s + (r.sessions || 0), 0);
+  const ga4Users = ga4.reduce((s, r) => s + (r.users || 0), 0);
+  // GMB KPIs
+  const gmbImpressions = gmbData.reduce((s, r) => s + (r.impressions || 0), 0);
+  const gmbDirections = gmbData.reduce((s, r) => s + (r.direction_requests || 0), 0);
 
   // Stage counts for pipeline chart
   const stages = ['nouveaux_leads', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2'];
@@ -2153,9 +2077,9 @@ pages.dashboard = async function() {
   const stageCounts = stages.map(s => deals.filter(d => d.stage === s).length);
   const stageValues = stages.map(s => deals.filter(d => d.stage === s).reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0));
 
-  // GA4 sessions by date — filtered
+  // GA4 sessions by date (last 14 days for sparkline)
   const ga4ByDate = {};
-  ga4Filtered.forEach(r => { ga4ByDate[r.date] = (ga4ByDate[r.date] || 0) + (r.sessions || 0); });
+  ga4.forEach(r => { ga4ByDate[r.date] = (ga4ByDate[r.date] || 0) + (r.sessions || 0); });
   const ga4Dates = Object.keys(ga4ByDate).sort().slice(-14);
 
   content.innerHTML = `
@@ -3299,10 +3223,9 @@ pages.ads = async function() {
   let filterPlatform = 'all';
 
   function render() {
-    const filteredAds = filterByDate(googleAds);
-    const gaTotalImpr = filteredAds.reduce((s, r) => s + (r.impressions || 0), 0);
-    const gaTotalClicks = filteredAds.reduce((s, r) => s + (r.clicks || 0), 0);
-    const gaTotalSpend = filteredAds.reduce((s, r) => s + (parseFloat(r.spend) || 0), 0);
+    const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
+    const gaTotalClicks = googleAds.reduce((s, r) => s + (r.clicks || 0), 0);
+    const gaTotalSpend = googleAds.reduce((s, r) => s + (parseFloat(r.spend) || 0), 0);
     const gaCtr = gaTotalImpr > 0 ? (gaTotalClicks / gaTotalImpr * 100).toFixed(2) : 0;
 
     content.innerHTML = `
@@ -3320,7 +3243,7 @@ pages.ads = async function() {
     if (adsTab === 'google') {
       const byCampaign = {};
       const byDate = {};
-      filteredAds.forEach(r => {
+      googleAds.forEach(r => {
         const c = r.campaign || 'Sans nom';
         if (!byCampaign[c]) byCampaign[c] = { impressions: 0, clicks: 0, spend: 0, conversions: 0 };
         byCampaign[c].impressions += r.impressions || 0;
@@ -3335,7 +3258,7 @@ pages.ads = async function() {
         }
       });
       const sortedDates = Object.keys(byDate).sort();
-      const gaTotalConv = filteredAds.reduce((s, r) => s + (r.conversions || 0), 0);
+      const gaTotalConv = googleAds.reduce((s, r) => s + (r.conversions || 0), 0);
       const gaAvgCpc = gaTotalClicks > 0 ? (gaTotalSpend / gaTotalClicks).toFixed(2) : 0;
       const gaConvRate = gaTotalClicks > 0 ? (gaTotalConv / gaTotalClicks * 100).toFixed(2) : 0;
       tabContent.innerHTML = `
@@ -3773,10 +3696,9 @@ pages.seo = async function() {
       dbSelect('search_console_data', { order: ['date', false] })
     ]);
 
-    // Search Console aggregates — filtered by date
-    const scFiltered = filterByDate(scData);
+    // Search Console aggregates
     const scByQuery = {};
-    scFiltered.forEach(r => {
+    scData.forEach(r => {
       if (!scByQuery[r.query]) scByQuery[r.query] = { clicks: 0, impressions: 0, positions: [] };
       scByQuery[r.query].clicks += r.clicks || 0;
       scByQuery[r.query].impressions += r.impressions || 0;
@@ -4807,8 +4729,18 @@ function planForm(ev, contacts) {
         <input type="date" id="f-evstart" value="${d.start_date || ''}">
       </div>
       <div class="form-group">
+        <label>Heure debut</label>
+        <input type="time" id="f-evstarttime" value="${d.start_time || ''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>Date fin</label>
         <input type="date" id="f-evend" value="${d.end_date || ''}">
+      </div>
+      <div class="form-group">
+        <label>Heure fin</label>
+        <input type="time" id="f-evendtime" value="${d.end_time || ''}">
       </div>
     </div>
     <div class="form-group">
@@ -4844,6 +4776,8 @@ function planForm(ev, contacts) {
       color: $('#f-evcolor').value,
       start_date: start,
       end_date: $('#f-evend').value || null,
+      start_time: $('#f-evstarttime').value || null,
+      end_time: $('#f-evendtime').value || null,
       contact_id: $('#f-evcontact').value || null,
       status: $('#f-evstatus').value,
       notes: $('#f-evnotes').value.trim() || null
@@ -4894,8 +4828,7 @@ window.planDelete = async function(id) {
 pages.analytics = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-  const ga4Raw = await dbSelect('ga4_data', { order: ['date', false] });
-  const ga4 = filterByDate(ga4Raw);
+  const ga4 = await dbSelect('ga4_data', { order: ['date', false] });
 
   const byDate = {};
   ga4.forEach(r => {
@@ -5009,8 +4942,7 @@ pages.analytics = async function() {
 pages.gbp = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-  const gmbRaw = await dbSelect('gmb_data', { order: ['date'] });
-  const gmb = filterByDate(gmbRaw);
+  const gmb = await dbSelect('gmb_data', { order: ['date'] });
 
   const totalImpressions = gmb.reduce((s, r) => s + (r.impressions || 0), 0);
   const totalClicks = gmb.reduce((s, r) => s + (r.clicks || 0), 0);
@@ -5504,9 +5436,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Login form handlers
   $('#login-btn').addEventListener('click', handleLogin);
   $('#login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-
-  // Init date bar
-  initDateBar();
 
   // Check existing session
   const loggedIn = await checkAuth();

@@ -90,17 +90,23 @@ var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', aut
 function planningToGcalEvent(ev) {
   var startDate = (ev.start_date || '').substring(0, 10);
   var endDate = ev.end_date ? ev.end_date.substring(0, 10) : startDate;
-  // Google Calendar all-day end date is exclusive (next day)
-  var endParts = endDate.split('-');
-  var endDt = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]) + 1);
-  var endExclusive = endDt.getFullYear() + '-' + String(endDt.getMonth() + 1).padStart(2, '0') + '-' + String(endDt.getDate()).padStart(2, '0');
-  return {
+  var gcalEvent = {
     summary: ev.title || '',
     description: [ev.notes || '', '', 'Source: LPB Hub', 'Type: ' + (ev.type || ''), 'Statut: ' + (ev.status || '')].join('\n').trim(),
-    start: { date: startDate },
-    end: { date: endExclusive },
     colorId: GCAL_COLOR_MAP[ev.type] || '8'
   };
+  if (ev.start_time) {
+    gcalEvent.start = { dateTime: startDate + 'T' + ev.start_time + ':00', timeZone: 'Europe/Paris' };
+    var et = ev.end_time || (parseInt(ev.start_time.split(':')[0]) + 1 + ':' + ev.start_time.split(':')[1]);
+    gcalEvent.end = { dateTime: (endDate || startDate) + 'T' + et + ':00', timeZone: 'Europe/Paris' };
+  } else {
+    var endParts = endDate.split('-');
+    var endDt = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]) + 1);
+    var endExclusive = endDt.getFullYear() + '-' + String(endDt.getMonth() + 1).padStart(2, '0') + '-' + String(endDt.getDate()).padStart(2, '0');
+    gcalEvent.start = { date: startDate };
+    gcalEvent.end = { date: endExclusive };
+  }
+  return gcalEvent;
 }
 
 async function gcalPushEvent(planningEvent) {
@@ -3216,8 +3222,18 @@ function planForm(ev, contacts) {
         <input type="date" id="f-evstart" value="${d.start_date || ''}">
       </div>
       <div class="form-group">
+        <label>Heure debut</label>
+        <input type="time" id="f-evstarttime" value="${d.start_time || ''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>Date fin</label>
         <input type="date" id="f-evend" value="${d.end_date || ''}">
+      </div>
+      <div class="form-group">
+        <label>Heure fin</label>
+        <input type="time" id="f-evendtime" value="${d.end_time || ''}">
       </div>
     </div>
     <div class="form-group">
@@ -3253,6 +3269,8 @@ function planForm(ev, contacts) {
       color: $('#f-evcolor').value,
       start_date: start,
       end_date: $('#f-evend').value || null,
+      start_time: $('#f-evstarttime').value || null,
+      end_time: $('#f-evendtime').value || null,
       contact_id: $('#f-evcontact').value || null,
       status: $('#f-evstatus').value,
       notes: $('#f-evnotes').value.trim() || null
