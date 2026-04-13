@@ -293,6 +293,8 @@ async function dbSelect(table, options) {
   try {
     var q = db.from(table).select(options.select || '*');
     if (options.eq) options.eq.forEach(function(pair) { q = q.eq(pair[0], pair[1]); });
+    if (options.gte) options.gte.forEach(function(pair) { q = q.gte(pair[0], pair[1]); });
+    if (options.lte) options.lte.forEach(function(pair) { q = q.lte(pair[0], pair[1]); });
     if (options.order) q = q.order(options.order[0], { ascending: options.order[1] !== false });
     if (options.limit) q = q.limit(options.limit);
     if (options.ilike) options.ilike.forEach(function(pair) { q = q.ilike(pair[0], '%' + pair[1] + '%'); });
@@ -1519,6 +1521,29 @@ window.dealView = async function(id) {
           </div>
         </div>
 
+        ${(function() {
+          var contactEvents = planningEvents.filter(function(ev) { return ev.contact_id === d.contact_id; });
+          return '<div class="deal-sidebar-card">' +
+            '<div class="sc-header" style="display:flex;justify-content:space-between;align-items:center"><span><i class="fas fa-calendar-alt"></i> Planning' + (contactEvents.length ? ' (' + contactEvents.length + ')' : '') + '</span><button class="btn-ghost" onclick="planAddFromDeal(\'' + d.contact_id + '\',\'' + d.id + '\')" title="Ajouter un evenement"><i class="fas fa-plus"></i></button></div>' +
+            '<div class="sc-body">' +
+            (contactEvents.length === 0 ? '<div class="text-muted text-small" style="padding:8px 0">Aucun evenement</div>' :
+            contactEvents.map(function(ev) {
+              var timeStr = ev.start_time ? ev.start_time.substring(0,5) + (ev.end_time ? '-' + ev.end_time.substring(0,5) : '') + ' ' : '';
+              return '<div class="sc-row" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+                '<div style="display:flex;justify-content:space-between;width:100%;align-items:center">' +
+                  '<span style="font-weight:600;font-size:0.82rem">' + escHtml(ev.title) + '</span>' +
+                  '<span>' +
+                    '<button class="btn-ghost" onclick="planEdit(\'' + ev.id + '\')" title="Modifier"><i class="fas fa-pen" style="font-size:0.7rem"></i></button>' +
+                    '<button class="btn-ghost" onclick="planDelete(\'' + ev.id + '\')" title="Supprimer"><i class="fas fa-trash" style="font-size:0.7rem"></i></button>' +
+                  '</span>' +
+                '</div>' +
+                '<span class="text-small text-muted"><i class="fas fa-clock"></i> ' + formatDate(ev.start_date) + ' ' + timeStr +
+                '<span style="background:' + (ev.color || '#2d6a4f') + ';color:#fff;padding:1px 8px;border-radius:10px;font-size:0.7rem;margin-left:6px">' + (ev.type || '') + '</span></span>' +
+              '</div>';
+            }).join('')) +
+            '</div></div>';
+        })()}
+
         <div class="deal-sidebar-card">
           <div class="sc-header"><i class="fas fa-info-circle"></i> Details</div>
           <div class="sc-body">
@@ -1543,27 +1568,15 @@ window.dealView = async function(id) {
           </div>
         ` : ''}
 
-        ${(function() {
-          var contactEvents = planningEvents.filter(function(ev) { return ev.contact_id === d.contact_id; });
-          if (contactEvents.length === 0) return '';
-          return '<div class="deal-sidebar-card">' +
-            '<div class="sc-header"><i class="fas fa-calendar-alt"></i> Planning (' + contactEvents.length + ')</div>' +
-            '<div class="sc-body">' +
-            contactEvents.map(function(ev) {
-              var timeStr = ev.start_time ? ev.start_time.substring(0,5) + (ev.end_time ? '-' + ev.end_time.substring(0,5) : '') + ' ' : '';
-              return '<div class="sc-row" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 0;border-bottom:1px solid var(--border)">' +
-                '<span style="font-weight:600;font-size:0.82rem">' + escHtml(ev.title) + '</span>' +
-                '<span class="text-small text-muted"><i class="fas fa-clock"></i> ' + formatDate(ev.start_date) + ' ' + timeStr +
-                '<span style="background:' + (ev.color || '#2d6a4f') + ';color:#fff;padding:1px 8px;border-radius:10px;font-size:0.7rem;margin-left:6px">' + (ev.type || '') + '</span></span>' +
-              '</div>';
-            }).join('') +
-            '</div></div>';
-        })()}
-
         ${attHtml}
       </div>
     </div>
   `;
+};
+
+window.planAddFromDeal = async function(contactId, dealId) {
+  var contacts = await dbSelect('contacts');
+  planForm({ contact_id: contactId, deal_id: dealId, type: 'rdv', start_date: new Date().toISOString().substring(0,10) }, contacts);
 };
 
 window.dealEditFromView = async function(id) {
