@@ -208,6 +208,33 @@ a:hover { text-decoration: underline; }
 
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 
+/* DATE PICKER BAR */
+.date-bar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 32px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.date-bar.visible { display: flex; }
+.date-bar label { font-size: 0.82rem; font-weight: 600; color: var(--text-light); white-space: nowrap; }
+.date-bar input[type="date"] {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 0.85rem; color: var(--text); background: var(--bg);
+  cursor: pointer; outline: none; transition: border var(--transition);
+}
+.date-bar input[type="date"]:focus { border-color: var(--primary); }
+.date-bar .date-presets { display: flex; gap: 6px; margin-left: 8px; }
+.date-bar .date-presets button {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); font-size: 0.78rem; color: var(--text-light); cursor: pointer;
+  transition: all var(--transition);
+}
+.date-bar .date-presets button:hover { border-color: var(--primary); color: var(--primary); }
+.date-bar .date-presets button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
 .topbar-search {
   display: flex;
   align-items: center;
@@ -878,6 +905,9 @@ a:hover { text-decoration: underline; }
 
   /* Hide search bar in topbar on mobile — use global search modal instead */
   .topbar-search { display: none !important; }
+  .date-bar { padding: 8px 12px; gap: 8px; }
+  .date-bar .date-presets { margin-left: 0; flex-wrap: wrap; }
+  .date-bar input[type="date"] { font-size: 0.8rem; padding: 5px 8px; }
   .topbar-right { gap: 6px; }
   .topbar-right .btn-icon { width: 34px; height: 34px; }
 
@@ -1402,6 +1432,18 @@ a.att-item { position: relative; display: block; }
         </button>
       </div>
     </header>
+    <div class="date-bar" id="date-bar">
+      <label><i class="fas fa-calendar-alt"></i> Periode :</label>
+      <input type="date" id="date-from" min="2026-04-10">
+      <span style="color:var(--text-light);font-size:0.85rem">—</span>
+      <input type="date" id="date-to" min="2026-04-10">
+      <div class="date-presets">
+        <button data-preset="7d">7 jours</button>
+        <button data-preset="14d">14 jours</button>
+        <button data-preset="30d">30 jours</button>
+        <button data-preset="all" class="active">Tout</button>
+      </div>
+    </div>
     <div class="content" id="content">
       <!-- Dynamic content -->
     </div>
@@ -1488,7 +1530,7 @@ const GCAL_SCOPES = 'https://www.googleapis.com/auth/calendar';
 const GCAL_API = 'https://www.googleapis.com/calendar/v3';
 let gcalTokenClient = null;
 
-function getGcalClientId() { return localStorage.getItem('gcal_client_id') || ''; }
+function getGcalClientId() { return localStorage.getItem('gcal_client_id') || '533369528329-dnm3l2gsiocivrqm8ponj767mo1fubql.apps.googleusercontent.com'; }
 function getGcalToken() { return localStorage.getItem('gcal_access_token') || ''; }
 function getGcalCalendarId() { return localStorage.getItem('gcal_calendar_id') || 'primary'; }
 function gcalIsConnected() { return !!getGcalToken(); }
