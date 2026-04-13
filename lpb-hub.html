@@ -2144,7 +2144,15 @@ $$('.sidebar-nav a[data-page]').forEach(a => {
   a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
 });
 
-$('#btn-refresh')?.addEventListener('click', () => navigate(currentPage));
+$('#btn-refresh')?.addEventListener('click', async () => {
+  const btn = $('#btn-refresh');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  await syncAllWindsor(false);
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+  navigate(currentPage);
+});
 
 // ============================================
 // DASHBOARD MODULE
