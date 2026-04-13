@@ -590,13 +590,13 @@ function initDateBar() {
   });
 }
 
-var pagesWithDateBar = ['dashboard', 'ads', 'seo', 'analytics', 'gbp', 'rapport'];
+var pagesWithDateBar = ['dashboard', 'google-ads', 'fb-ads', 'seo', 'analytics', 'gbp', 'rapport'];
 
 window.navigate = function navigate(page) {
   currentPage = page;
   $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
   const titles = {
-    dashboard: 'Tableau de bord', crm: 'CRM', ads: 'Ads — FB / Google',
+    dashboard: 'Tableau de bord', crm: 'CRM', 'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
     devis: 'Devis', suivi: 'Suivi client',
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
@@ -2034,16 +2034,11 @@ function parseFlexDate(str) {
 // ============================================
 // ADS MODULE
 // ============================================
-pages.ads = async function() {
+pages['google-ads'] = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  let adsTab = 'google';
-  let [campaigns, googleAds] = await Promise.all([
-    dbSelect('ad_campaigns', { order: ['created_at', false] }),
-    dbSelect('google_ads_data', { order: ['date', false] })
-  ]);
-  let filterPlatform = 'all';
+  let googleAds = await dbSelect('google_ads_data', { order: ['date', false] });
 
   function render() {
     const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
@@ -2051,19 +2046,7 @@ pages.ads = async function() {
     const gaTotalSpend = googleAds.reduce((s, r) => s + (parseFloat(r.spend) || 0), 0);
     const gaCtr = gaTotalImpr > 0 ? (gaTotalClicks / gaTotalImpr * 100).toFixed(2) : 0;
 
-    content.innerHTML = `
-      <div class="tabs" style="margin-bottom:20px">
-        <button class="tab-btn ${adsTab === 'google' ? 'active' : ''}" data-adtab="google"><i class="fab fa-google"></i> Google Ads (live)</button>
-        <button class="tab-btn ${adsTab === 'manual' ? 'active' : ''}" data-adtab="manual"><i class="fas fa-edit"></i> Campagnes manuelles</button>
-      </div>
-      <div id="ads-tab-content"></div>
-    `;
-    content.querySelectorAll('.tab-btn[data-adtab]').forEach(btn => {
-      btn.addEventListener('click', () => { adsTab = btn.dataset.adtab; render(); });
-    });
-    const tabContent = content.querySelector('#ads-tab-content');
-
-    if (adsTab === 'google') {
+    {
       const byCampaign = {};
       const byDate = {};
       googleAds.forEach(r => {
@@ -2084,7 +2067,7 @@ pages.ads = async function() {
       const gaTotalConv = googleAds.reduce((s, r) => s + (r.conversions || 0), 0);
       const gaAvgCpc = gaTotalClicks > 0 ? (gaTotalSpend / gaTotalClicks).toFixed(2) : 0;
       const gaConvRate = gaTotalClicks > 0 ? (gaTotalConv / gaTotalClicks * 100).toFixed(2) : 0;
-      tabContent.innerHTML = `
+      content.innerHTML = `
         <div class="stats-grid" style="margin-bottom:20px">
           <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-eye"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalImpr)}</h3><p>Impressions</p></div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalClicks)}</h3><p>Clics</p></div></div>
@@ -2163,17 +2146,29 @@ pages.ads = async function() {
           });
         }
       }
-      return;
     }
+  }
+  render();
+};
 
-    // Manual campaigns tab
+// ============================================
+// FB ADS (manual campaigns)
+// ============================================
+pages['fb-ads'] = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  let campaigns = await dbSelect('ad_campaigns', { order: ['created_at', false] });
+  let filterPlatform = 'all';
+
+  function render() {
     let filtered = campaigns;
     if (filterPlatform !== 'all') filtered = filtered.filter(c => c.platform === filterPlatform);
     const totalBudget = campaigns.reduce((s, c) => s + (parseFloat(c.budget_total) || 0), 0);
     const totalSpent = campaigns.reduce((s, c) => s + (parseFloat(c.spent) || 0), 0);
     const activeCount = campaigns.filter(c => c.status === 'actif').length;
 
-    tabContent.innerHTML = `
+    content.innerHTML = `
       <div class="stats-grid" style="margin-bottom:20px">
         <div class="stat-card">
           <div class="stat-icon blue"><i class="fas fa-bullhorn"></i></div>
@@ -2200,10 +2195,8 @@ pages.ads = async function() {
         <div class="toolbar-left">
           <div class="filter-group">
             <button class="${filterPlatform === 'all' ? 'active' : ''}" data-pf="all">Toutes</button>
-            <button class="${filterPlatform === 'google' ? 'active' : ''}" data-pf="google"><i class="fab fa-google"></i> Google</button>
             <button class="${filterPlatform === 'facebook' ? 'active' : ''}" data-pf="facebook"><i class="fab fa-facebook"></i> Facebook</button>
             <button class="${filterPlatform === 'instagram' ? 'active' : ''}" data-pf="instagram"><i class="fab fa-instagram"></i> Instagram</button>
-            <button class="${filterPlatform === 'linkedin' ? 'active' : ''}" data-pf="linkedin"><i class="fab fa-linkedin"></i> LinkedIn</button>
           </div>
         </div>
         <div class="toolbar-right">
@@ -2215,9 +2208,9 @@ pages.ads = async function() {
         <div class="panel-body" style="padding:0">
           ${filtered.length === 0 ? `
             <div class="empty-state">
-              <i class="fas fa-ad"></i>
+              <i class="fab fa-facebook"></i>
               <h4>Aucune campagne</h4>
-              <p>Creez votre premiere campagne publicitaire</p>
+              <p>Creez votre premiere campagne Facebook / Instagram</p>
             </div>
           ` : `
             <table class="data-table">
@@ -2377,7 +2370,7 @@ function adForm(campaign = null) {
     if (isEdit) { await dbUpdate('ad_campaigns', c.id, row); toast('Campagne mise a jour'); }
     else { await dbInsert('ad_campaigns', row); toast('Campagne creee'); }
     closeModal();
-    pages.ads();
+    pages['fb-ads']();
   });
 }
 
@@ -2395,7 +2388,7 @@ window.adDelete = async function(id, name) {
     await dbDelete('ad_campaigns', id);
     toast('Campagne supprimee');
     closeModal();
-    pages.ads();
+    pages['fb-ads']();
   });
 };
 
