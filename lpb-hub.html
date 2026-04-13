@@ -841,20 +841,194 @@ a:hover { text-decoration: underline; }
 /* ============================================
    RESPONSIVE
    ============================================ */
+/* Bottom nav & sidebar overlay & more menu: hidden on desktop */
+.bottom-nav { display: none; }
+.sidebar-overlay { display: none; }
+.bottom-more-overlay { display: none; }
+.bottom-more-menu { display: none; }
+
 @media (max-width: 1024px) {
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .pipeline { flex-direction: column; }
   .pipeline-col { min-width: 100%; }
 }
+
+/* ============================================
+   MOBILE — max 768px
+   ============================================ */
 @media (max-width: 768px) {
+  /* Sidebar: off-canvas with overlay */
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
-  .main { margin-left: 0; }
-  .topbar { padding: 0 16px; }
-  .content { padding: 16px; }
-  .stats-grid { grid-template-columns: 1fr; }
+  .sidebar-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    z-index: 99; opacity: 0; pointer-events: none;
+    transition: opacity var(--transition);
+  }
+  .sidebar-overlay.show { opacity: 1; pointer-events: auto; }
+
+  /* Main area */
+  .main { margin-left: 0; padding-bottom: 72px; }
+
+  /* Topbar */
+  .topbar { padding: 0 12px; height: 56px; gap: 8px; }
+  .topbar-left { gap: 8px; flex: 1; min-width: 0; }
+  .topbar-left h2 { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #menu-toggle { display: flex !important; }
+
+  /* Hide search bar in topbar on mobile — use global search modal instead */
+  .topbar-search { display: none !important; }
+  .topbar-right { gap: 6px; }
+  .topbar-right .btn-icon { width: 34px; height: 34px; }
+
+  /* Content area */
+  .content { padding: 14px 12px; }
+
+  /* Stats grid: 2 columns on mobile for compact view */
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 14px 12px; gap: 10px; flex-direction: column; align-items: flex-start; }
+  .stat-card:hover { transform: none; }
+  .stat-icon { width: 36px; height: 36px; font-size: 0.95rem; border-radius: 8px; }
+  .stat-info h3 { font-size: 1.2rem; }
+  .stat-info p { font-size: 0.72rem; }
+
+  /* Panels */
+  .panel-header { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+  .panel-header h3 { font-size: 0.9rem; }
+  .panel-body { padding: 14px; }
+
+  /* Forms */
   .form-row { grid-template-columns: 1fr; }
-  .toolbar { flex-direction: column; align-items: stretch; }
+  .form-group input, .form-group select, .form-group textarea { font-size: 16px; /* prevent iOS zoom */ }
+
+  /* Toolbar */
+  .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .toolbar-left { flex-wrap: wrap; }
+  .toolbar-right { justify-content: flex-end; }
+  .filter-group { width: 100%; }
+  .filter-group button { flex: 1; padding: 8px 6px; font-size: 0.72rem; text-align: center; }
+  .search-input { width: 100%; }
+
+  /* Data tables: horizontal scroll */
+  .panel-body:has(.data-table) { padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table thead th { padding: 10px 12px; font-size: 0.7rem; }
+  .data-table tbody td { padding: 10px 12px; font-size: 0.82rem; }
+
+  /* Pipeline / Kanban: horizontal scroll on mobile */
+  .pipeline { flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-bottom: 12px; }
+  .pipeline-col { min-width: 80vw; scroll-snap-align: start; flex-shrink: 0; }
+
+  /* Deal detail */
+  .deal-detail { grid-template-columns: 1fr; gap: 16px; }
+  .deal-detail-sidebar { order: -1; }
+  .deal-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .deal-header-actions { width: 100%; }
+  .deal-header-actions .btn { flex: 1; justify-content: center; }
+  .deal-info-grid { grid-template-columns: 1fr; }
+  .deal-info-row { padding: 8px 12px; }
+  .deal-info-label { min-width: 90px; font-size: 0.7rem; }
+
+  /* Modal */
+  .modal { width: 96%; max-height: 90vh; border-radius: 12px; }
+  .modal-header { padding: 14px 16px; }
+  .modal-body { padding: 16px; }
+  .modal-footer { padding: 12px 16px; }
+
+  /* Toast */
+  .toast-container { top: 60px; right: 12px; left: 12px; }
+  .toast { min-width: unset; width: 100%; font-size: 0.82rem; padding: 10px 14px; }
+
+  /* Buttons */
+  .btn { padding: 10px 14px; font-size: 0.82rem; }
+  .btn-sm { padding: 7px 10px; }
+
+  /* Bottom Navigation Bar */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 64px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 90;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .bottom-nav a {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; flex: 1; height: 100%;
+    color: var(--text-muted); font-size: 0.62rem; font-weight: 600;
+    text-decoration: none; transition: color var(--transition);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-nav a i { font-size: 1.15rem; }
+  .bottom-nav a.active { color: var(--primary); }
+  .bottom-nav a:hover { color: var(--primary); text-decoration: none; }
+
+  /* Hide sidebar footer on mobile (use bottom nav instead) */
+  .sidebar-footer { display: none; }
+
+  /* Bottom "Plus" dropdown menu — enable on mobile */
+  .bottom-more-overlay {
+    display: none;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 88;
+  }
+  .bottom-more-overlay.show { display: block; }
+
+  .bottom-more-menu {
+    display: none;
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 64px;
+    background: var(--card);
+    border-radius: 16px 16px 0 0;
+    z-index: 89;
+    padding: 8px 16px 20px;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+  }
+  .bottom-more-menu.show { display: block; }
+
+  .bottom-more-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 4px auto 16px;
+  }
+
+  .bottom-more-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .bottom-more-grid a {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding: 14px 4px;
+    border-radius: 12px; color: var(--text);
+    font-size: 0.68rem; font-weight: 600;
+    text-decoration: none; text-align: center;
+    transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-more-grid a i { font-size: 1.3rem; color: var(--primary); }
+  .bottom-more-grid a:hover, .bottom-more-grid a:active { background: var(--bg); }
+
+  /* Deal cards: touch-friendly */
+  .deal-card { padding: 12px; }
+  .deal-card h4 { font-size: 0.85rem; }
+}
+
+/* ============================================
+   VERY SMALL SCREENS — max 340px
+   ============================================ */
+@media (max-width: 340px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .stat-card { flex-direction: row; align-items: center; }
+  .pipeline-col { min-width: 90vw; }
+  .bottom-nav a { font-size: 0.58rem; }
+  .bottom-nav a i { font-size: 1rem; }
 }
 
 /* ============================================
@@ -1178,6 +1352,7 @@ a.att-item { position: relative; display: block; }
 <body>
 
   <!-- SIDEBAR -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       <div class="logo"><i class="fas fa-tree"></i></div>
@@ -1258,6 +1433,31 @@ a.att-item { position: relative; display: block; }
     </div>
   </div>
 
+  <!-- BOTTOM NAV (mobile only, hidden by CSS on desktop) -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <a data-page="dashboard"><i class="fas fa-chart-pie"></i>Accueil</a>
+    <a data-page="crm"><i class="fas fa-users"></i>CRM</a>
+    <a data-page="ads"><i class="fas fa-bullhorn"></i>Ads</a>
+    <a data-page="devis"><i class="fas fa-file-invoice"></i>Devis</a>
+    <a id="bottom-nav-more"><i class="fas fa-th-large"></i>Plus</a>
+  </nav>
+
+  <!-- BOTTOM NAV: "Plus" dropdown menu -->
+  <div class="bottom-more-overlay" id="bottom-more-overlay"></div>
+  <div class="bottom-more-menu" id="bottom-more-menu">
+    <div class="bottom-more-handle"></div>
+    <div class="bottom-more-grid">
+      <a data-page="planning"><i class="fas fa-calendar-alt"></i>Planning</a>
+      <a data-page="seo"><i class="fas fa-search"></i>SEO</a>
+      <a data-page="analytics"><i class="fas fa-chart-line"></i>Analytics</a>
+      <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
+      <a data-page="commandes"><i class="fas fa-box"></i>Commandes</a>
+      <a data-page="suivi"><i class="fas fa-handshake"></i>Suivi client</a>
+      <a data-page="presentation"><i class="fas fa-desktop"></i>Présentation</a>
+      <a data-page="settings"><i class="fas fa-cog"></i>Paramètres</a>
+    </div>
+  </div>
+
   <!-- TOASTS -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -1284,7 +1484,7 @@ try {
 // UTILITIES
 // ============================================
 const $ = sel => document.querySelector(sel);
-const $ = sel => document.querySelectorAll(sel);
+const $$ = sel => document.querySelectorAll(sel);
 const el = (tag, attrs = {}, children = []) => {
   const e = document.createElement(tag);
   Object.entries(attrs).forEach(([k, v]) => {
@@ -1594,7 +1794,7 @@ var currentPage = 'dashboard';
 
 window.navigate = function navigate(page) {
   currentPage = page;
-  $('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
   const titles = {
     dashboard: 'Tableau de bord', crm: 'CRM', ads: 'Ads — FB / Google',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
@@ -1606,8 +1806,79 @@ window.navigate = function navigate(page) {
   else $('#content').innerHTML = `<div class="empty-state"><i class="fas fa-tools"></i><h4>Module en construction</h4></div>`;
 }
 
-$('.sidebar-nav a[data-page]').forEach(a => {
-  a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
+$$('.sidebar-nav a[data-page]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(a.dataset.page);
+    // Close sidebar on mobile after nav
+    closeMobileSidebar();
+  });
+});
+
+// ============================================
+// MOBILE: Sidebar toggle + Bottom nav
+// ============================================
+function openMobileSidebar() {
+  $('#sidebar').classList.add('open');
+  $('#sidebar-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeMobileSidebar() {
+  $('#sidebar').classList.remove('open');
+  $('#sidebar-overlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+$('#menu-toggle')?.addEventListener('click', () => {
+  if ($('#sidebar').classList.contains('open')) closeMobileSidebar();
+  else openMobileSidebar();
+});
+
+$('#sidebar-overlay')?.addEventListener('click', closeMobileSidebar);
+
+// Bottom nav: navigate + highlight active
+$$('#bottom-nav a[data-page]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(a.dataset.page);
+    updateBottomNav(a.dataset.page);
+  });
+});
+
+function updateBottomNav(page) {
+  $$('#bottom-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+}
+
+// Patch navigate to also update bottom nav
+const _origNavigate = window.navigate;
+window.navigate = function(page) {
+  _origNavigate(page);
+  updateBottomNav(page);
+};
+
+// Bottom "Plus" menu
+function openMoreMenu() {
+  $('#bottom-more-menu').classList.add('show');
+  $('#bottom-more-overlay').classList.add('show');
+}
+function closeMoreMenu() {
+  $('#bottom-more-menu').classList.remove('show');
+  $('#bottom-more-overlay').classList.remove('show');
+}
+
+$('#bottom-nav-more')?.addEventListener('click', e => {
+  e.preventDefault();
+  openMoreMenu();
+});
+
+$('#bottom-more-overlay')?.addEventListener('click', closeMoreMenu);
+
+$$('#bottom-more-menu a[data-page]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    closeMoreMenu();
+    navigate(a.dataset.page);
+  });
 });
 
 $('#btn-refresh')?.addEventListener('click', () => navigate(currentPage));
@@ -2257,6 +2528,7 @@ async function renderPipeline(content) {
                 daysLate = Math.floor(diff / 86400000);
               }
               var lateHtml = daysLate > 0 ? '<div style="margin-top:6px"><span style="background:#fee;color:#e74c3c;font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px"><i class="fas fa-exclamation-triangle"></i> ' + daysLate + 'j en retard</span></div>' : '';
+              var rdvHtml = d.rdv_date ? '<div style="margin-top:4px"><span style="background:#e8f5ee;color:#2d6a4f;font-size:0.68rem;font-weight:600;padding:2px 8px;border-radius:4px"><i class="fas fa-calendar-check"></i> RDV ' + formatDate(d.rdv_date) + (d.rdv_date.length > 10 ? ' ' + d.rdv_date.substring(11, 16) : '') + '</span></div>' : '';
               var dateStr = d.created_at ? formatDate(d.created_at) : '';
               return '<div class="deal-card" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
@@ -2268,6 +2540,7 @@ async function renderPipeline(content) {
                   (d.notes ? '<span><i class="fas fa-comment"></i> 1</span>' : '') +
                 '</div>' +
                 (d.value > 0 ? '<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-top:4px">' + formatCurrency(d.value) + '</div>' : '') +
+                rdvHtml +
                 lateHtml +
               '</div>';
             }).join('') +
@@ -2358,6 +2631,16 @@ function dealForm(deal = null, contacts = []) {
         ${contacts.map(c => `<option value="${c.id}" ${d.contact_id === c.id ? 'selected' : ''}>${c.first_name} ${c.last_name}${c.company ? ' (' + c.company + ')' : ''}</option>`).join('')}
       </select>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label><i class="fas fa-calendar-check"></i> Date RDV</label>
+        <input type="date" id="f-drdvdate" value="${d.rdv_date ? d.rdv_date.substring(0, 10) : ''}">
+      </div>
+      <div class="form-group">
+        <label>Heure RDV</label>
+        <input type="time" id="f-drdvtime" value="${d.rdv_date && d.rdv_date.length > 10 ? d.rdv_date.substring(11, 16) : ''}">
+      </div>
+    </div>
     <div class="form-group">
       <label>Notes</label>
       <textarea id="f-dnotes">${d.notes || ''}</textarea>
@@ -2371,6 +2654,9 @@ function dealForm(deal = null, contacts = []) {
   $('#btn-save-deal').addEventListener('click', async () => {
     const title = $('#f-dtitle').value.trim();
     if (!title) { toast('Titre requis', 'error'); return; }
+    const rdvDate = $('#f-drdvdate').value;
+    const rdvTime = $('#f-drdvtime').value;
+    const rdvFull = rdvDate ? (rdvDate + (rdvTime ? 'T' + rdvTime : '')) : null;
     const row = {
       title,
       value: parseFloat($('#f-dvalue').value) || 0,
@@ -2378,10 +2664,18 @@ function dealForm(deal = null, contacts = []) {
       stage: $('#f-dstage').value,
       expected_close: $('#f-dclose').value || null,
       contact_id: $('#f-dcontact').value || null,
-      notes: $('#f-dnotes').value.trim() || null
+      notes: $('#f-dnotes').value.trim() || null,
+      rdv_date: rdvFull
     };
-    if (isEdit) { await dbUpdate('deals', d.id, row); toast('Deal mis a jour'); }
-    else { await dbInsert('deals', row); toast('Deal cree'); }
+    if (isEdit) {
+      await dbUpdate('deals', d.id, row);
+      await syncDealRdvToPlanning(d.id, title, rdvFull, row.contact_id);
+      toast('Deal mis a jour');
+    } else {
+      var newDeal = await dbInsert('deals', row);
+      if (newDeal && rdvFull) await syncDealRdvToPlanning(newDeal.id, title, rdvFull, row.contact_id);
+      toast('Deal cree');
+    }
     closeModal();
     pages.crm('pipeline');
   });
@@ -2403,6 +2697,37 @@ window.dealEdit = async function(id) {
   ]);
   if (deals[0]) dealForm(deals[0], contacts);
 };
+
+// ============================================
+// SYNC RDV DEAL → PLANNING
+// ============================================
+async function syncDealRdvToPlanning(dealId, dealTitle, rdvDate, contactId) {
+  // Find existing planning event linked to this deal
+  var existing = await dbSelect('planning', { eq: [['deal_id', dealId], ['type', 'rdv']] });
+  if (rdvDate) {
+    var eventData = {
+      title: 'RDV: ' + dealTitle,
+      type: 'rdv',
+      color: '#2ecc71',
+      start_date: rdvDate,
+      end_date: null,
+      contact_id: contactId || null,
+      deal_id: dealId,
+      status: 'planifie',
+      notes: 'RDV automatique depuis fiche lead'
+    };
+    if (existing.length > 0) {
+      await dbUpdate('planning', existing[0].id, eventData);
+    } else {
+      await dbInsert('planning', eventData);
+    }
+  } else {
+    // No RDV date — remove existing event if any
+    if (existing.length > 0) {
+      await dbDelete('planning', existing[0].id);
+    }
+  }
+}
 
 // ============================================
 // DEAL DETAIL VIEW (noCRM style)
@@ -2605,6 +2930,25 @@ window.dealView = async function(id) {
           </div>
         </div>
 
+        <div class="deal-sidebar-card">
+          <div class="sc-header"><i class="fas fa-calendar-check"></i> Rendez-vous</div>
+          <div class="sc-body">
+            ${d.rdv_date ? `
+              <div class="sc-row">
+                <span class="sc-label">Date</span>
+                <span class="sc-val" style="color:var(--success);font-weight:600">
+                  <i class="fas fa-calendar-day"></i> ${formatDate(d.rdv_date)}${d.rdv_date.length > 10 ? ' a ' + d.rdv_date.substring(11, 16) : ''}
+                </span>
+              </div>
+              <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px" onclick="dealSetRdv('${d.id}')"><i class="fas fa-pen"></i> Modifier le RDV</button>
+              <button class="btn btn-danger btn-sm" style="width:100%;margin-top:4px" onclick="dealClearRdv('${d.id}')"><i class="fas fa-times"></i> Annuler le RDV</button>
+            ` : `
+              <div style="text-align:center;padding:8px 0;color:var(--text-muted)">Aucun RDV planifie</div>
+              <button class="btn btn-primary btn-sm" style="width:100%;margin-top:4px" onclick="dealSetRdv('${d.id}')"><i class="fas fa-calendar-plus"></i> Planifier un RDV</button>
+            `}
+          </div>
+        </div>
+
         ${contact ? `
           <div class="deal-sidebar-card">
             <div class="sc-header"><i class="fas fa-user"></i> Contact</div>
@@ -2630,6 +2974,51 @@ window.dealEditFromView = async function(id) {
     dbSelect('contacts')
   ]);
   if (deals[0]) dealForm(deals[0], contacts);
+};
+
+window.dealSetRdv = async function(id) {
+  var deals = await dbSelect('deals', { eq: [['id', id]] });
+  var d = deals[0];
+  if (!d) return;
+  var currentDate = d.rdv_date ? d.rdv_date.substring(0, 10) : '';
+  var currentTime = d.rdv_date && d.rdv_date.length > 10 ? d.rdv_date.substring(11, 16) : '';
+  openModal('Planifier un RDV', `
+    <div class="form-row">
+      <div class="form-group">
+        <label><i class="fas fa-calendar-day"></i> Date du RDV *</label>
+        <input type="date" id="f-rdvdate" value="${currentDate}">
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-clock"></i> Heure</label>
+        <input type="time" id="f-rdvtime" value="${currentTime}">
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-save-rdv"><i class="fas fa-check"></i> Confirmer le RDV</button>
+  `);
+  $('#btn-save-rdv').addEventListener('click', async function() {
+    var rdvDate = $('#f-rdvdate').value;
+    if (!rdvDate) { toast('Date requise', 'error'); return; }
+    var rdvTime = $('#f-rdvtime').value;
+    var rdvFull = rdvDate + (rdvTime ? 'T' + rdvTime : '');
+    await dbUpdate('deals', id, { rdv_date: rdvFull });
+    await syncDealRdvToPlanning(id, d.title, rdvFull, d.contact_id);
+    toast('RDV planifie et synchronise au calendrier');
+    closeModal();
+    dealView(id);
+  });
+};
+
+window.dealClearRdv = async function(id) {
+  if (!confirm('Annuler ce rendez-vous ?')) return;
+  var deals = await dbSelect('deals', { eq: [['id', id]] });
+  var d = deals[0];
+  if (!d) return;
+  await dbUpdate('deals', id, { rdv_date: null });
+  await syncDealRdvToPlanning(id, d.title, null, d.contact_id);
+  toast('RDV annule et retire du calendrier');
+  dealView(id);
 };
 
 // Helper: escape HTML
