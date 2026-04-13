@@ -4183,12 +4183,24 @@ $('#global-search')?.addEventListener('keydown', async (e) => {
 pages.presentation = function() {
   const content = $('#content');
   content.innerHTML = `
-    <div class="panel" style="padding:0;overflow:hidden;border-radius:var(--radius);height:calc(100vh - var(--topbar-h) - 48px)">
-      <iframe src="presentation.html"
+    <div class="toolbar" style="margin-bottom:12px">
+      <div class="toolbar-left"><h3 style="margin:0"><i class="fas fa-desktop"></i> Présentation commerciale</h3></div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="btn-fullscreen-pres"><i class="fas fa-expand"></i> Plein ecran</button>
+      </div>
+    </div>
+    <div class="panel" id="pres-panel" style="padding:0;overflow:hidden;border-radius:var(--radius);height:calc(100vh - var(--topbar-h) - 100px)">
+      <iframe id="pres-iframe" src="presentation.html"
               style="width:100%;height:100%;border:none;display:block"
               title="Présentation commerciale La Planète Bois"></iframe>
     </div>
   `;
+  content.querySelector('#btn-fullscreen-pres').addEventListener('click', function() {
+    var panel = document.getElementById('pres-panel');
+    if (panel.requestFullscreen) panel.requestFullscreen();
+    else if (panel.webkitRequestFullscreen) panel.webkitRequestFullscreen();
+    else if (panel.msRequestFullscreen) panel.msRequestFullscreen();
+  });
 };
 
 // ============================================
