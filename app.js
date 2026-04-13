@@ -518,6 +518,80 @@ function autoSyncWindsor() {
 var pages = {};
 var currentPage = 'dashboard';
 
+// ============================================
+// DATE-BAR — GLOBAL TEMPORAL FILTER
+// ============================================
+var globalDateFrom = null;
+var globalDateTo = null;
+var globalDatePreset = 'all';
+
+function getDateFilters(dateColumn) {
+  dateColumn = dateColumn || 'date';
+  var filters = { gte: [], lte: [] };
+  if (globalDateFrom) filters.gte.push([dateColumn, globalDateFrom]);
+  if (globalDateTo) filters.lte.push([dateColumn, globalDateTo]);
+  return filters;
+}
+
+function filterByDateRange(arr, dateField) {
+  dateField = dateField || 'created_at';
+  if (!globalDateFrom && !globalDateTo) return arr;
+  return arr.filter(function(item) {
+    var d = (item[dateField] || '').slice(0, 10);
+    if (globalDateFrom && d < globalDateFrom) return false;
+    if (globalDateTo && d > globalDateTo) return false;
+    return true;
+  });
+}
+
+function initDateBar() {
+  var dateBar = $('#date-bar');
+  var dateFrom = $('#date-from');
+  var dateTo = $('#date-to');
+  if (!dateBar) return;
+
+  function applyPreset(preset) {
+    globalDatePreset = preset;
+    $$('.date-presets button').forEach(function(b) { b.classList.toggle('active', b.dataset.preset === preset); });
+    var today = new Date();
+    var toStr = today.toISOString().slice(0, 10);
+    if (preset === 'all') {
+      globalDateFrom = null;
+      globalDateTo = null;
+      dateFrom.value = '';
+      dateTo.value = '';
+    } else {
+      var days = parseInt(preset);
+      var from = new Date(today);
+      from.setDate(from.getDate() - days);
+      globalDateFrom = from.toISOString().slice(0, 10);
+      globalDateTo = toStr;
+      dateFrom.value = globalDateFrom;
+      dateTo.value = globalDateTo;
+    }
+    if (pages[currentPage]) pages[currentPage]();
+  }
+
+  $$('.date-presets button').forEach(function(btn) {
+    btn.addEventListener('click', function() { applyPreset(btn.dataset.preset); });
+  });
+
+  dateFrom.addEventListener('change', function() {
+    globalDateFrom = dateFrom.value || null;
+    globalDatePreset = 'custom';
+    $$('.date-presets button').forEach(function(b) { b.classList.remove('active'); });
+    if (pages[currentPage]) pages[currentPage]();
+  });
+  dateTo.addEventListener('change', function() {
+    globalDateTo = dateTo.value || null;
+    globalDatePreset = 'custom';
+    $$('.date-presets button').forEach(function(b) { b.classList.remove('active'); });
+    if (pages[currentPage]) pages[currentPage]();
+  });
+}
+
+var pagesWithDateBar = ['dashboard', 'ads', 'seo', 'analytics', 'gbp', 'rapport'];
+
 window.navigate = function navigate(page) {
   currentPage = page;
   $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
@@ -525,8 +599,12 @@ window.navigate = function navigate(page) {
     dashboard: 'Tableau de bord', crm: 'CRM', ads: 'Ads — FB / Google',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
     devis: 'Devis', suivi: 'Suivi client',
-    commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres'
+    commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
+    rapport: 'Rapports'
   };
+  // Show/hide date-bar
+  var dateBar = $('#date-bar');
+  if (dateBar) dateBar.classList.toggle('visible', pagesWithDateBar.indexOf(page) !== -1);
   $('#page-title').textContent = titles[page] || page;
   if (pages[page]) pages[page]();
   else $('#content').innerHTML = `<div class="empty-state"><i class="fas fa-tools"></i><h4>Module en construction</h4></div>`;
@@ -545,14 +623,16 @@ pages.dashboard = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
+  var df = getDateFilters('date');
+  var dfCreated = getDateFilters('created_at');
   const [contacts, deals, campaigns, keywords, activities, ga4, gmbData] = await Promise.all([
-    dbSelect('contacts', { order: ['created_at', false] }),
-    dbSelect('deals'),
+    dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
+    dbSelect('deals', Object.assign({}, dfCreated)),
     dbSelect('ad_campaigns'),
     dbSelect('seo_keywords'),
-    dbSelect('activities', { order: ['created_at', false], limit: 10 }),
-    dbSelect('ga4_data', { order: ['date', false] }),
-    dbSelect('gmb_data', { order: ['date', false] })
+    dbSelect('activities', Object.assign({ order: ['created_at', false], limit: 10 }, dfCreated)),
+    dbSelect('ga4_data', Object.assign({ order: ['date', false] }, df)),
+    dbSelect('gmb_data', Object.assign({ order: ['date', false] }, df))
   ]);
 
   const totalLeads = contacts.length;
@@ -3900,6 +3980,172 @@ pages.presentation = function() {
 };
 
 // ============================================
+// RAPPORT MODULE
+// ============================================
+pages.rapport = async function() {
+  var content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var df = getDateFilters('date');
+  var dfCreated = getDateFilters('created_at');
+  var dfStartDate = getDateFilters('start_date');
+
+  var [contacts, deals, planning, activities, ga4, gmbData, adsData, scData] = await Promise.all([
+    dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
+    dbSelect('deals', Object.assign({ order: ['created_at', false] }, dfCreated)),
+    dbSelect('planning', Object.assign({ order: ['start_date', false] }, dfStartDate)),
+    dbSelect('activities', Object.assign({ order: ['created_at', false] }, dfCreated)),
+    dbSelect('ga4_data', Object.assign({ order: ['date', false] }, df)),
+    dbSelect('gmb_data', Object.assign({ order: ['date', false] }, df)),
+    dbSelect('google_ads_data', Object.assign({ order: ['date', false] }, df)),
+    dbSelect('search_console_data', Object.assign({ order: ['date', false] }, df))
+  ]);
+
+  // Group data by date for daily reports
+  var dailyMap = {};
+
+  function ensureDay(d) {
+    if (!dailyMap[d]) dailyMap[d] = { newLeads: [], rdv: [], activities: [], ads: { impressions: 0, clicks: 0, spend: 0, conversions: 0 }, seo: { clicks: 0, impressions: 0, queries: [] }, ga4: { sessions: 0, users: 0 }, gmb: { impressions: 0, clicks: 0, directions: 0, calls: 0 }, deals: [] };
+    return dailyMap[d];
+  }
+
+  contacts.forEach(function(c) {
+    var d = (c.created_at || '').slice(0, 10);
+    if (d) ensureDay(d).newLeads.push(c);
+  });
+  deals.forEach(function(deal) {
+    var d = (deal.created_at || '').slice(0, 10);
+    if (d) ensureDay(d).deals.push(deal);
+  });
+  planning.forEach(function(ev) {
+    var d = (ev.start_date || '').slice(0, 10);
+    if (d) ensureDay(d).rdv.push(ev);
+  });
+  activities.forEach(function(a) {
+    var d = (a.created_at || '').slice(0, 10);
+    if (d) ensureDay(d).activities.push(a);
+  });
+  adsData.forEach(function(r) {
+    var d = r.date;
+    if (d) { var day = ensureDay(d); day.ads.impressions += r.impressions || 0; day.ads.clicks += r.clicks || 0; day.ads.spend += parseFloat(r.spend) || 0; day.ads.conversions += r.conversions || 0; }
+  });
+  scData.forEach(function(r) {
+    var d = r.date;
+    if (d) { var day = ensureDay(d); day.seo.clicks += r.clicks || 0; day.seo.impressions += r.impressions || 0; if (r.query) day.seo.queries.push(r.query); }
+  });
+  ga4.forEach(function(r) {
+    var d = r.date;
+    if (d) { var day = ensureDay(d); day.ga4.sessions += r.sessions || 0; day.ga4.users += r.users || 0; }
+  });
+  gmbData.forEach(function(r) {
+    var d = r.date;
+    if (d) { var day = ensureDay(d); day.gmb.impressions += r.impressions || 0; day.gmb.clicks += r.clicks || 0; day.gmb.directions += r.direction_requests || 0; day.gmb.calls += r.call_clicks || 0; }
+  });
+
+  var sortedDays = Object.keys(dailyMap).sort().reverse();
+  if (sortedDays.length === 0) {
+    content.innerHTML = '<div class="empty-state"><i class="fas fa-clipboard-list"></i><h4>Aucun rapport pour cette periode</h4><p>Selectionnez une periode avec des donnees</p></div>';
+    return;
+  }
+
+  // Summary KPIs for full period
+  var totalNewLeads = contacts.filter(function(c) { return c.status === 'lead' || c.status === 'prospect'; }).length;
+  var totalRdv = planning.length;
+  var totalAdsSpend = adsData.reduce(function(s, r) { return s + (parseFloat(r.spend) || 0); }, 0);
+  var totalSeoClicks = scData.reduce(function(s, r) { return s + (r.clicks || 0); }, 0);
+
+  content.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-user-plus"></i></div>
+        <div class="stat-info"><h3>${totalNewLeads}</h3><p>Nouveaux leads</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue"><i class="fas fa-calendar-check"></i></div>
+        <div class="stat-info"><h3>${totalRdv}</h3><p>RDV planifies</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon gold"><i class="fas fa-ad"></i></div>
+        <div class="stat-info"><h3>${formatCurrency(totalAdsSpend)}</h3><p>Budget Ads depense</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple"><i class="fas fa-search"></i></div>
+        <div class="stat-info"><h3>${totalSeoClicks}</h3><p>Clics SEO organiques</p></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h3><i class="fas fa-clipboard-list"></i> Rapports quotidiens</h3></div>
+      <div class="panel-body" id="rapport-days" style="max-height:calc(100vh - 340px);overflow-y:auto"></div>
+    </div>
+  `;
+
+  var rapportContainer = $('#rapport-days');
+  rapportContainer.innerHTML = sortedDays.map(function(day) {
+    var d = dailyMap[day];
+    var dayLabel = new Date(day + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    var sections = [];
+
+    // RDV
+    if (d.rdv.length > 0) {
+      sections.push('<div class="rapport-section"><h5><i class="fas fa-calendar-check" style="color:#3498db"></i> RDV (' + d.rdv.length + ')</h5><ul>' +
+        d.rdv.map(function(ev) { return '<li><strong>' + (ev.title || 'Sans titre') + '</strong>' + (ev.start_time ? ' a ' + ev.start_time : '') + ' <span class="badge-sm ' + (ev.status === 'termine' ? 'bg-green' : 'bg-blue') + '">' + (ev.status || 'planifie') + '</span></li>'; }).join('') +
+        '</ul></div>');
+    }
+
+    // Nouveaux leads
+    if (d.newLeads.length > 0) {
+      sections.push('<div class="rapport-section"><h5><i class="fas fa-user-plus" style="color:#2ecc71"></i> Nouveaux contacts (' + d.newLeads.length + ')</h5><ul>' +
+        d.newLeads.map(function(c) { return '<li><strong>' + (c.first_name || '') + ' ' + (c.last_name || '') + '</strong>' + (c.company ? ' — ' + c.company : '') + (c.source ? ' <span class="badge-sm bg-gray">' + c.source + '</span>' : '') + '</li>'; }).join('') +
+        '</ul></div>');
+    }
+
+    // Deals
+    if (d.deals.length > 0) {
+      var dealVal = d.deals.reduce(function(s, deal) { return s + (parseFloat(deal.value) || 0); }, 0);
+      sections.push('<div class="rapport-section"><h5><i class="fas fa-hand-holding-usd" style="color:#e0a030"></i> Deals crees (' + d.deals.length + ' — ' + formatCurrency(dealVal) + ')</h5><ul>' +
+        d.deals.map(function(deal) { return '<li><strong>' + (deal.title || 'Sans titre') + '</strong> — ' + formatCurrency(parseFloat(deal.value) || 0) + '</li>'; }).join('') +
+        '</ul></div>');
+    }
+
+    // Google Ads
+    if (d.ads.impressions > 0 || d.ads.spend > 0) {
+      sections.push('<div class="rapport-section"><h5><i class="fas fa-ad" style="color:#e67e22"></i> Google Ads</h5>' +
+        '<div class="rapport-metrics"><span><strong>' + d.ads.impressions + '</strong> impressions</span><span><strong>' + d.ads.clicks + '</strong> clics</span><span><strong>' + formatCurrency(d.ads.spend) + '</strong> depense</span><span><strong>' + d.ads.conversions + '</strong> conversions</span></div></div>');
+    }
+
+    // SEO (Search Console)
+    if (d.seo.impressions > 0) {
+      var topQueries = d.seo.queries.slice(0, 5);
+      sections.push('<div class="rapport-section"><h5><i class="fas fa-search" style="color:#9b59b6"></i> SEO — Search Console</h5>' +
+        '<div class="rapport-metrics"><span><strong>' + d.seo.impressions + '</strong> impressions</span><span><strong>' + d.seo.clicks + '</strong> clics</span></div>' +
+        (topQueries.length > 0 ? '<div class="rapport-queries">Requetes : ' + topQueries.map(function(q) { return '<code>' + q + '</code>'; }).join(', ') + '</div>' : '') +
+        '</div>');
+    }
+
+    // GA4
+    if (d.ga4.sessions > 0) {
+      sections.push('<div class="rapport-section"><h5><i class="fas fa-chart-line" style="color:#3498db"></i> Analytics (GA4)</h5>' +
+        '<div class="rapport-metrics"><span><strong>' + d.ga4.sessions + '</strong> sessions</span><span><strong>' + d.ga4.users + '</strong> utilisateurs</span></div></div>');
+    }
+
+    // GMB
+    if (d.gmb.impressions > 0) {
+      sections.push('<div class="rapport-section"><h5><i class="fab fa-google" style="color:#4285f4"></i> Google Business Profile</h5>' +
+        '<div class="rapport-metrics"><span><strong>' + d.gmb.impressions + '</strong> impressions</span><span><strong>' + d.gmb.clicks + '</strong> clics</span><span><strong>' + d.gmb.directions + '</strong> itineraires</span><span><strong>' + d.gmb.calls + '</strong> appels</span></div></div>');
+    }
+
+    if (sections.length === 0) return '';
+
+    return '<div class="rapport-day">' +
+      '<div class="rapport-day-header"><h4>' + dayLabel + '</h4></div>' +
+      '<div class="rapport-day-body">' + sections.join('') + '</div>' +
+      '</div>';
+  }).filter(function(s) { return s; }).join('');
+};
+
+// ============================================
 // INIT
 // ============================================
 // ============================================
@@ -3958,6 +4204,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Hide app until auth check
   document.querySelector('.sidebar').style.display = 'none';
   document.querySelector('.main').style.display = 'none';
+
+  // Init date-bar
+  initDateBar();
 
   // Login form handlers
   $('#login-btn').addEventListener('click', handleLogin);

@@ -727,6 +727,27 @@ a:hover { text-decoration: underline; }
 .activity-text .time { font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; }
 
 /* ============================================
+   RAPPORT MODULE
+   ============================================ */
+.rapport-day { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+.rapport-day-header { background: var(--bg); padding: 12px 20px; border-bottom: 1px solid var(--border); }
+.rapport-day-header h4 { font-size: 0.95rem; font-weight: 700; color: var(--text); text-transform: capitalize; margin: 0; }
+.rapport-day-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.rapport-section h5 { font-size: 0.85rem; font-weight: 600; color: var(--text); margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.rapport-section ul { list-style: none; padding: 0; margin: 0; }
+.rapport-section ul li { padding: 4px 0 4px 22px; font-size: 0.84rem; color: var(--text); position: relative; }
+.rapport-section ul li::before { content: ''; position: absolute; left: 8px; top: 12px; width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+.rapport-metrics { display: flex; flex-wrap: wrap; gap: 16px; padding-left: 22px; }
+.rapport-metrics span { font-size: 0.84rem; color: var(--text-light); }
+.rapport-metrics span strong { color: var(--text); font-weight: 600; }
+.rapport-queries { font-size: 0.8rem; color: var(--text-light); padding-left: 22px; margin-top: 4px; }
+.rapport-queries code { background: var(--bg); padding: 2px 6px; border-radius: 3px; font-size: 0.78rem; }
+.badge-sm { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.72rem; font-weight: 500; color: #fff; }
+.bg-green { background: #2ecc71; }
+.bg-blue { background: #3498db; }
+.bg-gray { background: #95a5a6; }
+
+/* ============================================
    EMPTY STATE
    ============================================ */
 .empty-state {
@@ -1401,6 +1422,7 @@ a.att-item { position: relative; display: block; }
       <a data-page="suivi"><i class="fas fa-handshake"></i> Suivi client</a>
       <a data-page="commandes"><i class="fas fa-box"></i> Commandes</a>
       <a data-page="planning"><i class="fas fa-calendar-alt"></i> Planning</a>
+      <a data-page="rapport"><i class="fas fa-clipboard-list"></i> Rapports</a>
       <div class="section-label">Commercial</div>
       <a data-page="presentation"><i class="fas fa-desktop"></i> Présentation</a>
       <div class="section-label">Outils</div>
@@ -1496,6 +1518,7 @@ a.att-item { position: relative; display: block; }
       <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
       <a data-page="commandes"><i class="fas fa-box"></i>Commandes</a>
       <a data-page="suivi"><i class="fas fa-handshake"></i>Suivi client</a>
+      <a data-page="rapport"><i class="fas fa-clipboard-list"></i>Rapports</a>
       <a data-page="presentation"><i class="fas fa-desktop"></i>Présentation</a>
       <a data-page="settings"><i class="fas fa-cog"></i>Paramètres</a>
     </div>
