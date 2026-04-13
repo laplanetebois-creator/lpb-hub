@@ -2851,6 +2851,51 @@ async function renderPipeline(content) {
     });
   });
 
+  // Auto-scroll pipeline on mouse near edges (and during drag)
+  var pipelineEl = content.querySelector('.pipeline');
+  if (pipelineEl) {
+    var scrollSpeed = 0;
+    var scrollRAF = null;
+    var edgeZone = 80; // pixels from edge
+
+    function autoScroll() {
+      if (scrollSpeed !== 0) {
+        pipelineEl.scrollLeft += scrollSpeed;
+        scrollRAF = requestAnimationFrame(autoScroll);
+      }
+    }
+
+    function handleMouseMove(e) {
+      var rect = pipelineEl.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var w = rect.width;
+      if (x < edgeZone) {
+        scrollSpeed = -Math.round(8 * (1 - x / edgeZone));
+        if (!scrollRAF) scrollRAF = requestAnimationFrame(autoScroll);
+      } else if (x > w - edgeZone) {
+        scrollSpeed = Math.round(8 * (1 - (w - x) / edgeZone));
+        if (!scrollRAF) scrollRAF = requestAnimationFrame(autoScroll);
+      } else {
+        scrollSpeed = 0;
+        if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null; }
+      }
+    }
+
+    pipelineEl.addEventListener('mousemove', handleMouseMove);
+    pipelineEl.addEventListener('mouseleave', function() {
+      scrollSpeed = 0;
+      if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null; }
+    });
+
+    // Also enable scroll with mouse wheel horizontally
+    pipelineEl.addEventListener('wheel', function(e) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        pipelineEl.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+  }
+
   // CRM sub-tabs
   content.querySelectorAll('[data-crm-tab]').forEach(function(btn) {
     btn.addEventListener('click', function() { pages.crm(btn.dataset.crmTab); });
