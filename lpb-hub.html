@@ -1840,6 +1840,85 @@ async function dbCount(table, filters) {
 }
 
 // ============================================
+// DATE RANGE FILTER
+// ============================================
+var DATA_START_DATE = '2026-04-10';
+var dateFilterFrom = null;
+var dateFilterTo = null;
+var datePresetActive = 'all';
+var DATE_PAGES = ['dashboard', 'ads', 'seo', 'analytics', 'gbp'];
+
+function initDateBar() {
+  var bar = document.getElementById('date-bar');
+  var inputFrom = document.getElementById('date-from');
+  var inputTo = document.getElementById('date-to');
+  var today = new Date().toISOString().slice(0, 10);
+
+  inputFrom.value = DATA_START_DATE;
+  inputTo.value = today;
+  inputTo.max = today;
+  inputFrom.max = today;
+
+  function applyDateFilter() {
+    dateFilterFrom = inputFrom.value || null;
+    dateFilterTo = inputTo.value || null;
+    bar.querySelectorAll('.date-presets button').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.preset === datePresetActive);
+    });
+    if (pages[currentPage]) pages[currentPage]();
+  }
+
+  inputFrom.addEventListener('change', function() {
+    datePresetActive = '';
+    applyDateFilter();
+  });
+  inputTo.addEventListener('change', function() {
+    datePresetActive = '';
+    applyDateFilter();
+  });
+
+  bar.querySelectorAll('.date-presets button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      datePresetActive = btn.dataset.preset;
+      var t = new Date();
+      inputTo.value = t.toISOString().slice(0, 10);
+      if (btn.dataset.preset === 'all') {
+        inputFrom.value = DATA_START_DATE;
+      } else {
+        var days = parseInt(btn.dataset.preset);
+        var from = new Date(t);
+        from.setDate(from.getDate() - days + 1);
+        var fromStr = from.toISOString().slice(0, 10);
+        inputFrom.value = fromStr < DATA_START_DATE ? DATA_START_DATE : fromStr;
+      }
+      applyDateFilter();
+    });
+  });
+}
+
+function filterByDate(rows, dateField) {
+  dateField = dateField || 'date';
+  if (!dateFilterFrom && !dateFilterTo) return rows;
+  return rows.filter(function(r) {
+    var d = r[dateField];
+    if (!d) return true;
+    var ds = typeof d === 'string' ? d.slice(0, 10) : d;
+    if (dateFilterFrom && ds < dateFilterFrom) return false;
+    if (dateFilterTo && ds > dateFilterTo) return false;
+    return true;
+  });
+}
+
+function updateDateBarVisibility() {
+  var bar = document.getElementById('date-bar');
+  if (DATE_PAGES.indexOf(currentPage) >= 0) {
+    bar.classList.add('visible');
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+// ============================================
 // WINDSOR.AI — SYNC ENGINE
 // ============================================
 const WINDSOR_API_BASE = 'https://connectors.windsor.ai';
@@ -2027,6 +2106,7 @@ window.navigate = function navigate(page) {
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres'
   };
   $('#page-title').textContent = titles[page] || page;
+  updateDateBarVisibility();
   if (pages[page]) pages[page]();
   else $('#content').innerHTML = `<div class="empty-state"><i class="fas fa-tools"></i><h4>Module en construction</h4></div>`;
 }
@@ -2058,12 +2138,14 @@ pages.dashboard = async function() {
   const totalClients = contacts.filter(c => c.status === 'client').length;
   const pipelineValue = deals.reduce((s, d) => s + (parseFloat(d.value) || 0), 0);
 
-  // Google Analytics KPIs
-  const ga4Sessions = ga4.reduce((s, r) => s + (r.sessions || 0), 0);
-  const ga4Users = ga4.reduce((s, r) => s + (r.users || 0), 0);
-  // GMB KPIs
-  const gmbImpressions = gmbData.reduce((s, r) => s + (r.impressions || 0), 0);
-  const gmbDirections = gmbData.reduce((s, r) => s + (r.direction_requests || 0), 0);
+  // Google Analytics KPIs — filtered by date
+  const ga4Filtered = filterByDate(ga4);
+  const ga4Sessions = ga4Filtered.reduce((s, r) => s + (r.sessions || 0), 0);
+  const ga4Users = ga4Filtered.reduce((s, r) => s + (r.users || 0), 0);
+  // GMB KPIs — filtered by date
+  const gmbFiltered = filterByDate(gmbData);
+  const gmbImpressions = gmbFiltered.reduce((s, r) => s + (r.impressions || 0), 0);
+  const gmbDirections = gmbFiltered.reduce((s, r) => s + (r.direction_requests || 0), 0);
 
   // Stage counts for pipeline chart
   const stages = ['nouveaux_leads', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2'];
@@ -2071,9 +2153,9 @@ pages.dashboard = async function() {
   const stageCounts = stages.map(s => deals.filter(d => d.stage === s).length);
   const stageValues = stages.map(s => deals.filter(d => d.stage === s).reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0));
 
-  // GA4 sessions by date (last 14 days for sparkline)
+  // GA4 sessions by date — filtered
   const ga4ByDate = {};
-  ga4.forEach(r => { ga4ByDate[r.date] = (ga4ByDate[r.date] || 0) + (r.sessions || 0); });
+  ga4Filtered.forEach(r => { ga4ByDate[r.date] = (ga4ByDate[r.date] || 0) + (r.sessions || 0); });
   const ga4Dates = Object.keys(ga4ByDate).sort().slice(-14);
 
   content.innerHTML = `
@@ -3217,9 +3299,10 @@ pages.ads = async function() {
   let filterPlatform = 'all';
 
   function render() {
-    const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
-    const gaTotalClicks = googleAds.reduce((s, r) => s + (r.clicks || 0), 0);
-    const gaTotalSpend = googleAds.reduce((s, r) => s + (parseFloat(r.spend) || 0), 0);
+    const filteredAds = filterByDate(googleAds);
+    const gaTotalImpr = filteredAds.reduce((s, r) => s + (r.impressions || 0), 0);
+    const gaTotalClicks = filteredAds.reduce((s, r) => s + (r.clicks || 0), 0);
+    const gaTotalSpend = filteredAds.reduce((s, r) => s + (parseFloat(r.spend) || 0), 0);
     const gaCtr = gaTotalImpr > 0 ? (gaTotalClicks / gaTotalImpr * 100).toFixed(2) : 0;
 
     content.innerHTML = `
@@ -3237,7 +3320,7 @@ pages.ads = async function() {
     if (adsTab === 'google') {
       const byCampaign = {};
       const byDate = {};
-      googleAds.forEach(r => {
+      filteredAds.forEach(r => {
         const c = r.campaign || 'Sans nom';
         if (!byCampaign[c]) byCampaign[c] = { impressions: 0, clicks: 0, spend: 0, conversions: 0 };
         byCampaign[c].impressions += r.impressions || 0;
@@ -3252,7 +3335,7 @@ pages.ads = async function() {
         }
       });
       const sortedDates = Object.keys(byDate).sort();
-      const gaTotalConv = googleAds.reduce((s, r) => s + (r.conversions || 0), 0);
+      const gaTotalConv = filteredAds.reduce((s, r) => s + (r.conversions || 0), 0);
       const gaAvgCpc = gaTotalClicks > 0 ? (gaTotalSpend / gaTotalClicks).toFixed(2) : 0;
       const gaConvRate = gaTotalClicks > 0 ? (gaTotalConv / gaTotalClicks * 100).toFixed(2) : 0;
       tabContent.innerHTML = `
@@ -3690,9 +3773,10 @@ pages.seo = async function() {
       dbSelect('search_console_data', { order: ['date', false] })
     ]);
 
-    // Search Console aggregates
+    // Search Console aggregates — filtered by date
+    const scFiltered = filterByDate(scData);
     const scByQuery = {};
-    scData.forEach(r => {
+    scFiltered.forEach(r => {
       if (!scByQuery[r.query]) scByQuery[r.query] = { clicks: 0, impressions: 0, positions: [] };
       scByQuery[r.query].clicks += r.clicks || 0;
       scByQuery[r.query].impressions += r.impressions || 0;
@@ -4810,7 +4894,8 @@ window.planDelete = async function(id) {
 pages.analytics = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-  const ga4 = await dbSelect('ga4_data', { order: ['date', false] });
+  const ga4Raw = await dbSelect('ga4_data', { order: ['date', false] });
+  const ga4 = filterByDate(ga4Raw);
 
   const byDate = {};
   ga4.forEach(r => {
@@ -4924,7 +5009,8 @@ pages.analytics = async function() {
 pages.gbp = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-  const gmb = await dbSelect('gmb_data', { order: ['date'] });
+  const gmbRaw = await dbSelect('gmb_data', { order: ['date'] });
+  const gmb = filterByDate(gmbRaw);
 
   const totalImpressions = gmb.reduce((s, r) => s + (r.impressions || 0), 0);
   const totalClicks = gmb.reduce((s, r) => s + (r.clicks || 0), 0);
@@ -5418,6 +5504,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Login form handlers
   $('#login-btn').addEventListener('click', handleLogin);
   $('#login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+
+  // Init date bar
+  initDateBar();
 
   // Check existing session
   const loggedIn = await checkAuth();
