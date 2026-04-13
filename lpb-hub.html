@@ -1483,6 +1483,17 @@ a.att-item { position: relative; display: block; }
     </div>
   </div>
 
+  <!-- DEAL POPUP -->
+  <div class="modal-overlay" id="deal-popup-overlay" style="display:none">
+    <div class="modal" id="deal-popup" style="max-width:1100px;width:95%">
+      <div class="modal-header">
+        <h3 id="deal-popup-title">Detail du lead</h3>
+        <button class="modal-close" id="deal-popup-close">&times;</button>
+      </div>
+      <div class="modal-body" id="deal-popup-body" style="padding:16px;max-height:75vh;overflow-y:auto"></div>
+    </div>
+  </div>
+
   <!-- LOGIN SCREEN -->
   <div class="login-overlay" id="login-overlay">
     <div class="login-box">
@@ -2988,10 +2999,19 @@ window.dealEdit = async function(id) {
 // ============================================
 // DEAL DETAIL VIEW (noCRM style)
 // ============================================
+window.closeDealPopup = function() {
+  $('#deal-popup-overlay').style.display = 'none';
+  // Refresh pipeline if we're on CRM page
+  if (currentPage === 'crm') pages.crm('pipeline');
+};
+$('#deal-popup-close')?.addEventListener('click', closeDealPopup);
+$('#deal-popup-overlay')?.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeDealPopup(); });
+
 window.dealView = async function(id) {
-  const content = $('#content');
-  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-  $('#page-title').textContent = 'Detail du lead';
+  var popup = $('#deal-popup-overlay');
+  var popupBody = $('#deal-popup-body');
+  popup.style.display = 'flex';
+  popupBody.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   const [deals, contacts, activities, planningEvents] = await Promise.all([
     dbSelect('deals', { eq: [['id', id]] }),
@@ -3001,7 +3021,7 @@ window.dealView = async function(id) {
   ]);
 
   const d = deals[0];
-  if (!d) { content.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Lead introuvable</h4></div>'; return; }
+  if (!d) { popupBody.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Lead introuvable</h4></div>'; return; }
 
   const contactMap = {};
   contacts.forEach(function(c) { contactMap[c.id] = c; });
@@ -3153,12 +3173,13 @@ window.dealView = async function(id) {
     '</div></div>';
   }
 
-  content.innerHTML = `
-    <div class="deal-header">
+  $('#deal-popup-title').textContent = escHtml(d.title || contactName);
+  popupBody.innerHTML = `
+    <div class="deal-header" style="padding:0 0 12px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
       <div class="deal-header-left">
         <div class="deal-avatar" style="background:${stageColor}">${contactInits}</div>
         <div>
-          <h2>${escHtml(d.title || contactName)}</h2>
+          <h2 style="font-size:1.2rem;margin:0">${escHtml(d.title || contactName)}</h2>
           <span class="deal-stage-badge" style="background:${stageColor}">${stageLabel}</span>
           ${ville ? ' <span style="font-size:0.82rem;color:var(--text-light);margin-left:8px"><i class="fas fa-map-marker-alt"></i> ' + escHtml(ville) + '</span>' : ''}
         </div>
@@ -3167,7 +3188,6 @@ window.dealView = async function(id) {
         ${phone ? '<a href="tel:' + phone.replace(/\s/g, '') + '" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> Appeler</a>' : ''}
         ${email ? '<a href="mailto:' + email + '" class="btn btn-outline btn-sm"><i class="fas fa-envelope"></i> Email</a>' : ''}
         <button class="btn btn-primary btn-sm" onclick="dealEditFromView('${d.id}')"><i class="fas fa-pen"></i> Modifier</button>
-        <button class="btn btn-outline btn-sm" onclick="pages.crm('pipeline')"><i class="fas fa-arrow-left"></i> Retour</button>
       </div>
     </div>
 
@@ -3257,13 +3277,13 @@ window.dealView = async function(id) {
   `;
 
   // Editable value
-  var valDisplay = content.querySelector('#deal-value-display');
-  var valEdit = content.querySelector('#deal-value-edit');
+  var valDisplay = popupBody.querySelector('#deal-value-display');
+  var valEdit = popupBody.querySelector('#deal-value-edit');
   if (valDisplay) {
-    valDisplay.addEventListener('click', function() { valDisplay.style.display = 'none'; valEdit.style.display = 'block'; content.querySelector('#f-deal-value').focus(); });
-    content.querySelector('#btn-cancel-value').addEventListener('click', function() { valDisplay.style.display = ''; valEdit.style.display = 'none'; });
-    content.querySelector('#btn-save-value').addEventListener('click', async function() {
-      var newVal = parseFloat(content.querySelector('#f-deal-value').value) || 0;
+    valDisplay.addEventListener('click', function() { valDisplay.style.display = 'none'; valEdit.style.display = 'block'; popupBody.querySelector('#f-deal-value').focus(); });
+    popupBody.querySelector('#btn-cancel-value').addEventListener('click', function() { valDisplay.style.display = ''; valEdit.style.display = 'none'; });
+    popupBody.querySelector('#btn-save-value').addEventListener('click', async function() {
+      var newVal = parseFloat(popupBody.querySelector('#f-deal-value').value) || 0;
       await dbUpdate('deals', d.id, { value: newVal });
       toast('Valeur mise a jour');
       dealView(d.id);
@@ -3271,7 +3291,7 @@ window.dealView = async function(id) {
   }
 
   // Editable stage
-  var stageSelect = content.querySelector('#f-deal-stage');
+  var stageSelect = popupBody.querySelector('#f-deal-stage');
   if (stageSelect) {
     stageSelect.addEventListener('change', async function() {
       var newStage = stageSelect.value;
@@ -3282,18 +3302,18 @@ window.dealView = async function(id) {
   }
 
   // Change contact (interlocuteur)
-  var btnChangeContact = content.querySelector('#btn-change-contact');
+  var btnChangeContact = popupBody.querySelector('#btn-change-contact');
   if (btnChangeContact) {
     btnChangeContact.addEventListener('click', function() {
-      content.querySelector('#contact-display').style.display = 'none';
-      content.querySelector('#contact-change').style.display = 'block';
+      popupBody.querySelector('#contact-display').style.display = 'none';
+      popupBody.querySelector('#contact-change').style.display = 'block';
     });
-    content.querySelector('#btn-cancel-contact').addEventListener('click', function() {
-      content.querySelector('#contact-display').style.display = '';
-      content.querySelector('#contact-change').style.display = 'none';
+    popupBody.querySelector('#btn-cancel-contact').addEventListener('click', function() {
+      popupBody.querySelector('#contact-display').style.display = '';
+      popupBody.querySelector('#contact-change').style.display = 'none';
     });
-    content.querySelector('#btn-save-contact').addEventListener('click', async function() {
-      var newContactId = content.querySelector('#f-deal-contact').value || null;
+    popupBody.querySelector('#btn-save-contact').addEventListener('click', async function() {
+      var newContactId = popupBody.querySelector('#f-deal-contact').value || null;
       await dbUpdate('deals', d.id, { contact_id: newContactId });
       toast('Interlocuteur mis a jour');
       dealView(d.id);
@@ -3301,7 +3321,7 @@ window.dealView = async function(id) {
   }
 
   // Edit contact info
-  var btnEditContact = content.querySelector('#btn-edit-contact');
+  var btnEditContact = popupBody.querySelector('#btn-edit-contact');
   if (btnEditContact && contact) {
     btnEditContact.addEventListener('click', function() {
       openModal('Modifier le contact', `
@@ -3340,7 +3360,7 @@ window.dealView = async function(id) {
   }
 
   // Phone call → log activity
-  var phoneLink = content.querySelector('.deal-phone-call');
+  var phoneLink = popupBody.querySelector('.deal-phone-call');
   if (phoneLink) {
     phoneLink.addEventListener('click', function(e) {
       // Let the tel: link work, then show call result modal after a short delay
