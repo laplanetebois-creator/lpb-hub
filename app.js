@@ -1647,18 +1647,34 @@ window.dealView = async function(id) {
           </div>
         </div>
 
-        ${contact ? `
-          <div class="deal-sidebar-card">
-            <div class="sc-header"><i class="fas fa-user"></i> Contact</div>
-            <div class="sc-body">
+        <div class="deal-sidebar-card">
+          <div class="sc-header" style="display:flex;justify-content:space-between;align-items:center">
+            <span><i class="fas fa-user"></i> Contact</span>
+            <span>
+              ${contact ? '<button class="btn-ghost" id="btn-edit-contact" title="Modifier le contact"><i class="fas fa-pen" style="font-size:0.7rem"></i></button>' : ''}
+              <button class="btn-ghost" id="btn-change-contact" title="Changer l\'interlocuteur"><i class="fas fa-exchange-alt" style="font-size:0.7rem"></i></button>
+            </span>
+          </div>
+          <div class="sc-body" id="contact-display">
+            ${contact ? `
               <div class="sc-row"><span class="sc-label">Nom</span><span class="sc-val">${escHtml(contact.first_name + ' ' + contact.last_name)}</span></div>
               ${contact.company ? '<div class="sc-row"><span class="sc-label">Societe</span><span class="sc-val">' + escHtml(contact.company) + '</span></div>' : ''}
               ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:' + contact.email + '">' + escHtml(contact.email) + '</a></span></div>' : ''}
-              ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '">' + escHtml(contact.phone) + '</a></span></div>' : ''}
+              ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '" class="deal-phone-call" data-phone="' + escHtml(contact.phone) + '"><i class="fas fa-phone"></i> ' + escHtml(contact.phone) + '</a></span></div>' : ''}
               ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + '</span></div>' : ''}
+            ` : '<div class="text-muted text-small">Aucun contact associe</div>'}
+          </div>
+          <div id="contact-change" style="display:none;padding:8px">
+            <select id="f-deal-contact" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px">
+              <option value="">-- Aucun --</option>
+              ${contacts.map(function(c) { return '<option value="' + c.id + '"' + (d.contact_id === c.id ? ' selected' : '') + '>' + escHtml(c.first_name + ' ' + c.last_name) + (c.company ? ' (' + escHtml(c.company) + ')' : '') + '</option>'; }).join('')}
+            </select>
+            <div style="margin-top:6px;text-align:right">
+              <button class="btn btn-primary btn-sm" id="btn-save-contact"><i class="fas fa-check"></i></button>
+              <button class="btn btn-outline btn-sm" id="btn-cancel-contact"><i class="fas fa-times"></i></button>
             </div>
           </div>
-        ` : ''}
+        </div>
 
         ${attHtml}
       </div>
@@ -1687,6 +1703,118 @@ window.dealView = async function(id) {
       await dbUpdate('deals', d.id, { stage: newStage });
       toast('Etape mise a jour: ' + stageLabels[newStage]);
       dealView(d.id);
+    });
+  }
+
+  // Change contact (interlocuteur)
+  var btnChangeContact = content.querySelector('#btn-change-contact');
+  if (btnChangeContact) {
+    btnChangeContact.addEventListener('click', function() {
+      content.querySelector('#contact-display').style.display = 'none';
+      content.querySelector('#contact-change').style.display = 'block';
+    });
+    content.querySelector('#btn-cancel-contact').addEventListener('click', function() {
+      content.querySelector('#contact-display').style.display = '';
+      content.querySelector('#contact-change').style.display = 'none';
+    });
+    content.querySelector('#btn-save-contact').addEventListener('click', async function() {
+      var newContactId = content.querySelector('#f-deal-contact').value || null;
+      await dbUpdate('deals', d.id, { contact_id: newContactId });
+      toast('Interlocuteur mis a jour');
+      dealView(d.id);
+    });
+  }
+
+  // Edit contact info
+  var btnEditContact = content.querySelector('#btn-edit-contact');
+  if (btnEditContact && contact) {
+    btnEditContact.addEventListener('click', function() {
+      openModal('Modifier le contact', `
+        <div class="form-row">
+          <div class="form-group"><label>Prenom</label><input type="text" id="f-c-first" value="${escHtml(contact.first_name || '')}"></div>
+          <div class="form-group"><label>Nom</label><input type="text" id="f-c-last" value="${escHtml(contact.last_name || '')}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Telephone</label><input type="tel" id="f-c-phone" value="${escHtml(contact.phone || '')}"></div>
+          <div class="form-group"><label>Email</label><input type="email" id="f-c-email" value="${escHtml(contact.email || '')}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Societe</label><input type="text" id="f-c-company" value="${escHtml(contact.company || '')}"></div>
+          <div class="form-group"><label>Ville</label><input type="text" id="f-c-city" value="${escHtml(contact.city || '')}"></div>
+        </div>
+        <div class="form-group"><label>Adresse</label><input type="text" id="f-c-address" value="${escHtml(contact.address || '')}"></div>
+        <div class="form-group"><label>Code postal</label><input type="text" id="f-c-postal" value="${escHtml(contact.postal_code || '')}"></div>
+        <div class="form-actions"><button class="btn btn-primary" id="btn-save-contact-info"><i class="fas fa-check"></i> Enregistrer</button></div>
+      `);
+      $('#btn-save-contact-info').addEventListener('click', async function() {
+        await dbUpdate('contacts', contact.id, {
+          first_name: $('#f-c-first').value.trim(),
+          last_name: $('#f-c-last').value.trim(),
+          phone: $('#f-c-phone').value.trim() || null,
+          email: $('#f-c-email').value.trim() || null,
+          company: $('#f-c-company').value.trim() || null,
+          city: $('#f-c-city').value.trim() || null,
+          address: $('#f-c-address').value.trim() || null,
+          postal_code: $('#f-c-postal').value.trim() || null
+        });
+        toast('Contact mis a jour');
+        closeModal();
+        dealView(d.id);
+      });
+    });
+  }
+
+  // Phone call → log activity
+  var phoneLink = content.querySelector('.deal-phone-call');
+  if (phoneLink) {
+    phoneLink.addEventListener('click', function(e) {
+      // Let the tel: link work, then show call result modal after a short delay
+      setTimeout(function() {
+        openModal('Resultat de l\'appel', `
+          <p style="margin-bottom:12px"><strong>${escHtml(contact.first_name + ' ' + contact.last_name)}</strong> — ${escHtml(contact.phone)}</p>
+          <div class="form-group">
+            <label>Resultat</label>
+            <select id="f-call-result">
+              <option value="repondu">Repondu</option>
+              <option value="pas_repondu">Pas repondu</option>
+              <option value="messagerie">Messagerie</option>
+              <option value="rappeler">A rappeler</option>
+              <option value="rdv_pris">RDV pris</option>
+              <option value="pas_interesse">Pas interesse</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="f-call-notes" rows="3" placeholder="Details de l'appel..."></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-save-call"><i class="fas fa-check"></i> Enregistrer</button>
+            <button class="btn btn-outline" id="btn-skip-call">Ignorer</button>
+          </div>
+        `);
+        $('#btn-skip-call').addEventListener('click', function() { closeModal(); });
+        $('#btn-save-call').addEventListener('click', async function() {
+          var result = $('#f-call-result').value;
+          var notes = $('#f-call-notes').value.trim();
+          var desc = 'Appel: ' + result + (notes ? ' — ' + notes : '');
+          await dbInsert('activities', {
+            contact_id: contact.id,
+            deal_id: d.id,
+            type: 'call',
+            description: desc,
+            completed: true
+          });
+          // If NRP, update deal stage
+          if (result === 'pas_repondu' || result === 'messagerie') {
+            if (d.stage === 'nouveaux_leads') {
+              await dbUpdate('deals', d.id, { stage: 'nrp' });
+            }
+          }
+          toast('Appel enregistre');
+          closeModal();
+          dealView(d.id);
+        });
+      }, 500);
     });
   }
 };
