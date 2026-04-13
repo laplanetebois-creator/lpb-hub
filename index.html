@@ -208,6 +208,33 @@ a:hover { text-decoration: underline; }
 
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 
+/* DATE PICKER BAR */
+.date-bar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 32px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.date-bar.visible { display: flex; }
+.date-bar label { font-size: 0.82rem; font-weight: 600; color: var(--text-light); white-space: nowrap; }
+.date-bar input[type="date"] {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 0.85rem; color: var(--text); background: var(--bg);
+  cursor: pointer; outline: none; transition: border var(--transition);
+}
+.date-bar input[type="date"]:focus { border-color: var(--primary); }
+.date-bar .date-presets { display: flex; gap: 6px; margin-left: 8px; }
+.date-bar .date-presets button {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); font-size: 0.78rem; color: var(--text-light); cursor: pointer;
+  transition: all var(--transition);
+}
+.date-bar .date-presets button:hover { border-color: var(--primary); color: var(--primary); }
+.date-bar .date-presets button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
 .topbar-search {
   display: flex;
   align-items: center;
@@ -878,6 +905,9 @@ a:hover { text-decoration: underline; }
 
   /* Hide search bar in topbar on mobile — use global search modal instead */
   .topbar-search { display: none !important; }
+  .date-bar { padding: 8px 12px; gap: 8px; }
+  .date-bar .date-presets { margin-left: 0; flex-wrap: wrap; }
+  .date-bar input[type="date"] { font-size: 0.8rem; padding: 5px 8px; }
   .topbar-right { gap: 6px; }
   .topbar-right .btn-icon { width: 34px; height: 34px; }
 
@@ -1402,6 +1432,18 @@ a.att-item { position: relative; display: block; }
         </button>
       </div>
     </header>
+    <div class="date-bar" id="date-bar">
+      <label><i class="fas fa-calendar-alt"></i> Periode :</label>
+      <input type="date" id="date-from" min="2026-04-10">
+      <span style="color:var(--text-light);font-size:0.85rem">—</span>
+      <input type="date" id="date-to" min="2026-04-10">
+      <div class="date-presets">
+        <button data-preset="7d">7 jours</button>
+        <button data-preset="14d">14 jours</button>
+        <button data-preset="30d">30 jours</button>
+        <button data-preset="all" class="active">Tout</button>
+      </div>
+    </div>
     <div class="content" id="content">
       <!-- Dynamic content -->
     </div>
@@ -1480,6 +1522,188 @@ try {
     db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
 } catch(e) { console.error('Supabase init error', e); }
+
+// ============================================
+// GOOGLE CALENDAR INTEGRATION
+// ============================================
+const GCAL_SCOPES = 'https://www.googleapis.com/auth/calendar';
+const GCAL_API = 'https://www.googleapis.com/calendar/v3';
+let gcalTokenClient = null;
+
+function getGcalClientId() { return localStorage.getItem('gcal_client_id') || ''; }
+function getGcalToken() { return localStorage.getItem('gcal_access_token') || ''; }
+function getGcalCalendarId() { return localStorage.getItem('gcal_calendar_id') || 'primary'; }
+function gcalIsConnected() { return !!getGcalToken(); }
+
+function gcalInit() {
+  const clientId = getGcalClientId();
+  if (!clientId || typeof google === 'undefined' || !google.accounts) return;
+  try {
+    gcalTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: GCAL_SCOPES,
+      callback: function(response) {
+        if (response.access_token) {
+          localStorage.setItem('gcal_access_token', response.access_token);
+          localStorage.setItem('gcal_token_time', Date.now().toString());
+          toast('Google Agenda connecte !');
+          if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
+        } else if (response.error) {
+          toast('Erreur Google: ' + response.error, 'error');
+        }
+      }
+    });
+  } catch(e) { console.error('GCal init error', e); }
+}
+
+function gcalConnect() {
+  if (!gcalTokenClient) gcalInit();
+  if (!gcalTokenClient) { toast('Configurez le Client ID Google dans Parametres', 'warning'); return; }
+  gcalTokenClient.requestAccessToken();
+}
+
+function gcalDisconnect() {
+  const token = getGcalToken();
+  if (token && typeof google !== 'undefined' && google.accounts) {
+    google.accounts.oauth2.revoke(token);
+  }
+  localStorage.removeItem('gcal_access_token');
+  localStorage.removeItem('gcal_token_time');
+  toast('Google Agenda deconnecte');
+}
+
+async function gcalApi(method, path, body) {
+  var token = getGcalToken();
+  if (!token) return null;
+  var opts = {
+    method: method,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  var url = path.startsWith('http') ? path : GCAL_API + path;
+  var resp = await fetch(url, opts);
+  if (resp.status === 401) {
+    localStorage.removeItem('gcal_access_token');
+    toast('Session Google expiree — reconnectez-vous', 'warning');
+    return null;
+  }
+  if (resp.status === 204 || resp.status === 200 && method === 'DELETE') return {};
+  if (!resp.ok) { console.error('GCal API error', resp.status, await resp.text()); return null; }
+  return resp.json();
+}
+
+var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', autre: '8' };
+
+function planningToGcalEvent(ev) {
+  var startDate = (ev.start_date || '').substring(0, 10);
+  var endDate = ev.end_date ? ev.end_date.substring(0, 10) : startDate;
+  // Google Calendar all-day end date is exclusive (next day)
+  var endParts = endDate.split('-');
+  var endDt = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]) + 1);
+  var endExclusive = endDt.getFullYear() + '-' + String(endDt.getMonth() + 1).padStart(2, '0') + '-' + String(endDt.getDate()).padStart(2, '0');
+  return {
+    summary: ev.title || '',
+    description: [ev.notes || '', '', 'Source: LPB Hub', 'Type: ' + (ev.type || ''), 'Statut: ' + (ev.status || '')].join('\n').trim(),
+    start: { date: startDate },
+    end: { date: endExclusive },
+    colorId: GCAL_COLOR_MAP[ev.type] || '8'
+  };
+}
+
+async function gcalPushEvent(planningEvent) {
+  if (!gcalIsConnected()) return null;
+  var calId = getGcalCalendarId();
+  var gcalEvent = planningToGcalEvent(planningEvent);
+  if (planningEvent.gcal_event_id) {
+    var updated = await gcalApi('PUT', '/calendars/' + encodeURIComponent(calId) + '/events/' + planningEvent.gcal_event_id, gcalEvent);
+    return updated;
+  } else {
+    var created = await gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', gcalEvent);
+    if (created && created.id) {
+      await dbUpdate('planning', planningEvent.id, { gcal_event_id: created.id });
+    }
+    return created;
+  }
+}
+
+async function gcalRemoveEvent(gcalEventId) {
+  if (!gcalIsConnected() || !gcalEventId) return;
+  var calId = getGcalCalendarId();
+  await gcalApi('DELETE', '/calendars/' + encodeURIComponent(calId) + '/events/' + gcalEventId);
+}
+
+async function gcalFetchEvents(startDate, endDate) {
+  if (!gcalIsConnected()) return [];
+  var calId = getGcalCalendarId();
+  var params = '?timeMin=' + startDate + 'T00:00:00Z&timeMax=' + endDate + 'T23:59:59Z&singleEvents=true&orderBy=startTime&maxResults=250';
+  var result = await gcalApi('GET', '/calendars/' + encodeURIComponent(calId) + '/events' + params);
+  return (result && result.items) ? result.items : [];
+}
+
+async function gcalSyncAll() {
+  if (!gcalIsConnected()) { gcalConnect(); return; }
+  var events = await dbSelect('planning');
+  var created = 0, updated = 0, errors = 0;
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    try {
+      if (ev.gcal_event_id) {
+        await gcalApi('PUT', '/calendars/' + encodeURIComponent(getGcalCalendarId()) + '/events/' + ev.gcal_event_id, planningToGcalEvent(ev));
+        updated++;
+      } else {
+        var result = await gcalApi('POST', '/calendars/' + encodeURIComponent(getGcalCalendarId()) + '/events', planningToGcalEvent(ev));
+        if (result && result.id) {
+          await dbUpdate('planning', ev.id, { gcal_event_id: result.id });
+          created++;
+        } else { errors++; }
+      }
+    } catch(e) { errors++; }
+  }
+  toast('Sync Google Agenda: ' + created + ' crees, ' + updated + ' mis a jour' + (errors ? ', ' + errors + ' erreurs' : ''));
+  return { created: created, updated: updated, errors: errors };
+}
+
+async function gcalImportToPlanning() {
+  if (!gcalIsConnected()) { gcalConnect(); return; }
+  var now = new Date();
+  var startDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
+  var endMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+  var endDate = endMonth.getFullYear() + '-' + String(endMonth.getMonth() + 1).padStart(2, '0') + '-' + String(endMonth.getDate()).padStart(2, '0');
+  var gcalEvents = await gcalFetchEvents(startDate, endDate);
+  var existing = await dbSelect('planning');
+  var existingGcalIds = {};
+  existing.forEach(function(e) { if (e.gcal_event_id) existingGcalIds[e.gcal_event_id] = true; });
+  var imported = 0;
+  for (var i = 0; i < gcalEvents.length; i++) {
+    var ge = gcalEvents[i];
+    if (existingGcalIds[ge.id]) continue;
+    if (ge.description && ge.description.indexOf('Source: LPB Hub') !== -1) continue;
+    var date = ge.start.date || (ge.start.dateTime ? ge.start.dateTime.substring(0, 10) : null);
+    if (!date) continue;
+    var endDateVal = ge.end.date || (ge.end.dateTime ? ge.end.dateTime.substring(0, 10) : null);
+    if (endDateVal && ge.end.date) {
+      var ep = endDateVal.split('-');
+      var ed = new Date(parseInt(ep[0]), parseInt(ep[1]) - 1, parseInt(ep[2]) - 1);
+      endDateVal = ed.getFullYear() + '-' + String(ed.getMonth() + 1).padStart(2, '0') + '-' + String(ed.getDate()).padStart(2, '0');
+    }
+    await dbInsert('planning', {
+      title: ge.summary || 'Evenement Google',
+      type: 'autre',
+      color: '#3498db',
+      start_date: date,
+      end_date: endDateVal || null,
+      status: 'planifie',
+      notes: (ge.description || '') + '\n\nImporte depuis Google Agenda',
+      gcal_event_id: ge.id
+    });
+    imported++;
+  }
+  toast(imported + ' evenement(s) importe(s) depuis Google Agenda');
+  return imported;
+}
+
+// Init GCal on page load
+window.addEventListener('load', function() { setTimeout(gcalInit, 1000); });
 
 // ============================================
 // UTILITIES
@@ -1808,78 +2032,7 @@ window.navigate = function navigate(page) {
 }
 
 $$('.sidebar-nav a[data-page]').forEach(a => {
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    navigate(a.dataset.page);
-    // Close sidebar on mobile after nav
-    closeMobileSidebar();
-  });
-});
-
-// ============================================
-// MOBILE: Sidebar toggle + Bottom nav
-// ============================================
-function openMobileSidebar() {
-  $('#sidebar').classList.add('open');
-  $('#sidebar-overlay').classList.add('show');
-  document.body.style.overflow = 'hidden';
-}
-function closeMobileSidebar() {
-  $('#sidebar').classList.remove('open');
-  $('#sidebar-overlay').classList.remove('show');
-  document.body.style.overflow = '';
-}
-
-$('#menu-toggle')?.addEventListener('click', () => {
-  if ($('#sidebar').classList.contains('open')) closeMobileSidebar();
-  else openMobileSidebar();
-});
-
-$('#sidebar-overlay')?.addEventListener('click', closeMobileSidebar);
-
-// Bottom nav: navigate + highlight active
-$$('#bottom-nav a[data-page]').forEach(a => {
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    navigate(a.dataset.page);
-    updateBottomNav(a.dataset.page);
-  });
-});
-
-function updateBottomNav(page) {
-  $$('#bottom-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
-}
-
-// Patch navigate to also update bottom nav
-const _origNavigate = window.navigate;
-window.navigate = function(page) {
-  _origNavigate(page);
-  updateBottomNav(page);
-};
-
-// Bottom "Plus" menu
-function openMoreMenu() {
-  $('#bottom-more-menu').classList.add('show');
-  $('#bottom-more-overlay').classList.add('show');
-}
-function closeMoreMenu() {
-  $('#bottom-more-menu').classList.remove('show');
-  $('#bottom-more-overlay').classList.remove('show');
-}
-
-$('#bottom-nav-more')?.addEventListener('click', e => {
-  e.preventDefault();
-  openMoreMenu();
-});
-
-$('#bottom-more-overlay')?.addEventListener('click', closeMoreMenu);
-
-$$('#bottom-more-menu a[data-page]').forEach(a => {
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    closeMoreMenu();
-    navigate(a.dataset.page);
-  });
+  a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
 });
 
 $('#btn-refresh')?.addEventListener('click', () => navigate(currentPage));
@@ -2529,7 +2682,6 @@ async function renderPipeline(content) {
                 daysLate = Math.floor(diff / 86400000);
               }
               var lateHtml = daysLate > 0 ? '<div style="margin-top:6px"><span style="background:#fee;color:#e74c3c;font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px"><i class="fas fa-exclamation-triangle"></i> ' + daysLate + 'j en retard</span></div>' : '';
-              var rdvHtml = d.rdv_date ? '<div style="margin-top:4px"><span style="background:#e8f5ee;color:#2d6a4f;font-size:0.68rem;font-weight:600;padding:2px 8px;border-radius:4px"><i class="fas fa-calendar-check"></i> RDV ' + formatDate(d.rdv_date) + (d.rdv_date.length > 10 ? ' ' + d.rdv_date.substring(11, 16) : '') + '</span></div>' : '';
               var dateStr = d.created_at ? formatDate(d.created_at) : '';
               return '<div class="deal-card" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
@@ -2541,7 +2693,6 @@ async function renderPipeline(content) {
                   (d.notes ? '<span><i class="fas fa-comment"></i> 1</span>' : '') +
                 '</div>' +
                 (d.value > 0 ? '<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-top:4px">' + formatCurrency(d.value) + '</div>' : '') +
-                rdvHtml +
                 lateHtml +
               '</div>';
             }).join('') +
@@ -2632,16 +2783,6 @@ function dealForm(deal = null, contacts = []) {
         ${contacts.map(c => `<option value="${c.id}" ${d.contact_id === c.id ? 'selected' : ''}>${c.first_name} ${c.last_name}${c.company ? ' (' + c.company + ')' : ''}</option>`).join('')}
       </select>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label><i class="fas fa-calendar-check"></i> Date RDV</label>
-        <input type="date" id="f-drdvdate" value="${d.rdv_date ? d.rdv_date.substring(0, 10) : ''}">
-      </div>
-      <div class="form-group">
-        <label>Heure RDV</label>
-        <input type="time" id="f-drdvtime" value="${d.rdv_date && d.rdv_date.length > 10 ? d.rdv_date.substring(11, 16) : ''}">
-      </div>
-    </div>
     <div class="form-group">
       <label>Notes</label>
       <textarea id="f-dnotes">${d.notes || ''}</textarea>
@@ -2655,9 +2796,6 @@ function dealForm(deal = null, contacts = []) {
   $('#btn-save-deal').addEventListener('click', async () => {
     const title = $('#f-dtitle').value.trim();
     if (!title) { toast('Titre requis', 'error'); return; }
-    const rdvDate = $('#f-drdvdate').value;
-    const rdvTime = $('#f-drdvtime').value;
-    const rdvFull = rdvDate ? (rdvDate + (rdvTime ? 'T' + rdvTime : '')) : null;
     const row = {
       title,
       value: parseFloat($('#f-dvalue').value) || 0,
@@ -2665,18 +2803,10 @@ function dealForm(deal = null, contacts = []) {
       stage: $('#f-dstage').value,
       expected_close: $('#f-dclose').value || null,
       contact_id: $('#f-dcontact').value || null,
-      notes: $('#f-dnotes').value.trim() || null,
-      rdv_date: rdvFull
+      notes: $('#f-dnotes').value.trim() || null
     };
-    if (isEdit) {
-      await dbUpdate('deals', d.id, row);
-      await syncDealRdvToPlanning(d.id, title, rdvFull, row.contact_id);
-      toast('Deal mis a jour');
-    } else {
-      var newDeal = await dbInsert('deals', row);
-      if (newDeal && rdvFull) await syncDealRdvToPlanning(newDeal.id, title, rdvFull, row.contact_id);
-      toast('Deal cree');
-    }
+    if (isEdit) { await dbUpdate('deals', d.id, row); toast('Deal mis a jour'); }
+    else { await dbInsert('deals', row); toast('Deal cree'); }
     closeModal();
     pages.crm('pipeline');
   });
@@ -2698,37 +2828,6 @@ window.dealEdit = async function(id) {
   ]);
   if (deals[0]) dealForm(deals[0], contacts);
 };
-
-// ============================================
-// SYNC RDV DEAL → PLANNING
-// ============================================
-async function syncDealRdvToPlanning(dealId, dealTitle, rdvDate, contactId) {
-  // Find existing planning event linked to this deal
-  var existing = await dbSelect('planning', { eq: [['deal_id', dealId], ['type', 'rdv']] });
-  if (rdvDate) {
-    var eventData = {
-      title: 'RDV: ' + dealTitle,
-      type: 'rdv',
-      color: '#2ecc71',
-      start_date: rdvDate,
-      end_date: null,
-      contact_id: contactId || null,
-      deal_id: dealId,
-      status: 'planifie',
-      notes: 'RDV automatique depuis fiche lead'
-    };
-    if (existing.length > 0) {
-      await dbUpdate('planning', existing[0].id, eventData);
-    } else {
-      await dbInsert('planning', eventData);
-    }
-  } else {
-    // No RDV date — remove existing event if any
-    if (existing.length > 0) {
-      await dbDelete('planning', existing[0].id);
-    }
-  }
-}
 
 // ============================================
 // DEAL DETAIL VIEW (noCRM style)
@@ -2931,25 +3030,6 @@ window.dealView = async function(id) {
           </div>
         </div>
 
-        <div class="deal-sidebar-card">
-          <div class="sc-header"><i class="fas fa-calendar-check"></i> Rendez-vous</div>
-          <div class="sc-body">
-            ${d.rdv_date ? `
-              <div class="sc-row">
-                <span class="sc-label">Date</span>
-                <span class="sc-val" style="color:var(--success);font-weight:600">
-                  <i class="fas fa-calendar-day"></i> ${formatDate(d.rdv_date)}${d.rdv_date.length > 10 ? ' a ' + d.rdv_date.substring(11, 16) : ''}
-                </span>
-              </div>
-              <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px" onclick="dealSetRdv('${d.id}')"><i class="fas fa-pen"></i> Modifier le RDV</button>
-              <button class="btn btn-danger btn-sm" style="width:100%;margin-top:4px" onclick="dealClearRdv('${d.id}')"><i class="fas fa-times"></i> Annuler le RDV</button>
-            ` : `
-              <div style="text-align:center;padding:8px 0;color:var(--text-muted)">Aucun RDV planifie</div>
-              <button class="btn btn-primary btn-sm" style="width:100%;margin-top:4px" onclick="dealSetRdv('${d.id}')"><i class="fas fa-calendar-plus"></i> Planifier un RDV</button>
-            `}
-          </div>
-        </div>
-
         ${contact ? `
           <div class="deal-sidebar-card">
             <div class="sc-header"><i class="fas fa-user"></i> Contact</div>
@@ -2975,51 +3055,6 @@ window.dealEditFromView = async function(id) {
     dbSelect('contacts')
   ]);
   if (deals[0]) dealForm(deals[0], contacts);
-};
-
-window.dealSetRdv = async function(id) {
-  var deals = await dbSelect('deals', { eq: [['id', id]] });
-  var d = deals[0];
-  if (!d) return;
-  var currentDate = d.rdv_date ? d.rdv_date.substring(0, 10) : '';
-  var currentTime = d.rdv_date && d.rdv_date.length > 10 ? d.rdv_date.substring(11, 16) : '';
-  openModal('Planifier un RDV', `
-    <div class="form-row">
-      <div class="form-group">
-        <label><i class="fas fa-calendar-day"></i> Date du RDV *</label>
-        <input type="date" id="f-rdvdate" value="${currentDate}">
-      </div>
-      <div class="form-group">
-        <label><i class="fas fa-clock"></i> Heure</label>
-        <input type="time" id="f-rdvtime" value="${currentTime}">
-      </div>
-    </div>
-  `, `
-    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
-    <button class="btn btn-primary" id="btn-save-rdv"><i class="fas fa-check"></i> Confirmer le RDV</button>
-  `);
-  $('#btn-save-rdv').addEventListener('click', async function() {
-    var rdvDate = $('#f-rdvdate').value;
-    if (!rdvDate) { toast('Date requise', 'error'); return; }
-    var rdvTime = $('#f-rdvtime').value;
-    var rdvFull = rdvDate + (rdvTime ? 'T' + rdvTime : '');
-    await dbUpdate('deals', id, { rdv_date: rdvFull });
-    await syncDealRdvToPlanning(id, d.title, rdvFull, d.contact_id);
-    toast('RDV planifie et synchronise au calendrier');
-    closeModal();
-    dealView(id);
-  });
-};
-
-window.dealClearRdv = async function(id) {
-  if (!confirm('Annuler ce rendez-vous ?')) return;
-  var deals = await dbSelect('deals', { eq: [['id', id]] });
-  var d = deals[0];
-  if (!d) return;
-  await dbUpdate('deals', id, { rdv_date: null });
-  await syncDealRdvToPlanning(id, d.title, null, d.contact_id);
-  toast('RDV annule et retire du calendrier');
-  dealView(id);
 };
 
 // Helper: escape HTML
@@ -4593,6 +4628,13 @@ pages.planning = async function() {
         <h3 style="margin:0"><i class="fas fa-calendar-alt"></i> ${monthNames[currentMonth]} ${currentYear}</h3>
       </div>
       <div class="toolbar-right">
+        ${gcalIsConnected() ? `
+          <button class="btn btn-outline btn-sm" id="btn-gcal-import" title="Importer depuis Google Agenda"><i class="fab fa-google"></i> Importer</button>
+          <button class="btn btn-outline btn-sm" id="btn-gcal-sync" title="Synchroniser vers Google Agenda"><i class="fas fa-sync-alt"></i> Sync Google</button>
+          <span class="text-small" style="color:var(--success);padding:0 8px"><i class="fas fa-check-circle"></i> Google Agenda</span>
+        ` : `
+          <button class="btn btn-outline btn-sm" id="btn-gcal-connect" title="Connecter Google Agenda"><i class="fab fa-google"></i> Connecter Google Agenda</button>
+        `}
         <button class="btn btn-primary" id="btn-add-event"><i class="fas fa-plus"></i> Nouvel evenement</button>
       </div>
     </div>
@@ -4635,6 +4677,17 @@ pages.planning = async function() {
   `;
 
   content.querySelector('#btn-add-event')?.addEventListener('click', function() { planForm(null, contacts); });
+  content.querySelector('#btn-gcal-connect')?.addEventListener('click', function() { gcalConnect(); });
+  content.querySelector('#btn-gcal-sync')?.addEventListener('click', async function() {
+    this.disabled = true; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sync...';
+    await gcalSyncAll();
+    pages.planning();
+  });
+  content.querySelector('#btn-gcal-import')?.addEventListener('click', async function() {
+    this.disabled = true; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Import...';
+    await gcalImportToPlanning();
+    pages.planning();
+  });
 
   // Click on calendar cell to add event
   content.querySelectorAll('.cal-cell[data-date]').forEach(function(cell) {
@@ -4711,13 +4764,21 @@ function planForm(ev, contacts) {
       status: $('#f-evstatus').value,
       notes: $('#f-evnotes').value.trim() || null
     };
-    if (isEdit) { await dbUpdate('planning', d.id, row); toast('Evenement mis a jour'); }
-    else { await dbInsert('planning', row); toast('Evenement cree'); }
+    if (isEdit) {
+      await dbUpdate('planning', d.id, row);
+      if (gcalIsConnected()) { row.id = d.id; row.gcal_event_id = d.gcal_event_id; await gcalPushEvent(row); }
+      toast('Evenement mis a jour');
+    } else {
+      var inserted = await dbInsert('planning', row);
+      if (gcalIsConnected() && inserted) { await gcalPushEvent(inserted); }
+      toast('Evenement cree');
+    }
     closeModal();
     pages.planning();
   });
   if (isEdit && $('#btn-del-event')) {
     $('#btn-del-event').addEventListener('click', async function() {
+      if (d.gcal_event_id && gcalIsConnected()) { await gcalRemoveEvent(d.gcal_event_id); }
       await dbDelete('planning', d.id);
       toast('Evenement supprime');
       closeModal();
@@ -4733,6 +4794,11 @@ window.planEdit = async function(id) {
 };
 window.planDelete = async function(id) {
   if (!confirm('Supprimer cet evenement ?')) return;
+  if (gcalIsConnected()) {
+    var evts = await dbSelect('planning');
+    var ev = evts.find(function(x) { return x.id === id; });
+    if (ev && ev.gcal_event_id) await gcalRemoveEvent(ev.gcal_event_id);
+  }
   await dbDelete('planning', id);
   toast('Evenement supprime');
   pages.planning();
@@ -5005,6 +5071,45 @@ pages.settings = function() {
       </div>
 
       <div class="panel">
+        <div class="panel-header"><h3><i class="fab fa-google"></i> Google Agenda</h3></div>
+        <div class="panel-body">
+          <p class="text-small text-muted mb-16">Connectez Google Agenda pour synchroniser automatiquement le Planning avec votre calendrier Google.</p>
+          <div class="form-group">
+            <label>Client ID Google (OAuth 2.0)</label>
+            <input type="text" id="gcal-client-id" value="${getGcalClientId()}" placeholder="xxxxx.apps.googleusercontent.com">
+          </div>
+          <div class="form-group">
+            <label>ID du calendrier</label>
+            <input type="text" id="gcal-calendar-id" value="${getGcalCalendarId()}" placeholder="primary ou email@gmail.com">
+          </div>
+          <div class="form-group">
+            <button class="btn btn-primary btn-sm" id="btn-save-gcal-config"><i class="fas fa-save"></i> Enregistrer</button>
+            ${gcalIsConnected() ? `
+              <button class="btn btn-accent btn-sm" id="btn-gcal-sync-settings"><i class="fas fa-sync-alt"></i> Synchroniser</button>
+              <button class="btn btn-outline btn-sm" id="btn-gcal-disconnect"><i class="fas fa-unlink"></i> Deconnecter</button>
+            ` : `
+              <button class="btn btn-accent btn-sm" id="btn-gcal-auth" ${!getGcalClientId() ? 'disabled' : ''}><i class="fab fa-google"></i> Connecter</button>
+            `}
+          </div>
+          <div id="gcal-status" class="mt-8">
+            ${gcalIsConnected() ? '<span style="color:var(--success)"><i class="fas fa-check-circle"></i> Connecte a Google Agenda</span>' : getGcalClientId() ? '<span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> Client ID configure — cliquez Connecter</span>' : '<span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> Non configure</span>'}
+          </div>
+          <div class="mt-16" style="background:var(--bg);padding:12px;border-radius:8px">
+            <p class="text-small text-muted"><strong>Configuration requise :</strong></p>
+            <ol class="text-small text-muted" style="padding-left:20px;margin-top:4px;line-height:1.8">
+              <li>Aller sur <strong>console.cloud.google.com</strong></li>
+              <li>Creer un projet ou en selectionner un</li>
+              <li>Activer l'API <strong>Google Calendar API</strong></li>
+              <li>Ecran de consentement OAuth > Ajouter votre email</li>
+              <li>Identifiants > Creer un <strong>Client OAuth 2.0</strong> (Application Web)</li>
+              <li>Origines JS autorisees : <code>https://laplanetebois-creator.github.io</code></li>
+              <li>Copier le <strong>Client ID</strong> ci-dessus</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
         <div class="panel-header"><h3><i class="fas fa-database"></i> Initialisation</h3></div>
         <div class="panel-body">
           <p class="text-small text-muted mb-16">Si les tables n'existent pas encore, executez le script SQL dans l'editeur Supabase.</p>
@@ -5036,6 +5141,27 @@ pages.settings = function() {
       </div>
     </div>
   `;
+
+  // Google Calendar config
+  $('#btn-save-gcal-config')?.addEventListener('click', function() {
+    var clientId = $('#gcal-client-id').value.trim();
+    var calendarId = $('#gcal-calendar-id').value.trim() || 'primary';
+    localStorage.setItem('gcal_client_id', clientId);
+    localStorage.setItem('gcal_calendar_id', calendarId);
+    gcalTokenClient = null;
+    gcalInit();
+    toast('Configuration Google Agenda enregistree');
+    $('#gcal-status').innerHTML = clientId ? '<span style="color:var(--success)"><i class="fas fa-check-circle"></i> Client ID configure</span>' : '<span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> Non configure</span>';
+    if ($('#btn-gcal-auth')) $('#btn-gcal-auth').disabled = !clientId;
+  });
+  $('#btn-gcal-auth')?.addEventListener('click', function() { gcalConnect(); });
+  $('#btn-gcal-disconnect')?.addEventListener('click', function() { gcalDisconnect(); pages.settings(); });
+  $('#btn-gcal-sync-settings')?.addEventListener('click', async function() {
+    this.disabled = true; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sync...';
+    await gcalSyncAll();
+    this.disabled = false; this.innerHTML = '<i class="fas fa-sync-alt"></i> Synchroniser';
+    toast('Synchronisation terminee');
+  });
 
   // Windsor.ai config
   $('#btn-save-windsor')?.addEventListener('click', () => {
