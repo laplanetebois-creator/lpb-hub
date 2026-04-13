@@ -17,6 +17,188 @@ try {
 } catch(e) { console.error('Supabase init error', e); }
 
 // ============================================
+// GOOGLE CALENDAR INTEGRATION
+// ============================================
+const GCAL_SCOPES = 'https://www.googleapis.com/auth/calendar';
+const GCAL_API = 'https://www.googleapis.com/calendar/v3';
+let gcalTokenClient = null;
+
+function getGcalClientId() { return localStorage.getItem('gcal_client_id') || ''; }
+function getGcalToken() { return localStorage.getItem('gcal_access_token') || ''; }
+function getGcalCalendarId() { return localStorage.getItem('gcal_calendar_id') || 'primary'; }
+function gcalIsConnected() { return !!getGcalToken(); }
+
+function gcalInit() {
+  const clientId = getGcalClientId();
+  if (!clientId || typeof google === 'undefined' || !google.accounts) return;
+  try {
+    gcalTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: GCAL_SCOPES,
+      callback: function(response) {
+        if (response.access_token) {
+          localStorage.setItem('gcal_access_token', response.access_token);
+          localStorage.setItem('gcal_token_time', Date.now().toString());
+          toast('Google Agenda connecte !');
+          if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
+        } else if (response.error) {
+          toast('Erreur Google: ' + response.error, 'error');
+        }
+      }
+    });
+  } catch(e) { console.error('GCal init error', e); }
+}
+
+function gcalConnect() {
+  if (!gcalTokenClient) gcalInit();
+  if (!gcalTokenClient) { toast('Configurez le Client ID Google dans Parametres', 'warning'); return; }
+  gcalTokenClient.requestAccessToken();
+}
+
+function gcalDisconnect() {
+  const token = getGcalToken();
+  if (token && typeof google !== 'undefined' && google.accounts) {
+    google.accounts.oauth2.revoke(token);
+  }
+  localStorage.removeItem('gcal_access_token');
+  localStorage.removeItem('gcal_token_time');
+  toast('Google Agenda deconnecte');
+}
+
+async function gcalApi(method, path, body) {
+  var token = getGcalToken();
+  if (!token) return null;
+  var opts = {
+    method: method,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  var url = path.startsWith('http') ? path : GCAL_API + path;
+  var resp = await fetch(url, opts);
+  if (resp.status === 401) {
+    localStorage.removeItem('gcal_access_token');
+    toast('Session Google expiree — reconnectez-vous', 'warning');
+    return null;
+  }
+  if (resp.status === 204 || resp.status === 200 && method === 'DELETE') return {};
+  if (!resp.ok) { console.error('GCal API error', resp.status, await resp.text()); return null; }
+  return resp.json();
+}
+
+var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', autre: '8' };
+
+function planningToGcalEvent(ev) {
+  var startDate = (ev.start_date || '').substring(0, 10);
+  var endDate = ev.end_date ? ev.end_date.substring(0, 10) : startDate;
+  // Google Calendar all-day end date is exclusive (next day)
+  var endParts = endDate.split('-');
+  var endDt = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]) + 1);
+  var endExclusive = endDt.getFullYear() + '-' + String(endDt.getMonth() + 1).padStart(2, '0') + '-' + String(endDt.getDate()).padStart(2, '0');
+  return {
+    summary: ev.title || '',
+    description: [ev.notes || '', '', 'Source: LPB Hub', 'Type: ' + (ev.type || ''), 'Statut: ' + (ev.status || '')].join('\n').trim(),
+    start: { date: startDate },
+    end: { date: endExclusive },
+    colorId: GCAL_COLOR_MAP[ev.type] || '8'
+  };
+}
+
+async function gcalPushEvent(planningEvent) {
+  if (!gcalIsConnected()) return null;
+  var calId = getGcalCalendarId();
+  var gcalEvent = planningToGcalEvent(planningEvent);
+  if (planningEvent.gcal_event_id) {
+    var updated = await gcalApi('PUT', '/calendars/' + encodeURIComponent(calId) + '/events/' + planningEvent.gcal_event_id, gcalEvent);
+    return updated;
+  } else {
+    var created = await gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', gcalEvent);
+    if (created && created.id) {
+      await dbUpdate('planning', planningEvent.id, { gcal_event_id: created.id });
+    }
+    return created;
+  }
+}
+
+async function gcalRemoveEvent(gcalEventId) {
+  if (!gcalIsConnected() || !gcalEventId) return;
+  var calId = getGcalCalendarId();
+  await gcalApi('DELETE', '/calendars/' + encodeURIComponent(calId) + '/events/' + gcalEventId);
+}
+
+async function gcalFetchEvents(startDate, endDate) {
+  if (!gcalIsConnected()) return [];
+  var calId = getGcalCalendarId();
+  var params = '?timeMin=' + startDate + 'T00:00:00Z&timeMax=' + endDate + 'T23:59:59Z&singleEvents=true&orderBy=startTime&maxResults=250';
+  var result = await gcalApi('GET', '/calendars/' + encodeURIComponent(calId) + '/events' + params);
+  return (result && result.items) ? result.items : [];
+}
+
+async function gcalSyncAll() {
+  if (!gcalIsConnected()) { gcalConnect(); return; }
+  var events = await dbSelect('planning');
+  var created = 0, updated = 0, errors = 0;
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    try {
+      if (ev.gcal_event_id) {
+        await gcalApi('PUT', '/calendars/' + encodeURIComponent(getGcalCalendarId()) + '/events/' + ev.gcal_event_id, planningToGcalEvent(ev));
+        updated++;
+      } else {
+        var result = await gcalApi('POST', '/calendars/' + encodeURIComponent(getGcalCalendarId()) + '/events', planningToGcalEvent(ev));
+        if (result && result.id) {
+          await dbUpdate('planning', ev.id, { gcal_event_id: result.id });
+          created++;
+        } else { errors++; }
+      }
+    } catch(e) { errors++; }
+  }
+  toast('Sync Google Agenda: ' + created + ' crees, ' + updated + ' mis a jour' + (errors ? ', ' + errors + ' erreurs' : ''));
+  return { created: created, updated: updated, errors: errors };
+}
+
+async function gcalImportToPlanning() {
+  if (!gcalIsConnected()) { gcalConnect(); return; }
+  var now = new Date();
+  var startDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
+  var endMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+  var endDate = endMonth.getFullYear() + '-' + String(endMonth.getMonth() + 1).padStart(2, '0') + '-' + String(endMonth.getDate()).padStart(2, '0');
+  var gcalEvents = await gcalFetchEvents(startDate, endDate);
+  var existing = await dbSelect('planning');
+  var existingGcalIds = {};
+  existing.forEach(function(e) { if (e.gcal_event_id) existingGcalIds[e.gcal_event_id] = true; });
+  var imported = 0;
+  for (var i = 0; i < gcalEvents.length; i++) {
+    var ge = gcalEvents[i];
+    if (existingGcalIds[ge.id]) continue;
+    if (ge.description && ge.description.indexOf('Source: LPB Hub') !== -1) continue;
+    var date = ge.start.date || (ge.start.dateTime ? ge.start.dateTime.substring(0, 10) : null);
+    if (!date) continue;
+    var endDateVal = ge.end.date || (ge.end.dateTime ? ge.end.dateTime.substring(0, 10) : null);
+    if (endDateVal && ge.end.date) {
+      var ep = endDateVal.split('-');
+      var ed = new Date(parseInt(ep[0]), parseInt(ep[1]) - 1, parseInt(ep[2]) - 1);
+      endDateVal = ed.getFullYear() + '-' + String(ed.getMonth() + 1).padStart(2, '0') + '-' + String(ed.getDate()).padStart(2, '0');
+    }
+    await dbInsert('planning', {
+      title: ge.summary || 'Evenement Google',
+      type: 'autre',
+      color: '#3498db',
+      start_date: date,
+      end_date: endDateVal || null,
+      status: 'planifie',
+      notes: (ge.description || '') + '\n\nImporte depuis Google Agenda',
+      gcal_event_id: ge.id
+    });
+    imported++;
+  }
+  toast(imported + ' evenement(s) importe(s) depuis Google Agenda');
+  return imported;
+}
+
+// Init GCal on page load
+window.addEventListener('load', function() { setTimeout(gcalInit, 1000); });
+
+// ============================================
 // UTILITIES
 // ============================================
 const $ = sel => document.querySelector(sel);
@@ -2939,6 +3121,13 @@ pages.planning = async function() {
         <h3 style="margin:0"><i class="fas fa-calendar-alt"></i> ${monthNames[currentMonth]} ${currentYear}</h3>
       </div>
       <div class="toolbar-right">
+        ${gcalIsConnected() ? `
+          <button class="btn btn-outline btn-sm" id="btn-gcal-import" title="Importer depuis Google Agenda"><i class="fab fa-google"></i> Importer</button>
+          <button class="btn btn-outline btn-sm" id="btn-gcal-sync" title="Synchroniser vers Google Agenda"><i class="fas fa-sync-alt"></i> Sync Google</button>
+          <span class="text-small" style="color:var(--success);padding:0 8px"><i class="fas fa-check-circle"></i> Google Agenda</span>
+        ` : `
+          <button class="btn btn-outline btn-sm" id="btn-gcal-connect" title="Connecter Google Agenda"><i class="fab fa-google"></i> Connecter Google Agenda</button>
+        `}
         <button class="btn btn-primary" id="btn-add-event"><i class="fas fa-plus"></i> Nouvel evenement</button>
       </div>
     </div>
@@ -2981,6 +3170,17 @@ pages.planning = async function() {
   `;
 
   content.querySelector('#btn-add-event')?.addEventListener('click', function() { planForm(null, contacts); });
+  content.querySelector('#btn-gcal-connect')?.addEventListener('click', function() { gcalConnect(); });
+  content.querySelector('#btn-gcal-sync')?.addEventListener('click', async function() {
+    this.disabled = true; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sync...';
+    await gcalSyncAll();
+    pages.planning();
+  });
+  content.querySelector('#btn-gcal-import')?.addEventListener('click', async function() {
+    this.disabled = true; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Import...';
+    await gcalImportToPlanning();
+    pages.planning();
+  });
 
   // Click on calendar cell to add event
   content.querySelectorAll('.cal-cell[data-date]').forEach(function(cell) {
@@ -3057,13 +3257,21 @@ function planForm(ev, contacts) {
       status: $('#f-evstatus').value,
       notes: $('#f-evnotes').value.trim() || null
     };
-    if (isEdit) { await dbUpdate('planning', d.id, row); toast('Evenement mis a jour'); }
-    else { await dbInsert('planning', row); toast('Evenement cree'); }
+    if (isEdit) {
+      await dbUpdate('planning', d.id, row);
+      if (gcalIsConnected()) { row.id = d.id; row.gcal_event_id = d.gcal_event_id; await gcalPushEvent(row); }
+      toast('Evenement mis a jour');
+    } else {
+      var inserted = await dbInsert('planning', row);
+      if (gcalIsConnected() && inserted) { await gcalPushEvent(inserted); }
+      toast('Evenement cree');
+    }
     closeModal();
     pages.planning();
   });
   if (isEdit && $('#btn-del-event')) {
     $('#btn-del-event').addEventListener('click', async function() {
+      if (d.gcal_event_id && gcalIsConnected()) { await gcalRemoveEvent(d.gcal_event_id); }
       await dbDelete('planning', d.id);
       toast('Evenement supprime');
       closeModal();
@@ -3079,6 +3287,11 @@ window.planEdit = async function(id) {
 };
 window.planDelete = async function(id) {
   if (!confirm('Supprimer cet evenement ?')) return;
+  if (gcalIsConnected()) {
+    var evts = await dbSelect('planning');
+    var ev = evts.find(function(x) { return x.id === id; });
+    if (ev && ev.gcal_event_id) await gcalRemoveEvent(ev.gcal_event_id);
+  }
   await dbDelete('planning', id);
   toast('Evenement supprime');
   pages.planning();
@@ -3351,6 +3564,45 @@ pages.settings = function() {
       </div>
 
       <div class="panel">
+        <div class="panel-header"><h3><i class="fab fa-google"></i> Google Agenda</h3></div>
+        <div class="panel-body">
+          <p class="text-small text-muted mb-16">Connectez Google Agenda pour synchroniser automatiquement le Planning avec votre calendrier Google.</p>
+          <div class="form-group">
+            <label>Client ID Google (OAuth 2.0)</label>
+            <input type="text" id="gcal-client-id" value="${getGcalClientId()}" placeholder="xxxxx.apps.googleusercontent.com">
+          </div>
+          <div class="form-group">
+            <label>ID du calendrier</label>
+            <input type="text" id="gcal-calendar-id" value="${getGcalCalendarId()}" placeholder="primary ou email@gmail.com">
+          </div>
+          <div class="form-group">
+            <button class="btn btn-primary btn-sm" id="btn-save-gcal-config"><i class="fas fa-save"></i> Enregistrer</button>
+            ${gcalIsConnected() ? `
+              <button class="btn btn-accent btn-sm" id="btn-gcal-sync-settings"><i class="fas fa-sync-alt"></i> Synchroniser</button>
+              <button class="btn btn-outline btn-sm" id="btn-gcal-disconnect"><i class="fas fa-unlink"></i> Deconnecter</button>
+            ` : `
+              <button class="btn btn-accent btn-sm" id="btn-gcal-auth" ${!getGcalClientId() ? 'disabled' : ''}><i class="fab fa-google"></i> Connecter</button>
+            `}
+          </div>
+          <div id="gcal-status" class="mt-8">
+            ${gcalIsConnected() ? '<span style="color:var(--success)"><i class="fas fa-check-circle"></i> Connecte a Google Agenda</span>' : getGcalClientId() ? '<span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> Client ID configure — cliquez Connecter</span>' : '<span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> Non configure</span>'}
+          </div>
+          <div class="mt-16" style="background:var(--bg);padding:12px;border-radius:8px">
+            <p class="text-small text-muted"><strong>Configuration requise :</strong></p>
+            <ol class="text-small text-muted" style="padding-left:20px;margin-top:4px;line-height:1.8">
+              <li>Aller sur <strong>console.cloud.google.com</strong></li>
+              <li>Creer un projet ou en selectionner un</li>
+              <li>Activer l'API <strong>Google Calendar API</strong></li>
+              <li>Ecran de consentement OAuth > Ajouter votre email</li>
+              <li>Identifiants > Creer un <strong>Client OAuth 2.0</strong> (Application Web)</li>
+              <li>Origines JS autorisees : <code>https://laplanetebois-creator.github.io</code></li>
+              <li>Copier le <strong>Client ID</strong> ci-dessus</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
         <div class="panel-header"><h3><i class="fas fa-database"></i> Initialisation</h3></div>
         <div class="panel-body">
           <p class="text-small text-muted mb-16">Si les tables n'existent pas encore, executez le script SQL dans l'editeur Supabase.</p>
@@ -3382,6 +3634,27 @@ pages.settings = function() {
       </div>
     </div>
   `;
+
+  // Google Calendar config
+  $('#btn-save-gcal-config')?.addEventListener('click', function() {
+    var clientId = $('#gcal-client-id').value.trim();
+    var calendarId = $('#gcal-calendar-id').value.trim() || 'primary';
+    localStorage.setItem('gcal_client_id', clientId);
+    localStorage.setItem('gcal_calendar_id', calendarId);
+    gcalTokenClient = null;
+    gcalInit();
+    toast('Configuration Google Agenda enregistree');
+    $('#gcal-status').innerHTML = clientId ? '<span style="color:var(--success)"><i class="fas fa-check-circle"></i> Client ID configure</span>' : '<span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> Non configure</span>';
+    if ($('#btn-gcal-auth')) $('#btn-gcal-auth').disabled = !clientId;
+  });
+  $('#btn-gcal-auth')?.addEventListener('click', function() { gcalConnect(); });
+  $('#btn-gcal-disconnect')?.addEventListener('click', function() { gcalDisconnect(); pages.settings(); });
+  $('#btn-gcal-sync-settings')?.addEventListener('click', async function() {
+    this.disabled = true; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sync...';
+    await gcalSyncAll();
+    this.disabled = false; this.innerHTML = '<i class="fas fa-sync-alt"></i> Synchroniser';
+    toast('Synchronisation terminee');
+  });
 
   // Windsor.ai config
   $('#btn-save-windsor')?.addEventListener('click', () => {
