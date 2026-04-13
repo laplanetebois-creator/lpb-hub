@@ -579,6 +579,7 @@ pages.crm = async function(subTab) {
           </div>
         </div>
         <div class="toolbar-right">
+          <button class="btn btn-outline btn-sm" id="btn-import-helloartisan" style="border-color:#ff6b00;color:#ff6b00"><i class="fas fa-hard-hat"></i> helloArtisan</button>
           <button class="btn btn-outline btn-sm" id="btn-import-contacts"><i class="fas fa-file-import"></i> Importer</button>
           <button class="btn btn-primary" id="btn-add-contact"><i class="fas fa-plus"></i> Ajouter</button>
         </div>
@@ -648,6 +649,7 @@ pages.crm = async function(subTab) {
     content.querySelector('#btn-add-contact')?.addEventListener('click', () => crmForm());
     // Import button
     content.querySelector('#btn-import-contacts')?.addEventListener('click', crmImport);
+    content.querySelector('#btn-import-helloartisan')?.addEventListener('click', crmImportHelloArtisan);
     // CRM sub-tabs
     content.querySelectorAll('[data-crm-tab]').forEach(function(btn) {
       btn.addEventListener('click', function() { pages.crm(btn.dataset.crmTab); });
@@ -695,7 +697,7 @@ function crmForm(contact = null) {
       <div class="form-group">
         <label>Source</label>
         <select id="f-source">
-          ${['manual','website','linkedin','referral','scraping','salon','google'].map(s => `<option value="${s}" ${c.source === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${['manual','website','linkedin','referral','scraping','salon','google','helloartisan'].map(s => `<option value="${s}" ${c.source === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -810,6 +812,123 @@ function crmImport() {
     reader.readAsBinaryString(file);
   });
   input.click();
+}
+
+// --- Import helloArtisan (coller les leads manuellement) ---
+function crmImportHelloArtisan() {
+  openModal('Importer depuis helloArtisan', `
+    <div style="margin-bottom:16px">
+      <div style="background:#fff3e0;border-left:4px solid #ff6b00;padding:12px;border-radius:6px;margin-bottom:16px">
+        <strong style="color:#ff6b00"><i class="fas fa-hard-hat"></i> helloArtisan</strong><br>
+        <span class="text-small">Collez les contacts depuis <a href="https://pro.helloartisan.com/login" target="_blank">pro.helloartisan.com</a> (onglet Contacts).<br>
+        Format attendu: une ligne par contact.<br>
+        Le systeme detecte automatiquement noms, telephones, emails et evite les doublons.</span>
+      </div>
+      <label style="font-weight:600">Donnees a importer</label>
+      <textarea id="ha-data" rows="12" style="width:100%;font-family:monospace;font-size:12px" placeholder="Collez ici les lignes de contacts copiees depuis helloArtisan...&#10;Ex: Jean Dupont  06 12 34 56 78  jean@email.com  Toulouse&#10;Ou format CSV/tableau"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="ha-dryrun" checked> <span class="text-small">Previsualiser avant import</span>
+      </label>
+    </div>
+    <div id="ha-preview" style="margin-top:12px;display:none"></div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="btn-ha-import" style="background:#ff6b00;border-color:#ff6b00"><i class="fas fa-file-import"></i> Analyser</button>
+  `);
+
+  let parsedLeads = [];
+
+  $('#btn-ha-import').addEventListener('click', async () => {
+    const raw = $('#ha-data').value.trim();
+    if (!raw) { toast('Collez des donnees', 'error'); return; }
+    const preview = $('#ha-preview');
+    const btn = $('#btn-ha-import');
+    const dryRun = $('#ha-dryrun').checked;
+
+    // Parse les lignes
+    const lines = raw.split('\n').filter(l => l.trim());
+    parsedLeads = lines.map(line => {
+      const phoneMatch = line.match(/(0[1-9][\s.]?\d{2}[\s.]?\d{2}[\s.]?\d{2}[\s.]?\d{2})/);
+      const emailMatch = line.match(/[\w.+-]+@[\w.-]+\.\w+/);
+      let clean = line;
+      if (phoneMatch) clean = clean.replace(phoneMatch[0], '');
+      if (emailMatch) clean = clean.replace(emailMatch[0], '');
+      // Nettoyer separateurs
+      clean = clean.replace(/[,;\t|]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const parts = clean.split(' ').filter(p => p.length > 1);
+      return {
+        first_name: parts[0] || 'Inconnu',
+        last_name: parts.slice(1, 3).join(' ') || '',
+        phone: phoneMatch ? phoneMatch[1] : null,
+        email: emailMatch ? emailMatch[0] : null,
+        city: parts.length > 3 ? parts.slice(3).join(' ') : null,
+        source: 'helloartisan',
+        status: 'lead',
+        notes: 'Import helloArtisan ' + new Date().toLocaleDateString('fr-FR')
+      };
+    }).filter(l => l.first_name !== 'Inconnu' || l.phone || l.email);
+
+    if (parsedLeads.length === 0) { toast('Aucun contact detecte', 'error'); return; }
+
+    // Dedup avec CRM existant
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verification...';
+    const existing = await dbSelect('contacts', { select: 'id,first_name,last_name,email,phone' });
+
+    function norm(s) { return (s || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+    function normPhone(p) { return (p || '').replace(/[\s.\-()]/g, '').replace(/^(\+33|0033)/, '0'); }
+
+    const toImport = [];
+    const dupes = [];
+    for (const lead of parsedLeads) {
+      const lp = normPhone(lead.phone);
+      const le = norm(lead.email);
+      const ln = norm(lead.first_name) + ' ' + norm(lead.last_name);
+      let isDup = false;
+      for (const c of existing) {
+        if (lp && normPhone(c.phone) === lp) { isDup = true; break; }
+        if (le && norm(c.email) === le) { isDup = true; break; }
+        const cn = norm(c.first_name) + ' ' + norm(c.last_name);
+        if (ln.length > 3 && cn === ln) { isDup = true; break; }
+      }
+      if (isDup) dupes.push(lead);
+      else { toImport.push(lead); existing.push(lead); }
+    }
+
+    if (dryRun) {
+      preview.style.display = 'block';
+      preview.innerHTML = `
+        <div style="background:#e8f5e9;padding:10px;border-radius:6px;margin-bottom:8px">
+          <strong style="color:#2e7d32">✅ ${toImport.length} nouveaux</strong> a importer
+        </div>
+        ${dupes.length > 0 ? `<div style="background:#fff3e0;padding:10px;border-radius:6px;margin-bottom:8px">
+          <strong style="color:#e65100">⚠️ ${dupes.length} doublons</strong> ignores
+          <div class="text-small text-muted">${dupes.map(d => d.first_name + ' ' + d.last_name).join(', ')}</div>
+        </div>` : ''}
+        ${toImport.length > 0 ? `<table class="data-table" style="font-size:12px">
+          <thead><tr><th>Prenom</th><th>Nom</th><th>Tel</th><th>Email</th><th>Ville</th></tr></thead>
+          <tbody>${toImport.map(c => `<tr><td>${c.first_name}</td><td>${c.last_name}</td><td>${c.phone || '—'}</td><td>${c.email || '—'}</td><td>${c.city || '—'}</td></tr>`).join('')}</tbody>
+        </table>` : ''}
+      `;
+      btn.innerHTML = '<i class="fas fa-check"></i> Confirmer l\'import';
+      btn.style.background = '#2e7d32';
+      btn.style.borderColor = '#2e7d32';
+      $('#ha-dryrun').checked = false;
+    } else {
+      // Import effectif
+      if (toImport.length === 0) { toast('Tous les contacts existent deja', 'warning'); btn.innerHTML = '<i class="fas fa-file-import"></i> Analyser'; return; }
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Import...';
+      let imported = 0;
+      for (const c of toImport) {
+        await dbInsert('contacts', c);
+        imported++;
+      }
+      toast(imported + ' contacts importes depuis helloArtisan');
+      closeModal();
+      pages.crm();
+    }
+  });
 }
 
 // ============================================
