@@ -2144,15 +2144,7 @@ $$('.sidebar-nav a[data-page]').forEach(a => {
   a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
 });
 
-$('#btn-refresh')?.addEventListener('click', async () => {
-  const btn = $('#btn-refresh');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  await syncAllWindsor(false);
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-sync-alt"></i>';
-  navigate(currentPage);
-});
+$('#btn-refresh')?.addEventListener('click', () => navigate(currentPage));
 
 // ============================================
 // DASHBOARD MODULE
@@ -3155,9 +3147,16 @@ window.dealView = async function(id) {
 
       <div class="deal-detail-sidebar">
         <div class="deal-sidebar-card">
-          <div class="deal-value-big">
+          <div class="deal-value-big" style="cursor:pointer" id="deal-value-display" title="Cliquer pour modifier">
             ${formatCurrency(d.value || 0)}
-            <small>Valeur du deal</small>
+            <small>Valeur du deal <i class="fas fa-pen" style="font-size:0.6rem;opacity:0.5"></i></small>
+          </div>
+          <div id="deal-value-edit" style="display:none;padding:12px;text-align:center">
+            <input type="number" id="f-deal-value" value="${d.value || 0}" style="width:120px;text-align:center;font-size:1.1rem;padding:6px;border:1px solid var(--border);border-radius:6px" step="100"> <span style="font-size:0.9rem">€</span>
+            <div style="margin-top:8px">
+              <button class="btn btn-primary btn-sm" id="btn-save-value"><i class="fas fa-check"></i></button>
+              <button class="btn btn-outline btn-sm" id="btn-cancel-value"><i class="fas fa-times"></i></button>
+            </div>
           </div>
         </div>
 
@@ -3166,7 +3165,11 @@ window.dealView = async function(id) {
         <div class="deal-sidebar-card">
           <div class="sc-header"><i class="fas fa-info-circle"></i> Details</div>
           <div class="sc-body">
-            <div class="sc-row"><span class="sc-label">Etape</span><span class="sc-val"><span class="deal-stage-badge" style="background:${stageColor};font-size:0.68rem">${stageLabel}</span></span></div>
+            <div class="sc-row"><span class="sc-label">Etape</span><span class="sc-val">
+              <select id="f-deal-stage" style="border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:0.78rem;background:${stageColor};color:#fff;cursor:pointer">
+                ${Object.entries(stageLabels).map(function(kv) { return '<option value="' + kv[0] + '"' + (d.stage === kv[0] ? ' selected' : '') + '>' + kv[1] + '</option>'; }).join('')}
+              </select>
+            </span></div>
             <div class="sc-row"><span class="sc-label">Probabilite</span><span class="sc-val">${d.probability || 0}%</span></div>
             <div class="sc-row"><span class="sc-label">Cloture prevue</span><span class="sc-val">${d.expected_close ? formatDate(d.expected_close) : '—'}</span></div>
             <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDate(d.created_at)}</span></div>
@@ -3191,6 +3194,31 @@ window.dealView = async function(id) {
       </div>
     </div>
   `;
+
+  // Editable value
+  var valDisplay = content.querySelector('#deal-value-display');
+  var valEdit = content.querySelector('#deal-value-edit');
+  if (valDisplay) {
+    valDisplay.addEventListener('click', function() { valDisplay.style.display = 'none'; valEdit.style.display = 'block'; content.querySelector('#f-deal-value').focus(); });
+    content.querySelector('#btn-cancel-value').addEventListener('click', function() { valDisplay.style.display = ''; valEdit.style.display = 'none'; });
+    content.querySelector('#btn-save-value').addEventListener('click', async function() {
+      var newVal = parseFloat(content.querySelector('#f-deal-value').value) || 0;
+      await dbUpdate('deals', d.id, { value: newVal });
+      toast('Valeur mise a jour');
+      dealView(d.id);
+    });
+  }
+
+  // Editable stage
+  var stageSelect = content.querySelector('#f-deal-stage');
+  if (stageSelect) {
+    stageSelect.addEventListener('change', async function() {
+      var newStage = stageSelect.value;
+      await dbUpdate('deals', d.id, { stage: newStage });
+      toast('Etape mise a jour: ' + stageLabels[newStage]);
+      dealView(d.id);
+    });
+  }
 };
 
 window.planAddFromDeal = async function(contactId, dealId) {
