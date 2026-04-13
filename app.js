@@ -1336,10 +1336,11 @@ window.dealView = async function(id) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
   $('#page-title').textContent = 'Detail du lead';
 
-  const [deals, contacts, activities] = await Promise.all([
+  const [deals, contacts, activities, planningEvents] = await Promise.all([
     dbSelect('deals', { eq: [['id', id]] }),
     dbSelect('contacts'),
-    dbSelect('activities', { order: ['created_at', false] })
+    dbSelect('activities', { order: ['created_at', false] }),
+    dbSelect('planning', { order: ['start_date', true] })
   ]);
 
   const d = deals[0];
@@ -1541,6 +1542,23 @@ window.dealView = async function(id) {
             </div>
           </div>
         ` : ''}
+
+        ${(function() {
+          var contactEvents = planningEvents.filter(function(ev) { return ev.contact_id === d.contact_id; });
+          if (contactEvents.length === 0) return '';
+          return '<div class="deal-sidebar-card">' +
+            '<div class="sc-header"><i class="fas fa-calendar-alt"></i> Planning (' + contactEvents.length + ')</div>' +
+            '<div class="sc-body">' +
+            contactEvents.map(function(ev) {
+              var timeStr = ev.start_time ? ev.start_time.substring(0,5) + (ev.end_time ? '-' + ev.end_time.substring(0,5) : '') + ' ' : '';
+              return '<div class="sc-row" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+                '<span style="font-weight:600;font-size:0.82rem">' + escHtml(ev.title) + '</span>' +
+                '<span class="text-small text-muted"><i class="fas fa-clock"></i> ' + formatDate(ev.start_date) + ' ' + timeStr +
+                '<span style="background:' + (ev.color || '#2d6a4f') + ';color:#fff;padding:1px 8px;border-radius:10px;font-size:0.7rem;margin-left:6px">' + (ev.type || '') + '</span></span>' +
+              '</div>';
+            }).join('') +
+            '</div></div>';
+        })()}
 
         ${attHtml}
       </div>
@@ -3113,7 +3131,8 @@ pages.planning = async function() {
     calendarHtml += '<div class="cal-cell' + (isToday ? ' cal-today' : '') + '" data-date="' + dateKey + '">' +
       '<div class="cal-day">' + day + '</div>' +
       dayEvents.slice(0, 3).map(function(ev) {
-        return '<div class="cal-event" style="background:' + (ev.color || '#2d6a4f') + '">' + ev.title + '</div>';
+        var timeStr = ev.start_time ? '<span style="font-weight:600">' + ev.start_time.substring(0,5) + '</span> ' : '';
+        return '<div class="cal-event" style="background:' + (ev.color || '#2d6a4f') + '">' + timeStr + ev.title + '</div>';
       }).join('') +
       (dayEvents.length > 3 ? '<div class="text-muted text-small">+' + (dayEvents.length - 3) + '</div>' : '') +
     '</div>';
@@ -3156,8 +3175,9 @@ pages.planning = async function() {
               ${events.map(function(ev) {
                 var c = contactMap[ev.contact_id];
                 var cName = c ? c.first_name + ' ' + c.last_name : '—';
+                var timeInfo = ev.start_time ? ' <strong>' + ev.start_time.substring(0,5) + '</strong>' + (ev.end_time ? '-' + ev.end_time.substring(0,5) : '') : '';
                 return '<tr>' +
-                  '<td class="text-small">' + formatDate(ev.start_date) + (ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : '') + '</td>' +
+                  '<td class="text-small">' + formatDate(ev.start_date) + timeInfo + (ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : '') + '</td>' +
                   '<td><strong>' + ev.title + '</strong></td>' +
                   '<td class="text-small">' + (typeLabels[ev.type] || ev.type) + '</td>' +
                   '<td class="text-small">' + cName + '</td>' +
