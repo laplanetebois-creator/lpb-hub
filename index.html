@@ -1218,6 +1218,10 @@ a:hover { text-decoration: underline; }
 }
 .att-item:hover { border-color: var(--primary); background: var(--primary-light); }
 a.att-item:hover::after { content: '\f019'; font-family: 'Font Awesome 6 Free'; font-weight: 900; position: absolute; top: 6px; right: 6px; font-size: 0.6rem; color: var(--primary); }
+.att-item:hover .att-del-btn { opacity: 1 !important; }
+.att-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: border-color 0.15s; margin-bottom: 8px; }
+.att-upload-zone:hover { border-color: var(--primary); background: var(--primary-light); }
+.att-upload-zone i { font-size: 1.5rem; color: var(--text-light); margin-bottom: 6px; display: block; }
 a.att-item { position: relative; display: block; }
 .att-item .att-icon { font-size: 1.8rem; color: var(--text-light); margin-bottom: 6px; }
 .att-item .att-icon.img { color: var(--info); }
@@ -3572,25 +3576,40 @@ window.dealView = async function(id) {
   // Raw description (text that wasn't parsed as key-value)
   var rawDesc = parsedFields.__raw || '';
 
-  // Attachments HTML
-  var attHtml = '';
-  if (attachments.length > 0) {
-    attHtml = '<div class="deal-attachments"><div class="att-header"><i class="fas fa-paperclip"></i> Pieces jointes (' + attachments.length + ')</div><div class="att-grid">' +
-      attachments.map(function(att) {
-        var iconClass = 'fas fa-file';
-        var colorClass = '';
-        var nameLC = att.name.toLowerCase();
-        if (nameLC.match(/\.(jpg|jpeg|png|gif|heic|webp|bmp|svg)$/)) { iconClass = 'fas fa-file-image'; colorClass = 'img'; }
-        else if (nameLC.match(/\.(pdf)$/)) { iconClass = 'fas fa-file-pdf'; colorClass = 'pdf'; }
-        else if (nameLC.match(/\.(doc|docx)$/)) { iconClass = 'fas fa-file-word'; colorClass = 'doc'; }
-        else if (nameLC.match(/\.(xls|xlsx)$/)) { iconClass = 'fas fa-file-excel'; colorClass = 'doc'; }
-        var wrapStart = att.url ? '<a href="' + escHtml(att.url) + '" target="_blank" class="att-item" style="text-decoration:none;color:inherit;cursor:pointer">' : '<div class="att-item">';
-        var wrapEnd = att.url ? '</a>' : '</div>';
-        return wrapStart + '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div><div class="att-name" title="' + escHtml(att.name) + '">' + escHtml(att.name) + '</div>' +
-          (att.date ? '<div class="att-date">' + att.date + '</div>' : '') + wrapEnd;
-      }).join('') +
-    '</div></div>';
+  // Attachments HTML — toujours visible avec bouton Ajouter
+  function buildAttHtml(atts) {
+    return '<div class="deal-attachments" id="att-block">' +
+      '<div class="att-header" style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span><i class="fas fa-paperclip"></i> Pièces jointes (' + atts.length + ')</span>' +
+        '<button class="btn btn-outline btn-sm" id="btn-add-att" style="font-size:0.72rem"><i class="fas fa-plus"></i> Ajouter</button>' +
+      '</div>' +
+      (atts.length === 0 ? '<div class="text-muted text-small" style="padding:8px 4px">Aucune pièce jointe</div>' :
+      '<div class="att-grid">' +
+        atts.map(function(att, idx) {
+          var iconClass = 'fas fa-file', colorClass = '';
+          var nameLC = att.name.toLowerCase();
+          var isImg = nameLC.match(/\.(jpg|jpeg|png|gif|heic|webp|bmp|svg)$/);
+          if (isImg) { iconClass = 'fas fa-file-image'; colorClass = 'img'; }
+          else if (nameLC.match(/\.(pdf)$/)) { iconClass = 'fas fa-file-pdf'; colorClass = 'pdf'; }
+          else if (nameLC.match(/\.(doc|docx)$/)) { iconClass = 'fas fa-file-word'; colorClass = 'doc'; }
+          else if (nameLC.match(/\.(xls|xlsx)$/)) { iconClass = 'fas fa-file-excel'; colorClass = 'doc'; }
+          // Check local image cache
+          var localImg = localStorage.getItem('att_img_' + d.id + '_' + idx);
+          var urlToUse = att.url || localImg;
+          var thumbHtml = (localImg && isImg) ? '<img src="' + localImg + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;margin-bottom:4px">' : '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div>';
+          return '<div class="att-item" style="position:relative" data-att-idx="' + idx + '">' +
+            (urlToUse ? '<a href="' + escHtml(urlToUse) + '" target="_blank" style="text-decoration:none;color:inherit;display:contents">' : '') +
+            thumbHtml +
+            '<div class="att-name" title="' + escHtml(att.name) + '">' + escHtml(att.name) + '</div>' +
+            (att.date ? '<div class="att-date">' + att.date + '</div>' : '') +
+            (urlToUse ? '</a>' : '') +
+            '<button class="btn-ghost att-del-btn" data-att-idx="' + idx + '" title="Supprimer" style="position:absolute;top:2px;right:2px;font-size:0.65rem;color:var(--danger);opacity:0;background:var(--card);border-radius:50%;width:18px;height:18px;padding:0;line-height:18px;text-align:center" onclick="event.preventDefault();event.stopPropagation()"><i class="fas fa-times"></i></button>' +
+          '</div>';
+        }).join('') +
+      '</div>') +
+    '</div>';
   }
+  var attHtml = buildAttHtml(attachments);
 
   // Planning events for this contact
   var contactEvents = planningEvents.filter(function(ev) { return ev.contact_id === d.contact_id; });
