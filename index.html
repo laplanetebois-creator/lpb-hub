@@ -3246,103 +3246,47 @@ $('#deal-popup-overlay')?.addEventListener('click', function(e) { if (e.target =
 async function renderLeadsConsolides(content) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  const [contacts, deals, activities] = await Promise.all([
-    dbSelect('contacts', { order: ['created_at', false] }),
-    dbSelect('deals', { order: ['created_at', false] }),
-    dbSelect('activities', { order: ['created_at', false] })
-  ]);
+  var allLeads;
+  try {
+    var resp = await fetch('./leads_consolide.json');
+    allLeads = await resp.json();
+  } catch(e) {
+    content.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Impossible de charger leads_consolide.json</h4><p>'+escHtml(String(e))+'</p></div>';
+    return;
+  }
 
-  // Map deals par contact
-  const dealsByContact = {};
-  deals.forEach(function(d) {
-    if (!d.contact_id) return;
-    if (!dealsByContact[d.contact_id]) dealsByContact[d.contact_id] = [];
-    dealsByContact[d.contact_id].push(d);
-  });
+  var PRIO_COLORS = { A: '#e53935', B: '#fb8c00', C: '#43a047' };
+  var STATUT_COLORS = { Nouveau: '#3498db', Contacté: '#9b59b6', Qualifié: '#1abc9c', Converti: '#2d6a4f', Perdu: '#e74c3c' };
 
-  // Map activites par contact
-  const actByContact = {};
-  activities.forEach(function(a) {
-    if (!a.contact_id) return;
-    if (!actByContact[a.contact_id]) actByContact[a.contact_id] = [];
-    actByContact[a.contact_id].push(a);
-  });
+  // Unique values for filters
+  var categories = [...new Set(allLeads.map(function(l){ return l.categorie||''; }).filter(Boolean))].sort();
+  var statuts = [...new Set(allLeads.map(function(l){ return l.statut||''; }).filter(Boolean))].sort();
 
-  // Stats par source
-  const sources = {};
-  contacts.forEach(function(c) {
-    var src = c.source || 'autre';
-    if (!sources[src]) sources[src] = { count: 0, value: 0, won: 0 };
-    sources[src].count++;
-    var cDeals = dealsByContact[c.id] || [];
-    cDeals.forEach(function(d) {
-      sources[src].value += parseFloat(d.value) || 0;
-      if (d.stage === 'gagne') sources[src].won++;
-    });
-  });
-
-  const SOURCE_COLORS = {
-    helloartisan: '#e65100', 'travaux.com': '#2e7d32', nocrm: '#1565c0',
-    website: '#6a1b9a', google: '#c62828', linkedin: '#0277bd',
-    referral: '#558b2f', manual: '#546e7a', scraping: '#4e342e', autre: '#78909c'
-  };
-  const SOURCE_ICONS = {
-    helloartisan: 'fa-hard-hat', 'travaux.com': 'fa-wrench', nocrm: 'fa-funnel-dollar',
-    website: 'fa-globe', google: 'fa-search', linkedin: 'fa-linkedin',
-    referral: 'fa-user-friends', manual: 'fa-pen', scraping: 'fa-robot', autre: 'fa-tag'
-  };
-
-  const stageLabels = {
-    nouveaux_leads: 'Nouveau', nrp: 'NRP', suivi: 'Suivi',
-    rdv_sur_place: 'RDV', devis: 'Devis', attente_reponse: 'Attente',
-    r2: 'R2', gagne: 'Gagné', perdu: 'Perdu'
-  };
-  const stageColors = {
-    nouveaux_leads: '#3498db', nrp: '#9b59b6', suivi: '#1abc9c',
-    rdv_sur_place: '#2ecc71', devis: '#e0a030', attente_reponse: '#e67e22',
-    r2: '#8e44ad', gagne: '#2d6a4f', perdu: '#e74c3c'
-  };
-
-  var filterSrc = 'all';
-  var filterStage = 'all';
+  var filterPrio = 'all';
+  var filterCat = 'all';
+  var filterStatut = 'all';
   var searchQ = '';
-  var sortCol = 'date';
+  var sortCol = 'score';
   var sortDir = -1;
 
   function getRows() {
-    var rows = contacts.map(function(c) {
-      var cDeals = dealsByContact[c.id] || [];
-      var bestDeal = cDeals.sort(function(a,b){ return (parseFloat(b.value)||0)-(parseFloat(a.value)||0); })[0] || null;
-      var lastAct = (actByContact[c.id] || []).sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); })[0] || null;
-      var sourceUrl = (c.notes||'').match(/^source_url:\s*(.+)$/m);
-      return {
-        contact: c,
-        deal: bestDeal,
-        lastActivity: lastAct,
-        sourceUrl: sourceUrl ? sourceUrl[1].trim() : null,
-        stage: bestDeal ? bestDeal.stage : null,
-        value: bestDeal ? (parseFloat(bestDeal.value)||0) : 0
-      };
-    });
-
-    if (filterSrc !== 'all') rows = rows.filter(function(r){ return (r.contact.source||'autre') === filterSrc; });
-    if (filterStage !== 'all') rows = rows.filter(function(r){ return r.stage === filterStage; });
+    var rows = allLeads.slice();
+    if (filterPrio !== 'all') rows = rows.filter(function(l){ return l.priorite === filterPrio; });
+    if (filterCat !== 'all') rows = rows.filter(function(l){ return l.categorie === filterCat; });
+    if (filterStatut !== 'all') rows = rows.filter(function(l){ return l.statut === filterStatut; });
     if (searchQ) {
       var q = searchQ.toLowerCase();
-      rows = rows.filter(function(r){
-        var c = r.contact;
-        return (c.first_name+' '+c.last_name+' '+(c.email||'')+' '+(c.phone||'')+' '+(c.city||'')+' '+(c.source||'')).toLowerCase().includes(q);
+      rows = rows.filter(function(l){
+        return ((l.entreprise||'')+(l.ville||'')+(l.telephone||'')+(l.email||'')+(l.contact||'')+(l.categorie||'')+(l.notes||'')).toLowerCase().includes(q);
       });
     }
-
     rows.sort(function(a,b){
       var va, vb;
-      if (sortCol==='date') { va=new Date(a.contact.created_at); vb=new Date(b.contact.created_at); }
-      else if (sortCol==='value') { va=a.value; vb=b.value; }
-      else if (sortCol==='name') { va=(a.contact.first_name+' '+a.contact.last_name).toLowerCase(); vb=(b.contact.first_name+' '+b.contact.last_name).toLowerCase(); }
-      else if (sortCol==='source') { va=a.contact.source||''; vb=b.contact.source||''; }
-      else if (sortCol==='stage') { va=a.stage||''; vb=b.stage||''; }
-      else { va=new Date(a.contact.created_at); vb=new Date(b.contact.created_at); }
+      if (sortCol==='score') { va=parseInt(a.score)||0; vb=parseInt(b.score)||0; }
+      else if (sortCol==='entreprise') { va=(a.entreprise||'').toLowerCase(); vb=(b.entreprise||'').toLowerCase(); }
+      else if (sortCol==='date') { va=a.date_ajout||''; vb=b.date_ajout||''; }
+      else if (sortCol==='prio') { va='ABC'.indexOf(a.priorite||'C'); vb='ABC'.indexOf(b.priorite||'C'); }
+      else { va=parseInt(a.score)||0; vb=parseInt(b.score)||0; }
       if (va<vb) return -1*sortDir; if (va>vb) return 1*sortDir; return 0;
     });
     return rows;
@@ -3350,8 +3294,9 @@ async function renderLeadsConsolides(content) {
 
   function render() {
     var rows = getRows();
-    var totalValue = rows.reduce(function(s,r){ return s+r.value; },0);
-    var withDeal = rows.filter(function(r){ return r.deal; }).length;
+    var nbA = rows.filter(function(l){ return l.priorite==='A'; }).length;
+    var nbB = rows.filter(function(l){ return l.priorite==='B'; }).length;
+    var nbC = rows.filter(function(l){ return l.priorite==='C'; }).length;
 
     content.innerHTML = `
       <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
@@ -3360,79 +3305,78 @@ async function renderLeadsConsolides(content) {
         <button class="tab-btn active" data-crm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
       </div>
 
-      <!-- Stats sources -->
+      <!-- Stats priorité -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-        ${Object.entries(sources).sort(function(a,b){return b[1].count-a[1].count;}).map(function(kv){
-          var src=kv[0], st=kv[1];
-          var col=SOURCE_COLORS[src]||'#78909c';
-          var ico=SOURCE_ICONS[src]||'fa-tag';
-          var isActive = filterSrc===src;
-          return '<div onclick="window._crmSrcFilter(\''+src+'\')" style="cursor:pointer;background:'+(isActive?col:'var(--card)')+';border:2px solid '+col+';border-radius:10px;padding:10px 14px;min-width:110px;transition:all 0.15s">' +
-            '<div style="font-size:0.7rem;font-weight:700;color:'+(isActive?'#fff':col)+';text-transform:uppercase;margin-bottom:4px"><i class="fas '+ico+'"></i> '+src+'</div>' +
-            '<div style="font-size:1.3rem;font-weight:800;color:'+(isActive?'#fff':'var(--text)')+'">'+st.count+'</div>' +
-            '<div style="font-size:0.72rem;color:'+(isActive?'rgba(255,255,255,0.8)':'var(--text-light)')+'">'+formatCurrency(st.value)+'</div>' +
+        ${['A','B','C'].map(function(p){
+          var col = PRIO_COLORS[p];
+          var nb = allLeads.filter(function(l){ return l.priorite===p; }).length;
+          var isActive = filterPrio===p;
+          return '<div onclick="window._lcPrioFilter(\''+p+'\')" style="cursor:pointer;background:'+(isActive?col:'var(--card)')+';border:2px solid '+col+';border-radius:10px;padding:10px 18px;min-width:90px;text-align:center;transition:all 0.15s">' +
+            '<div style="font-size:0.7rem;font-weight:700;color:'+(isActive?'#fff':col)+';text-transform:uppercase;margin-bottom:4px">Priorité '+p+'</div>' +
+            '<div style="font-size:1.5rem;font-weight:800;color:'+(isActive?'#fff':'var(--text)')+'">'+nb+'</div>' +
           '</div>';
         }).join('')}
-        <div onclick="window._crmSrcFilter('all')" style="cursor:pointer;background:${filterSrc==='all'?'var(--primary)':'var(--card)'};border:2px solid var(--primary);border-radius:10px;padding:10px 14px;min-width:110px">
-          <div style="font-size:0.7rem;font-weight:700;color:${filterSrc==='all'?'#fff':'var(--primary)'};text-transform:uppercase;margin-bottom:4px"><i class="fas fa-layer-group"></i> Tous</div>
-          <div style="font-size:1.3rem;font-weight:800;color:${filterSrc==='all'?'#fff':'var(--text)'}">` + contacts.length + `</div>
-          <div style="font-size:0.72rem;color:${filterSrc==='all'?'rgba(255,255,255,0.8)':'var(--text-light)'}">` + formatCurrency(deals.reduce(function(s,d){return s+(parseFloat(d.value)||0);},0)) + `</div>
+        <div onclick="window._lcPrioFilter('all')" style="cursor:pointer;background:${filterPrio==='all'?'var(--primary)':'var(--card)'};border:2px solid var(--primary);border-radius:10px;padding:10px 18px;min-width:90px;text-align:center">
+          <div style="font-size:0.7rem;font-weight:700;color:${filterPrio==='all'?'#fff':'var(--primary)'};text-transform:uppercase;margin-bottom:4px">Tous</div>
+          <div style="font-size:1.5rem;font-weight:800;color:${filterPrio==='all'?'#fff':'var(--text)'}">` + allLeads.length + `</div>
         </div>
       </div>
 
       <!-- Toolbar -->
       <div class="toolbar" style="margin-bottom:12px">
-        <div class="toolbar-left">
+        <div class="toolbar-left" style="flex-wrap:wrap;gap:8px">
           <div class="search-input">
             <i class="fas fa-search"></i>
-            <input type="text" id="lc-search" placeholder="Nom, ville, téléphone..." value="${searchQ}">
+            <input type="text" id="lc-search" placeholder="Entreprise, ville, email..." value="${escHtml(searchQ)}">
           </div>
-          <select id="lc-stage" style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;background:var(--bg);color:var(--text)">
-            <option value="all">Toutes étapes</option>
-            ${Object.entries(stageLabels).map(function(kv){ return '<option value="'+kv[0]+'"'+(filterStage===kv[0]?' selected':'')+'>'+kv[1]+'</option>'; }).join('')}
-            <option value="__none"${filterStage==='__none'?' selected':''}>Sans deal</option>
+          <select id="lc-cat" style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;background:var(--bg);color:var(--text)">
+            <option value="all">Toutes catégories</option>
+            ${categories.map(function(c){ return '<option value="'+escHtml(c)+'"'+(filterCat===c?' selected':'')+'>'+escHtml(c)+'</option>'; }).join('')}
+          </select>
+          <select id="lc-statut" style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;background:var(--bg);color:var(--text)">
+            <option value="all">Tous statuts</option>
+            ${statuts.map(function(s){ return '<option value="'+escHtml(s)+'"'+(filterStatut===s?' selected':'')+'>'+escHtml(s)+'</option>'; }).join('')}
           </select>
         </div>
         <div class="toolbar-right">
-          <span class="text-muted text-small"><strong>${rows.length}</strong> leads · <strong>${withDeal}</strong> avec deal · <strong>${formatCurrency(totalValue)}</strong></span>
+          <span class="text-muted text-small"><strong>${rows.length}</strong> prospects · <span style="color:#e53935;font-weight:700">${nbA} A</span> · <span style="color:#fb8c00;font-weight:700">${nbB} B</span> · <span style="color:#43a047;font-weight:700">${nbC} C</span></span>
         </div>
       </div>
 
       <!-- Table -->
       <div class="panel"><div class="panel-body" style="padding:0;overflow-x:auto">
-        ${rows.length === 0 ? '<div class="empty-state"><i class="fas fa-inbox"></i><h4>Aucun lead</h4></div>' : `
-        <table class="data-table" style="min-width:800px">
+        ${rows.length === 0 ? '<div class="empty-state"><i class="fas fa-inbox"></i><h4>Aucun prospect</h4></div>' : `
+        <table class="data-table" style="min-width:900px">
           <thead><tr>
-            <th style="cursor:pointer" id="th-name">Contact ${sortCol==='name'?(sortDir>0?'↑':'↓'):''}</th>
-            <th style="cursor:pointer" id="th-source">Source ${sortCol==='source'?(sortDir>0?'↑':'↓'):''}</th>
-            <th>Ville / Distance</th>
+            <th style="cursor:pointer" id="th-prio">Prio ${sortCol==='prio'?(sortDir>0?'↑':'↓'):''}</th>
+            <th style="cursor:pointer" id="th-score">Score ${sortCol==='score'?(sortDir>0?'↑':'↓'):''}</th>
+            <th style="cursor:pointer" id="th-entreprise">Entreprise ${sortCol==='entreprise'?(sortDir>0?'↑':'↓'):''}</th>
+            <th>Catégorie</th>
+            <th>Ville / CP</th>
+            <th>Contact</th>
             <th>Téléphone</th>
-            <th style="cursor:pointer" id="th-stage">Étape ${sortCol==='stage'?(sortDir>0?'↑':'↓'):''}</th>
-            <th style="cursor:pointer" id="th-value">Valeur ${sortCol==='value'?(sortDir>0?'↑':'↓'):''}</th>
-            <th>Dernière activité</th>
+            <th>Email / Site</th>
+            <th>Statut</th>
+            <th>Notes</th>
             <th style="cursor:pointer" id="th-date">Date ${sortCol==='date'?(sortDir>0?'↑':'↓'):''}</th>
-            <th></th>
           </tr></thead>
           <tbody>
-            ${rows.map(function(r) {
-              var c = r.contact;
-              var src = c.source||'autre';
-              var col = SOURCE_COLORS[src]||'#78909c';
-              var ico = SOURCE_ICONS[src]||'fa-tag';
-              var stage = r.stage ? stageLabels[r.stage]||r.stage : '—';
-              var stageCol = r.stage ? (stageColors[r.stage]||'#888') : '#ccc';
-              var lastActStr = r.lastActivity ? (r.lastActivity.type==='call'?'📞':r.lastActivity.type==='email'?'✉️':r.lastActivity.type==='meeting'?'🤝':'📝')+' '+formatDate(r.lastActivity.created_at) : '—';
-              var mapsUrl = c.city ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent(c.city+(c.postal_code?' '+c.postal_code:'')) : '';
-              return '<tr style="cursor:pointer" onclick="window._lcOpenDeal(\''+c.id+'\')">' +
-                '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">'+avatarHtml(c)+'</div><div><strong style="font-size:0.85rem">'+escHtml(c.first_name+' '+c.last_name)+'</strong>'+(c.company?'<br><span class="text-small text-muted">'+escHtml(c.company)+'</span>':'')+'</div></div></td>' +
-                '<td><span style="background:'+col+'22;color:'+col+';font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap"><i class="fas '+ico+'"></i> '+src+'</span>'+(r.sourceUrl?'<a href="'+escHtml(r.sourceUrl)+'" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;color:'+col+'" title="Voir le lead"><i class="fas fa-external-link-alt" style="font-size:0.7rem"></i></a>':'')+'</td>' +
-                '<td style="font-size:0.82rem">'+(c.city?'<div>'+escHtml(c.city)+'</div><a href="'+mapsUrl+'" target="_blank" onclick="event.stopPropagation()" style="font-size:0.7rem;color:var(--primary)" id="dist-lc-'+c.id+'"><i class="fas fa-route"></i> <span class="dist-val-'+c.id+'">calcul...</span></a>':'—')+'</td>' +
-                '<td class="text-small nowrap">'+(c.phone?'<a href="tel:'+c.phone.replace(/\s/g,'')+'" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-phone"></i> '+escHtml(c.phone)+'</a>':'—')+'</td>' +
-                '<td><span style="background:'+stageCol+'22;color:'+stageCol+';font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:4px">'+stage+'</span></td>' +
-                '<td style="font-weight:700;color:var(--primary)">'+(r.value>0?formatCurrency(r.value):'—')+'</td>' +
-                '<td class="text-small text-muted">'+lastActStr+'</td>' +
-                '<td class="text-small text-muted nowrap">'+formatDate(c.created_at)+'</td>' +
-                '<td><button class="btn-ghost" onclick="event.stopPropagation();window._lcOpenDeal(\''+c.id+'\')" title="Ouvrir le deal"><i class="fas fa-external-link-alt"></i></button></td>' +
+            ${rows.map(function(l, i) {
+              var prioCol = PRIO_COLORS[l.priorite] || '#888';
+              var statutCol = STATUT_COLORS[l.statut] || '#78909c';
+              var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
+              return '<tr>' +
+                '<td><span style="background:'+prioCol+';color:#fff;font-size:0.75rem;font-weight:800;padding:2px 8px;border-radius:4px">'+(l.priorite||'—')+'</span></td>' +
+                '<td style="font-weight:700;color:var(--primary);text-align:center">'+(l.score||'—')+'</td>' +
+                '<td style="font-weight:600;max-width:180px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(l.entreprise||'')+'">'+escHtml(l.entreprise||'—')+'</div>'+(l.siret?'<div class="text-small text-muted">SIRET: '+escHtml(l.siret)+'</div>':'')+'</td>' +
+                '<td class="text-small" style="max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(l.categorie||'')+'">'+escHtml(l.categorie||'—')+'</td>' +
+                '<td style="font-size:0.82rem;white-space:nowrap">'+(l.ville?escHtml(l.ville)+(l.cp?' <span class="text-muted">'+escHtml(l.cp)+'</span>':'')+'<br><a href="'+mapsUrl+'" target="_blank" style="font-size:0.7rem;color:var(--primary)"><i class="fas fa-route"></i> <span class="lc-dist-'+i+'">carte</span></a>':'—')+'</td>' +
+                '<td class="text-small">'+escHtml(l.contact||'—')+'</td>' +
+                '<td class="text-small nowrap">'+(l.telephone?'<a href="tel:'+l.telephone.replace(/\s/g,'')+'" style="color:var(--primary)"><i class="fas fa-phone"></i> '+escHtml(l.telephone)+'</a>':'—')+'</td>' +
+                '<td style="font-size:0.78rem">'+(l.email?'<a href="mailto:'+escHtml(l.email)+'" style="color:var(--primary)">'+escHtml(l.email)+'</a>':'')+(l.email&&l.site?'<br>':'')+(l.site?'<a href="'+escHtml(l.site)+'" target="_blank" style="color:var(--text-light);font-size:0.72rem"><i class="fas fa-globe"></i> site</a>':'')+((!l.email&&!l.site)?'—':'')+'</td>' +
+                '<td><span style="background:'+statutCol+'22;color:'+statutCol+';font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap">'+escHtml(l.statut||'—')+'</span></td>' +
+                '<td class="text-small text-muted" style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(l.notes||'')+'">'+escHtml(l.notes||'')+'</td>' +
+                '<td class="text-small text-muted nowrap">'+escHtml(l.date_ajout||'')+'</td>' +
               '</tr>';
             }).join('')}
           </tbody>
@@ -3448,11 +3392,13 @@ async function renderLeadsConsolides(content) {
     // Filters
     var srch = content.querySelector('#lc-search');
     if (srch) srch.addEventListener('input', function(){ searchQ=srch.value; render(); });
-    var stgSel = content.querySelector('#lc-stage');
-    if (stgSel) stgSel.addEventListener('change', function(){ filterStage=stgSel.value; render(); });
+    var catSel = content.querySelector('#lc-cat');
+    if (catSel) catSel.addEventListener('change', function(){ filterCat=catSel.value; render(); });
+    var statSel = content.querySelector('#lc-statut');
+    if (statSel) statSel.addEventListener('change', function(){ filterStatut=statSel.value; render(); });
 
     // Sort headers
-    var sortMap = { 'th-name':'name','th-source':'source','th-stage':'stage','th-value':'value','th-date':'date' };
+    var sortMap = { 'th-prio':'prio','th-score':'score','th-entreprise':'entreprise','th-date':'date' };
     Object.keys(sortMap).forEach(function(id){
       var el = content.querySelector('#'+id);
       if (el) el.addEventListener('click', function(){
@@ -3461,40 +3407,35 @@ async function renderLeadsConsolides(content) {
       });
     });
 
-    // Distance async for visible cities
-    rows.forEach(function(r){
-      var c = r.contact;
-      if (!c.city) return;
-      var span = content.querySelector('.dist-val-'+c.id);
-      if (!span) return;
-      var q = encodeURIComponent(c.city+(c.postal_code?' '+c.postal_code:'')+' France');
+    // Distance async (throttled)
+    var distRows = rows.filter(function(l){ return l.ville||l.cp; });
+    var idx = 0;
+    function nextDist() {
+      if (idx >= distRows.length) return;
+      var l = distRows[idx]; var i2 = rows.indexOf(l); idx++;
+      var span = content.querySelector('.lc-dist-'+i2);
+      if (!span) { nextDist(); return; }
+      var q = encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France');
       fetch('https://nominatim.openstreetmap.org/search?q='+q+'&format=json&limit=1',{headers:{'Accept-Language':'fr'}})
         .then(function(r){return r.json();}).then(function(geo){
-          if(!geo||!geo[0]) { if(span)span.textContent='voir carte'; return; }
-          return fetch('https://router.project-osrm.org/route/v1/driving/3.3235,49.3819;'+geo[0].lon+','+geo[0].lat+'?overview=false');
-        }).then(function(r){return r&&r.json();}).then(function(d){
-          if(!d||!d.routes||!d.routes[0]) return;
-          var km=Math.round(d.routes[0].distance/1000);
-          var mins=Math.round(d.routes[0].duration/60);
-          var h=Math.floor(mins/60), m=mins%60;
-          var dur=h>0?h+'h'+(m>0?String(m).padStart(2,'0'):''):mins+' min';
-          var sp = content.querySelector('.dist-val-'+c.id);
-          if(sp) sp.textContent=km+' km · '+dur;
-        }).catch(function(){});
-    });
+          if(!geo||!geo[0]) { if(span)span.textContent='carte'; setTimeout(nextDist,300); return; }
+          return fetch('https://router.project-osrm.org/route/v1/driving/3.3235,49.3819;'+geo[0].lon+','+geo[0].lat+'?overview=false')
+            .then(function(r){return r.json();}).then(function(d){
+              if(!d||!d.routes||!d.routes[0]) return;
+              var km=Math.round(d.routes[0].distance/1000);
+              var mins=Math.round(d.routes[0].duration/60);
+              var h=Math.floor(mins/60), m=mins%60;
+              var dur=h>0?h+'h'+(m>0?String(m).padStart(2,'0'):''):mins+' min';
+              var sp=content.querySelector('.lc-dist-'+i2);
+              if(sp) sp.textContent=km+' km · '+dur;
+              setTimeout(nextDist,300);
+            });
+        }).catch(function(){ setTimeout(nextDist,300); });
+    }
+    nextDist();
   }
 
-  // Source filter global
-  window._crmSrcFilter = function(src) { filterSrc=src; render(); };
-  // Open deal from lead
-  window._lcOpenDeal = async function(contactId) {
-    var cDeals = deals.filter(function(d){ return d.contact_id===contactId; });
-    if (cDeals.length>0) { dealView(cDeals[0].id); }
-    else {
-      var c = contacts.find(function(x){ return x.id===contactId; });
-      if (c) toast((c.first_name||'')+' '+( c.last_name||'')+' — aucun deal associé', 'warning');
-    }
-  };
+  window._lcPrioFilter = function(p) { filterPrio=p; render(); };
 
   render();
 }
