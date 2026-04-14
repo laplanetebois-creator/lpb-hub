@@ -554,6 +554,7 @@ a:hover { text-decoration: underline; }
   backdrop-filter: blur(4px);
 }
 .modal-overlay.show { display: flex; }
+#modal-overlay { z-index: 1000; } /* Toujours devant le deal popup */
 
 .modal {
   background: var(--card);
