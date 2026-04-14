@@ -2481,6 +2481,7 @@ pages.crm = async function(subTab) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   if (subTab === 'pipeline') { return renderPipeline(content); }
+  if (subTab === 'consolide') { return renderLeadsConsolides(content); }
 
   let contacts = await dbSelect('contacts', { order: ['created_at', false] });
   let filterStatus = 'all';
@@ -2508,6 +2509,7 @@ pages.crm = async function(subTab) {
       <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
         <button class="tab-btn active" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-users"></i> Contacts</button>
         <button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>
+        <button class="tab-btn" data-crm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
       </div>
     ` + `
       <div class="toolbar">
@@ -2988,6 +2990,7 @@ async function renderPipeline(content) {
     <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
       <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
       <button class="tab-btn active" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-stream"></i> Pipeline</button>
+      <button class="tab-btn" data-crm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
     </div>
     <div class="toolbar">
       <div class="toolbar-left">
@@ -3232,6 +3235,265 @@ window.closeDealPopup = function() {
 };
 $('#deal-popup-close')?.addEventListener('click', closeDealPopup);
 $('#deal-popup-overlay')?.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeDealPopup(); });
+
+// ============================================================
+// LEADS CONSOLIDÉS
+// ============================================================
+async function renderLeadsConsolides(content) {
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  const [contacts, deals, activities] = await Promise.all([
+    dbSelect('contacts', { order: ['created_at', false] }),
+    dbSelect('deals', { order: ['created_at', false] }),
+    dbSelect('activities', { order: ['created_at', false] })
+  ]);
+
+  // Map deals par contact
+  const dealsByContact = {};
+  deals.forEach(function(d) {
+    if (!d.contact_id) return;
+    if (!dealsByContact[d.contact_id]) dealsByContact[d.contact_id] = [];
+    dealsByContact[d.contact_id].push(d);
+  });
+
+  // Map activites par contact
+  const actByContact = {};
+  activities.forEach(function(a) {
+    if (!a.contact_id) return;
+    if (!actByContact[a.contact_id]) actByContact[a.contact_id] = [];
+    actByContact[a.contact_id].push(a);
+  });
+
+  // Stats par source
+  const sources = {};
+  contacts.forEach(function(c) {
+    var src = c.source || 'autre';
+    if (!sources[src]) sources[src] = { count: 0, value: 0, won: 0 };
+    sources[src].count++;
+    var cDeals = dealsByContact[c.id] || [];
+    cDeals.forEach(function(d) {
+      sources[src].value += parseFloat(d.value) || 0;
+      if (d.stage === 'gagne') sources[src].won++;
+    });
+  });
+
+  const SOURCE_COLORS = {
+    helloartisan: '#e65100', 'travaux.com': '#2e7d32', nocrm: '#1565c0',
+    website: '#6a1b9a', google: '#c62828', linkedin: '#0277bd',
+    referral: '#558b2f', manual: '#546e7a', scraping: '#4e342e', autre: '#78909c'
+  };
+  const SOURCE_ICONS = {
+    helloartisan: 'fa-hard-hat', 'travaux.com': 'fa-wrench', nocrm: 'fa-funnel-dollar',
+    website: 'fa-globe', google: 'fa-search', linkedin: 'fa-linkedin',
+    referral: 'fa-user-friends', manual: 'fa-pen', scraping: 'fa-robot', autre: 'fa-tag'
+  };
+
+  const stageLabels = {
+    nouveaux_leads: 'Nouveau', nrp: 'NRP', suivi: 'Suivi',
+    rdv_sur_place: 'RDV', devis: 'Devis', attente_reponse: 'Attente',
+    r2: 'R2', gagne: 'Gagné', perdu: 'Perdu'
+  };
+  const stageColors = {
+    nouveaux_leads: '#3498db', nrp: '#9b59b6', suivi: '#1abc9c',
+    rdv_sur_place: '#2ecc71', devis: '#e0a030', attente_reponse: '#e67e22',
+    r2: '#8e44ad', gagne: '#2d6a4f', perdu: '#e74c3c'
+  };
+
+  var filterSrc = 'all';
+  var filterStage = 'all';
+  var searchQ = '';
+  var sortCol = 'date';
+  var sortDir = -1;
+
+  function getRows() {
+    var rows = contacts.map(function(c) {
+      var cDeals = dealsByContact[c.id] || [];
+      var bestDeal = cDeals.sort(function(a,b){ return (parseFloat(b.value)||0)-(parseFloat(a.value)||0); })[0] || null;
+      var lastAct = (actByContact[c.id] || []).sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); })[0] || null;
+      var sourceUrl = (c.notes||'').match(/^source_url:\s*(.+)$/m);
+      return {
+        contact: c,
+        deal: bestDeal,
+        lastActivity: lastAct,
+        sourceUrl: sourceUrl ? sourceUrl[1].trim() : null,
+        stage: bestDeal ? bestDeal.stage : null,
+        value: bestDeal ? (parseFloat(bestDeal.value)||0) : 0
+      };
+    });
+
+    if (filterSrc !== 'all') rows = rows.filter(function(r){ return (r.contact.source||'autre') === filterSrc; });
+    if (filterStage !== 'all') rows = rows.filter(function(r){ return r.stage === filterStage; });
+    if (searchQ) {
+      var q = searchQ.toLowerCase();
+      rows = rows.filter(function(r){
+        var c = r.contact;
+        return (c.first_name+' '+c.last_name+' '+(c.email||'')+' '+(c.phone||'')+' '+(c.city||'')+' '+(c.source||'')).toLowerCase().includes(q);
+      });
+    }
+
+    rows.sort(function(a,b){
+      var va, vb;
+      if (sortCol==='date') { va=new Date(a.contact.created_at); vb=new Date(b.contact.created_at); }
+      else if (sortCol==='value') { va=a.value; vb=b.value; }
+      else if (sortCol==='name') { va=(a.contact.first_name+' '+a.contact.last_name).toLowerCase(); vb=(b.contact.first_name+' '+b.contact.last_name).toLowerCase(); }
+      else if (sortCol==='source') { va=a.contact.source||''; vb=b.contact.source||''; }
+      else if (sortCol==='stage') { va=a.stage||''; vb=b.stage||''; }
+      else { va=new Date(a.contact.created_at); vb=new Date(b.contact.created_at); }
+      if (va<vb) return -1*sortDir; if (va>vb) return 1*sortDir; return 0;
+    });
+    return rows;
+  }
+
+  function render() {
+    var rows = getRows();
+    var totalValue = rows.reduce(function(s,r){ return s+r.value; },0);
+    var withDeal = rows.filter(function(r){ return r.deal; }).length;
+
+    content.innerHTML = `
+      <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
+        <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
+        <button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>
+        <button class="tab-btn active" data-crm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
+      </div>
+
+      <!-- Stats sources -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        ${Object.entries(sources).sort(function(a,b){return b[1].count-a[1].count;}).map(function(kv){
+          var src=kv[0], st=kv[1];
+          var col=SOURCE_COLORS[src]||'#78909c';
+          var ico=SOURCE_ICONS[src]||'fa-tag';
+          var isActive = filterSrc===src;
+          return '<div onclick="window._crmSrcFilter(\''+src+'\')" style="cursor:pointer;background:'+(isActive?col:'var(--card)')+';border:2px solid '+col+';border-radius:10px;padding:10px 14px;min-width:110px;transition:all 0.15s">' +
+            '<div style="font-size:0.7rem;font-weight:700;color:'+(isActive?'#fff':col)+';text-transform:uppercase;margin-bottom:4px"><i class="fas '+ico+'"></i> '+src+'</div>' +
+            '<div style="font-size:1.3rem;font-weight:800;color:'+(isActive?'#fff':'var(--text)')+'">'+st.count+'</div>' +
+            '<div style="font-size:0.72rem;color:'+(isActive?'rgba(255,255,255,0.8)':'var(--text-light)')+'">'+formatCurrency(st.value)+'</div>' +
+          '</div>';
+        }).join('')}
+        <div onclick="window._crmSrcFilter('all')" style="cursor:pointer;background:${filterSrc==='all'?'var(--primary)':'var(--card)'};border:2px solid var(--primary);border-radius:10px;padding:10px 14px;min-width:110px">
+          <div style="font-size:0.7rem;font-weight:700;color:${filterSrc==='all'?'#fff':'var(--primary)'};text-transform:uppercase;margin-bottom:4px"><i class="fas fa-layer-group"></i> Tous</div>
+          <div style="font-size:1.3rem;font-weight:800;color:${filterSrc==='all'?'#fff':'var(--text)'}">` + contacts.length + `</div>
+          <div style="font-size:0.72rem;color:${filterSrc==='all'?'rgba(255,255,255,0.8)':'var(--text-light)'}">` + formatCurrency(deals.reduce(function(s,d){return s+(parseFloat(d.value)||0);},0)) + `</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar" style="margin-bottom:12px">
+        <div class="toolbar-left">
+          <div class="search-input">
+            <i class="fas fa-search"></i>
+            <input type="text" id="lc-search" placeholder="Nom, ville, téléphone..." value="${searchQ}">
+          </div>
+          <select id="lc-stage" style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;background:var(--bg);color:var(--text)">
+            <option value="all">Toutes étapes</option>
+            ${Object.entries(stageLabels).map(function(kv){ return '<option value="'+kv[0]+'"'+(filterStage===kv[0]?' selected':'')+'>'+kv[1]+'</option>'; }).join('')}
+            <option value="__none"${filterStage==='__none'?' selected':''}>Sans deal</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <span class="text-muted text-small"><strong>${rows.length}</strong> leads · <strong>${withDeal}</strong> avec deal · <strong>${formatCurrency(totalValue)}</strong></span>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="panel"><div class="panel-body" style="padding:0;overflow-x:auto">
+        ${rows.length === 0 ? '<div class="empty-state"><i class="fas fa-inbox"></i><h4>Aucun lead</h4></div>' : `
+        <table class="data-table" style="min-width:800px">
+          <thead><tr>
+            <th style="cursor:pointer" id="th-name">Contact ${sortCol==='name'?(sortDir>0?'↑':'↓'):''}</th>
+            <th style="cursor:pointer" id="th-source">Source ${sortCol==='source'?(sortDir>0?'↑':'↓'):''}</th>
+            <th>Ville / Distance</th>
+            <th>Téléphone</th>
+            <th style="cursor:pointer" id="th-stage">Étape ${sortCol==='stage'?(sortDir>0?'↑':'↓'):''}</th>
+            <th style="cursor:pointer" id="th-value">Valeur ${sortCol==='value'?(sortDir>0?'↑':'↓'):''}</th>
+            <th>Dernière activité</th>
+            <th style="cursor:pointer" id="th-date">Date ${sortCol==='date'?(sortDir>0?'↑':'↓'):''}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(function(r) {
+              var c = r.contact;
+              var src = c.source||'autre';
+              var col = SOURCE_COLORS[src]||'#78909c';
+              var ico = SOURCE_ICONS[src]||'fa-tag';
+              var stage = r.stage ? stageLabels[r.stage]||r.stage : '—';
+              var stageCol = r.stage ? (stageColors[r.stage]||'#888') : '#ccc';
+              var lastActStr = r.lastActivity ? (r.lastActivity.type==='call'?'📞':r.lastActivity.type==='email'?'✉️':r.lastActivity.type==='meeting'?'🤝':'📝')+' '+formatDate(r.lastActivity.created_at) : '—';
+              var mapsUrl = c.city ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent(c.city+(c.postal_code?' '+c.postal_code:'')) : '';
+              return '<tr style="cursor:pointer" onclick="window._lcOpenDeal(\''+c.id+'\')">' +
+                '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">'+avatarHtml(c)+'</div><div><strong style="font-size:0.85rem">'+escHtml(c.first_name+' '+c.last_name)+'</strong>'+(c.company?'<br><span class="text-small text-muted">'+escHtml(c.company)+'</span>':'')+'</div></div></td>' +
+                '<td><span style="background:'+col+'22;color:'+col+';font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap"><i class="fas '+ico+'"></i> '+src+'</span>'+(r.sourceUrl?'<a href="'+escHtml(r.sourceUrl)+'" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;color:'+col+'" title="Voir le lead"><i class="fas fa-external-link-alt" style="font-size:0.7rem"></i></a>':'')+'</td>' +
+                '<td style="font-size:0.82rem">'+(c.city?'<div>'+escHtml(c.city)+'</div><a href="'+mapsUrl+'" target="_blank" onclick="event.stopPropagation()" style="font-size:0.7rem;color:var(--primary)" id="dist-lc-'+c.id+'"><i class="fas fa-route"></i> <span class="dist-val-'+c.id+'">calcul...</span></a>':'—')+'</td>' +
+                '<td class="text-small nowrap">'+(c.phone?'<a href="tel:'+c.phone.replace(/\s/g,'')+'" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-phone"></i> '+escHtml(c.phone)+'</a>':'—')+'</td>' +
+                '<td><span style="background:'+stageCol+'22;color:'+stageCol+';font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:4px">'+stage+'</span></td>' +
+                '<td style="font-weight:700;color:var(--primary)">'+(r.value>0?formatCurrency(r.value):'—')+'</td>' +
+                '<td class="text-small text-muted">'+lastActStr+'</td>' +
+                '<td class="text-small text-muted nowrap">'+formatDate(c.created_at)+'</td>' +
+                '<td><button class="btn-ghost" onclick="event.stopPropagation();window._lcOpenDeal(\''+c.id+'\')" title="Ouvrir le deal"><i class="fas fa-external-link-alt"></i></button></td>' +
+              '</tr>';
+            }).join('')}
+          </tbody>
+        </table>`}
+      </div></div>
+    `;
+
+    // Tab navigation
+    content.querySelectorAll('[data-crm-tab]').forEach(function(btn){
+      btn.addEventListener('click', function(){ pages.crm(btn.dataset.crmTab); });
+    });
+
+    // Filters
+    var srch = content.querySelector('#lc-search');
+    if (srch) srch.addEventListener('input', function(){ searchQ=srch.value; render(); });
+    var stgSel = content.querySelector('#lc-stage');
+    if (stgSel) stgSel.addEventListener('change', function(){ filterStage=stgSel.value; render(); });
+
+    // Sort headers
+    var sortMap = { 'th-name':'name','th-source':'source','th-stage':'stage','th-value':'value','th-date':'date' };
+    Object.keys(sortMap).forEach(function(id){
+      var el = content.querySelector('#'+id);
+      if (el) el.addEventListener('click', function(){
+        if (sortCol===sortMap[id]) sortDir*=-1; else { sortCol=sortMap[id]; sortDir=-1; }
+        render();
+      });
+    });
+
+    // Distance async for visible cities
+    rows.forEach(function(r){
+      var c = r.contact;
+      if (!c.city) return;
+      var span = content.querySelector('.dist-val-'+c.id);
+      if (!span) return;
+      var q = encodeURIComponent(c.city+(c.postal_code?' '+c.postal_code:'')+' France');
+      fetch('https://nominatim.openstreetmap.org/search?q='+q+'&format=json&limit=1',{headers:{'Accept-Language':'fr'}})
+        .then(function(r){return r.json();}).then(function(geo){
+          if(!geo||!geo[0]) { if(span)span.textContent='voir carte'; return; }
+          return fetch('https://router.project-osrm.org/route/v1/driving/3.3235,49.3819;'+geo[0].lon+','+geo[0].lat+'?overview=false');
+        }).then(function(r){return r&&r.json();}).then(function(d){
+          if(!d||!d.routes||!d.routes[0]) return;
+          var km=Math.round(d.routes[0].distance/1000);
+          var mins=Math.round(d.routes[0].duration/60);
+          var h=Math.floor(mins/60), m=mins%60;
+          var dur=h>0?h+'h'+(m>0?String(m).padStart(2,'0'):''):mins+' min';
+          var sp = content.querySelector('.dist-val-'+c.id);
+          if(sp) sp.textContent=km+' km · '+dur;
+        }).catch(function(){});
+    });
+  }
+
+  // Source filter global
+  window._crmSrcFilter = function(src) { filterSrc=src; render(); };
+  // Open deal from lead
+  window._lcOpenDeal = async function(contactId) {
+    var cDeals = deals.filter(function(d){ return d.contact_id===contactId; });
+    if (cDeals.length>0) { dealView(cDeals[0].id); }
+    else {
+      var c = contacts.find(function(x){ return x.id===contactId; });
+      if (c) toast((c.first_name||'')+' '+( c.last_name||'')+' — aucun deal associé', 'warning');
+    }
+  };
+
+  render();
+}
 
 window.dealView = async function(id) {
   var popup = $('#deal-popup-overlay');
