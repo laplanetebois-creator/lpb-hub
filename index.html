@@ -5509,6 +5509,23 @@ function planForm(ev, contacts) {
       <label>Notes</label>
       <textarea id="f-evnotes">${d.notes || ''}</textarea>
     </div>
+    <div class="form-group" style="background:${gcalIsConnected() ? 'var(--primary-light)' : 'var(--accent-light)'};border-radius:8px;padding:12px;margin-top:4px">
+      <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <i class="fas fa-bell" style="color:${gcalIsConnected() ? 'var(--primary)' : 'var(--accent)'}"></i>
+        Rappel notification téléphone
+        ${gcalIsConnected() ? '<span style="font-size:0.7rem;background:var(--primary);color:#fff;padding:1px 7px;border-radius:10px;font-weight:700">Google Calendar connecté ✓</span>' : '<span style="font-size:0.7rem;color:var(--accent);font-weight:600">⚠ Connecter Google Calendar pour activer</span>'}
+      </label>
+      <select id="f-ev-remind" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text)">
+        <option value="-1">Pas de rappel</option>
+        <option value="0">Au moment de l'événement</option>
+        <option value="10" selected>10 minutes avant</option>
+        <option value="30">30 minutes avant</option>
+        <option value="60">1 heure avant</option>
+        <option value="120">2 heures avant</option>
+        <option value="1440">La veille (24h avant)</option>
+        <option value="2880">2 jours avant</option>
+      </select>
+    </div>
   `, `
     ${isEdit ? '<button class="btn btn-danger btn-sm" id="btn-del-event"><i class="fas fa-trash"></i> Supprimer</button>' : ''}
     <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
@@ -5519,6 +5536,7 @@ function planForm(ev, contacts) {
     var title = $('#f-evtitle').value.trim();
     var start = $('#f-evstart').value;
     if (!title || !start) { toast('Titre et date requis', 'error'); return; }
+    var remindMin = parseInt($('#f-ev-remind').value);
     var row = {
       title: title,
       type: $('#f-evtype').value,
@@ -5533,12 +5551,31 @@ function planForm(ev, contacts) {
     };
     if (isEdit) {
       await dbUpdate('planning', d.id, row);
-      if (gcalIsConnected()) { row.id = d.id; row.gcal_event_id = d.gcal_event_id; await gcalPushEvent(row); }
-      toast('Evenement mis a jour');
+      if (gcalIsConnected()) {
+        row.id = d.id; row.gcal_event_id = d.gcal_event_id;
+        var gcalEv = planningToGcalEvent(row);
+        if (remindMin >= 0) gcalEv.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: remindMin }] };
+        else gcalEv.reminders = { useDefault: false, overrides: [] };
+        var calId = getGcalCalendarId();
+        if (row.gcal_event_id) {
+          await gcalApi('PUT', '/calendars/' + encodeURIComponent(calId) + '/events/' + row.gcal_event_id, gcalEv);
+        } else {
+          var created = await gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', gcalEv);
+          if (created && created.id) await dbUpdate('planning', d.id, { gcal_event_id: created.id });
+        }
+      }
+      toast('Evenement mis a jour' + (gcalIsConnected() && remindMin >= 0 ? ' + rappel activé 🔔' : ''));
     } else {
       var inserted = await dbInsert('planning', row);
-      if (gcalIsConnected() && inserted) { await gcalPushEvent(inserted); }
-      toast('Evenement cree');
+      if (gcalIsConnected() && inserted) {
+        var gcalEv2 = planningToGcalEvent(inserted);
+        if (remindMin >= 0) gcalEv2.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: remindMin }] };
+        else gcalEv2.reminders = { useDefault: false, overrides: [] };
+        var calId2 = getGcalCalendarId();
+        var created2 = await gcalApi('POST', '/calendars/' + encodeURIComponent(calId2) + '/events', gcalEv2);
+        if (created2 && created2.id) await dbUpdate('planning', inserted.id, { gcal_event_id: created2.id });
+      }
+      toast('Evenement cree' + (gcalIsConnected() && remindMin >= 0 ? ' + rappel activé 🔔' : ''));
     }
     closeModal();
     pages.planning();
