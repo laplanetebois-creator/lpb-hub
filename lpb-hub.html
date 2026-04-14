@@ -1292,6 +1292,56 @@ a.att-item { position: relative; display: block; }
   word-break: break-word;
 }
 
+/* Quick note box */
+.quick-note-box {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin-top: 12px;
+}
+.quick-note-box .qn-header {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--text-light);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.quick-note-box textarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.quick-note-box textarea:focus { outline: none; border-color: var(--primary); }
+.quick-note-box .qn-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.quick-note-box select { font-size: 0.8rem; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; background: var(--bg); color: var(--text); }
+
+/* Rappel card */
+.rappel-form { padding: 10px 0 0; }
+.rappel-form .rf-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.rappel-form input[type="text"], .rappel-form input[type="date"], .rappel-form input[type="time"] {
+  flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
+  font-size: 0.8rem; background: var(--bg); color: var(--text);
+}
+.rappel-form input:focus { outline: none; border-color: var(--primary); }
+.rappel-form select { font-size: 0.8rem; border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; background: var(--bg); color: var(--text); width: 100%; }
+.rappel-list { padding: 4px 0; }
+.rappel-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.rappel-item:last-child { border-bottom: none; }
+.rappel-item .ri-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.rappel-item .ri-dot.done { background: var(--primary); }
+.rappel-item .ri-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rappel-item .ri-date { color: var(--text-light); white-space: nowrap; font-size: 0.72rem; }
+
 .deal-sidebar-card {
   background: var(--card);
   border-radius: var(--radius);
@@ -3256,6 +3306,20 @@ window.dealView = async function(id) {
         ` : ''}
 
         ${timelineHtml}
+
+        <div class="quick-note-box" id="quick-note-box">
+          <div class="qn-header"><i class="fas fa-pencil-alt"></i> Ajouter une note rapide</div>
+          <textarea id="qn-text" placeholder="Saisir une note, observation, compte-rendu..."></textarea>
+          <div class="qn-actions">
+            <select id="qn-type">
+              <option value="note">📝 Note</option>
+              <option value="call">📞 Appel</option>
+              <option value="email">✉️ Email</option>
+              <option value="meeting">🤝 RDV</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="btn-qn-save"><i class="fas fa-check"></i> Enregistrer</button>
+          </div>
+        </div>
       </div>
 
       <div class="deal-detail-sidebar">
@@ -3274,6 +3338,48 @@ window.dealView = async function(id) {
         </div>
 
         ${planningHtml}
+
+        <div class="deal-sidebar-card" id="rappel-card">
+          <div class="sc-header" style="display:flex;justify-content:space-between;align-items:center">
+            <span><i class="fas fa-bell"></i> Rappel / Tâche</span>
+            <span style="font-size:0.68rem;color:var(--text-light)" title="Notification Google Calendar sur téléphone"><i class="fas fa-mobile-alt"></i> notif téléphone</span>
+          </div>
+          <div class="sc-body">
+            <div class="rappel-form">
+              <div class="rf-row">
+                <input type="text" id="rf-title" placeholder="Ex: Rappeler, Envoyer devis..." style="flex:1">
+              </div>
+              <div class="rf-row">
+                <input type="date" id="rf-date" value="${new Date().toISOString().substring(0,10)}" style="flex:1">
+                <input type="time" id="rf-time" value="09:00" style="flex:1">
+              </div>
+              <div class="rf-row" style="margin-bottom:8px">
+                <select id="rf-remind" style="flex:1">
+                  <option value="0">Au moment</option>
+                  <option value="10" selected>10 min avant</option>
+                  <option value="30">30 min avant</option>
+                  <option value="60">1h avant</option>
+                  <option value="1440">La veille</option>
+                </select>
+                <select id="rf-type" style="flex:1">
+                  <option value="tache">Tâche</option>
+                  <option value="rdv">RDV</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <button class="btn btn-primary btn-sm" id="btn-rf-save" style="width:100%">
+                <i class="fas fa-bell"></i> Créer le rappel
+              </button>
+              ${!gcalIsConnected() ? '<p style="font-size:0.72rem;color:var(--accent);margin-top:6px;text-align:center"><i class="fas fa-exclamation-triangle"></i> Connecter Google Calendar pour notifications téléphone</p>' : '<p style="font-size:0.72rem;color:var(--primary);margin-top:6px;text-align:center"><i class="fas fa-check-circle"></i> Notification push sur téléphone activée</p>'}
+            </div>
+            <div class="rappel-list" id="rappel-list-items">
+              ${contactEvents.filter(function(ev){ return ev.type==='tache'||ev.type==='rdv'; }).slice(0,5).map(function(ev){
+                var isPast = ev.start_date < new Date().toISOString().substring(0,10);
+                return '<div class="rappel-item"><div class="ri-dot' + (isPast?' done':'') + '"></div><div class="ri-text" title="'+escHtml(ev.title||'')+'">'+escHtml(ev.title||'—')+'</div><div class="ri-date">'+formatDate(ev.start_date)+(ev.start_time?' '+ev.start_time.substring(0,5):'')+'</div></div>';
+              }).join('') || '<div class="text-muted text-small" style="padding:4px 0">Aucun rappel</div>'}
+            </div>
+          </div>
+        </div>
 
         <div class="deal-sidebar-card">
           <div class="sc-header"><i class="fas fa-info-circle"></i> Details</div>
@@ -3305,7 +3411,7 @@ window.dealView = async function(id) {
               ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:' + contact.email + '">' + escHtml(contact.email) + '</a></span></div>' : ''}
               ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '" class="deal-phone-call" data-phone="' + escHtml(contact.phone) + '"><i class="fas fa-phone"></i> ' + escHtml(contact.phone) + '</a></span></div>' : ''}
               ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + (contact.postal_code ? ' <span style="color:var(--text-light);font-size:0.8em">(' + escHtml(contact.postal_code) + ')</span>' : '') + '</span></div>' : ''}
-              ${contact.city ? '<div class="sc-row"><span class="sc-label">Distance</span><span class="sc-val"><a href="https://www.google.com/maps/dir/Soissons,02200/' + encodeURIComponent((contact.city || '') + (contact.postal_code ? ' ' + contact.postal_code : '')) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-route"></i> Itinéraire depuis l\'atelier</a></span></div>' : ''}
+              ${contact.city ? '<div class="sc-row"><span class="sc-label">Distance</span><span class="sc-val"><a href="https://www.google.com/maps/dir/Soissons,02200/' + encodeURIComponent((contact.city || '') + (contact.postal_code ? ' ' + contact.postal_code : '')) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem" id="dist-maps-link"><i class="fas fa-route"></i> <span id="dist-info"><i class="fas fa-spinner fa-spin" style="font-size:0.7rem"></i> calcul...</span></a></span></div>' : ''}
               ${(function(){ var m = (contact.notes||'').match(/^source_url:\s*(.+)$/m); return m ? '<div class="sc-row"><span class="sc-label">Lien</span><span class="sc-val"><a href="' + escHtml(m[1].trim()) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-external-link-alt"></i> Voir le lead</a></span></div>' : ''; })()}
             ` : '<div class="text-muted text-small">Aucun contact associe</div>'}
           </div>
@@ -3326,7 +3432,110 @@ window.dealView = async function(id) {
     </div>
   `;
 
-  // Editable value
+  // ── Quick note ──────────────────────────────────────────────────────────────
+  var btnQnSave = popupBody.querySelector('#btn-qn-save');
+  if (btnQnSave) {
+    btnQnSave.addEventListener('click', async function() {
+      var txt = (popupBody.querySelector('#qn-text').value || '').trim();
+      if (!txt) { toast('Note vide', 'error'); return; }
+      var type = popupBody.querySelector('#qn-type').value;
+      btnQnSave.disabled = true;
+      await dbInsert('activities', {
+        contact_id: d.contact_id || null,
+        deal_id: d.id,
+        type: type,
+        description: txt,
+        completed: true
+      });
+      toast('Note enregistrée ✓');
+      dealView(d.id);
+    });
+    // Ctrl+Enter shortcut
+    popupBody.querySelector('#qn-text').addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') btnQnSave.click();
+    });
+  }
+
+  // ── Rappel / Tâche ──────────────────────────────────────────────────────────
+  var btnRfSave = popupBody.querySelector('#btn-rf-save');
+  if (btnRfSave) {
+    btnRfSave.addEventListener('click', async function() {
+      var title = (popupBody.querySelector('#rf-title').value || '').trim();
+      var date = popupBody.querySelector('#rf-date').value;
+      var time = popupBody.querySelector('#rf-time').value;
+      var remindMin = parseInt(popupBody.querySelector('#rf-remind').value) || 0;
+      var evType = popupBody.querySelector('#rf-type').value;
+      if (!title || !date) { toast('Titre et date requis', 'error'); return; }
+      btnRfSave.disabled = true;
+      btnRfSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Création...';
+      var row = {
+        title: title,
+        type: evType,
+        start_date: date,
+        start_time: time || null,
+        end_time: time ? (function(){ var h=parseInt(time.split(':')[0]), m=time.split(':')[1]; return String((h+1)%24).padStart(2,'0')+':'+m; })() : null,
+        contact_id: d.contact_id || null,
+        deal_id: d.id,
+        status: 'planifie',
+        color: evType === 'tache' ? '#e67e22' : '#3498db',
+        notes: 'Lead: ' + escHtml(d.title || contactName)
+      };
+      var inserted = await dbInsert('planning', row);
+      // Push to Google Calendar with popup reminder
+      if (gcalIsConnected() && inserted) {
+        var calId = getGcalCalendarId();
+        var gcalEvent = planningToGcalEvent(inserted);
+        gcalEvent.reminders = {
+          useDefault: false,
+          overrides: [{ method: 'popup', minutes: remindMin }]
+        };
+        try {
+          var created = await gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', gcalEvent);
+          if (created && created.id) {
+            await dbUpdate('planning', inserted.id, { gcal_event_id: created.id });
+          }
+          toast('Rappel créé + notif téléphone ✓', 'success');
+        } catch(e) {
+          toast('Rappel créé (erreur Google Calendar)', 'warning');
+        }
+      } else {
+        toast('Rappel créé' + (!gcalIsConnected() ? ' — connecter Google Calendar pour notif téléphone' : ' ✓'), gcalIsConnected() ? 'success' : 'warning');
+      }
+      dealView(d.id);
+    });
+  }
+
+  // ── Distance atelier → client (Nominatim + OSRM, gratuit) ──────────────────
+  var distInfo = popupBody.querySelector('#dist-info');
+  if (distInfo && contact && contact.city) {
+    (async function() {
+      try {
+        var q = encodeURIComponent(contact.city + (contact.postal_code ? ' ' + contact.postal_code : '') + ' France');
+        var geo = await fetch('https://nominatim.openstreetmap.org/search?q=' + q + '&format=json&limit=1', { headers: { 'Accept-Language': 'fr' } });
+        var geoData = await geo.json();
+        if (!geoData || !geoData[0]) { distInfo.textContent = 'Itinéraire depuis l\'atelier'; return; }
+        var lat2 = geoData[0].lat, lon2 = geoData[0].lon;
+        // Soissons: 49.3819, 3.3235
+        var osrm = await fetch('https://router.project-osrm.org/route/v1/driving/3.3235,49.3819;' + lon2 + ',' + lat2 + '?overview=false');
+        var osrmData = await osrm.json();
+        if (osrmData && osrmData.routes && osrmData.routes[0]) {
+          var route = osrmData.routes[0];
+          var km = Math.round(route.distance / 1000);
+          var mins = Math.round(route.duration / 60);
+          var heures = Math.floor(mins / 60);
+          var minRest = mins % 60;
+          var duree = heures > 0 ? heures + 'h' + (minRest > 0 ? String(minRest).padStart(2,'0') : '') : mins + ' min';
+          distInfo.textContent = km + ' km · ' + duree;
+        } else {
+          distInfo.textContent = 'Itinéraire depuis l\'atelier';
+        }
+      } catch(e) {
+        if (distInfo) distInfo.textContent = 'Itinéraire depuis l\'atelier';
+      }
+    })();
+  }
+
+  // ── Editable value ──────────────────────────────────────────────────────────
   var valDisplay = popupBody.querySelector('#deal-value-display');
   var valEdit = popupBody.querySelector('#deal-value-edit');
   if (valDisplay) {
