@@ -2435,7 +2435,7 @@ pages.crm = async function(subTab) {
                     <td class="text-small">${c.email || '—'}</td>
                     <td class="text-small nowrap">${c.phone || '—'}</td>
                     <td class="text-small">${c.company || '—'}</td>
-                    <td><span class="text-small">${c.source || '—'}</span></td>
+                    <td><span class="text-small">${c.source || '—'}</span>${(function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? ' <a href="' + m[1].trim() + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir le lead sur ' + (c.source||'') + '" style="color:var(--primary)"><i class="fas fa-external-link-alt" style="font-size:0.75rem"></i></a>' : ''; })()}</td>
                     <td><span class="badge-status ${c.status}">${c.status}</span></td>
                     <td class="text-small text-muted nowrap">${formatDate(c.created_at)}</td>
                     <td class="text-right nowrap">
@@ -2510,7 +2510,7 @@ function crmForm(contact = null) {
       <div class="form-group">
         <label>Source</label>
         <select id="f-source">
-          ${['manual','website','linkedin','referral','scraping','salon','google','helloartisan'].map(s => `<option value="${s}" ${c.source === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${['manual','website','linkedin','referral','scraping','salon','google','helloartisan','travaux.com'].map(s => `<option value="${s}" ${c.source === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -2530,19 +2530,50 @@ function crmForm(contact = null) {
         <input type="text" id="f-postal" value="${c.postal_code || ''}">
       </div>
     </div>
+    ${['helloartisan','travaux.com'].includes(c.source || '') ? `
+    <div class="form-group">
+      <label><i class="fas fa-link" style="font-size:0.75rem;color:var(--primary)"></i> Lien source (helloArtisan / travaux.com)</label>
+      <input type="url" id="f-source-url" placeholder="https://..." value="${(function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? m[1].trim() : ''; })()}">
+    </div>
+    ` : ''}
     <div class="form-group">
       <label>Notes</label>
-      <textarea id="f-notes">${c.notes || ''}</textarea>
+      <textarea id="f-notes">${(c.notes || '').replace(/^source_url:.*\n?/m, '')}</textarea>
     </div>
   `, `
     <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
     <button class="btn btn-primary" id="btn-save-contact">${isEdit ? 'Mettre a jour' : 'Creer'}</button>
   `);
 
+  // Show/hide source_url field based on source selection
+  const srcSel = $('#f-source');
+  function toggleSourceUrl() {
+    const src = srcSel ? srcSel.value : '';
+    let suRow = document.getElementById('source-url-row');
+    if (['helloartisan','travaux.com'].includes(src)) {
+      if (!suRow) {
+        const notesGroup = $('#f-notes') ? $('#f-notes').closest('.form-group') : null;
+        if (notesGroup) {
+          suRow = document.createElement('div');
+          suRow.id = 'source-url-row';
+          suRow.className = 'form-group';
+          suRow.innerHTML = '<label><i class="fas fa-link" style="font-size:0.75rem;color:var(--primary)"></i> Lien source (helloArtisan / travaux.com)</label><input type="url" id="f-source-url" placeholder="https://">';
+          notesGroup.parentNode.insertBefore(suRow, notesGroup);
+        }
+      }
+    } else {
+      if (suRow) suRow.remove();
+    }
+  }
+  if (srcSel) srcSel.addEventListener('change', toggleSourceUrl);
+
   $('#btn-save-contact').addEventListener('click', async () => {
     const fname = $('#f-fname').value.trim();
     const lname = $('#f-lname').value.trim();
     if (!fname || !lname) { toast('Prenom et nom requis', 'error'); return; }
+    const sourceUrl = (document.getElementById('f-source-url') || {}).value || '';
+    const baseNotes = ($('#f-notes').value || '').trim();
+    const notesWithUrl = sourceUrl ? 'source_url: ' + sourceUrl + '\n' + baseNotes : baseNotes;
     const row = {
       first_name: fname, last_name: lname,
       email: $('#f-email').value.trim() || null,
@@ -2553,7 +2584,7 @@ function crmForm(contact = null) {
       status: $('#f-status').value,
       city: $('#f-city').value.trim() || null,
       postal_code: $('#f-postal').value.trim() || null,
-      notes: $('#f-notes').value.trim() || null
+      notes: notesWithUrl || null
     };
     if (isEdit) {
       await dbUpdate('contacts', c.id, row);
@@ -2807,14 +2838,26 @@ async function renderPipeline(content) {
               }
               var lateHtml = daysLate > 0 ? '<div style="margin-top:6px"><span style="background:#fee;color:#e74c3c;font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px"><i class="fas fa-exclamation-triangle"></i> ' + daysLate + 'j en retard</span></div>' : '';
               var dateStr = d.created_at ? formatDate(d.created_at) : '';
+              var cCity = c && c.city ? c.city : '';
+              var cSource = c && c.source ? c.source : '';
+              var cSourceUrl = c ? (function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? m[1].trim() : ''; })() : '';
+              var sourceTag = '';
+              if (cSource === 'helloartisan') sourceTag = '<span style="background:#fff3e0;color:#e65100;font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid #ffcc80">hA</span>';
+              else if (cSource === 'travaux.com') sourceTag = '<span style="background:#e8f5e9;color:#2e7d32;font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid #a5d6a7">Tv</span>';
               return '<div class="deal-card" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
                   '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + (c ? initials(c.first_name, c.last_name) : 'NN') + '</div>' +
-                  '<div style="flex:1;min-width:0"><strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + contactName + company + '</strong></div>' +
+                  '<div style="flex:1;min-width:0"><strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + contactName + company + '</strong>' +
+                    (cCity ? '<span style="display:block;font-size:0.7rem;color:var(--text-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="fas fa-map-marker-alt" style="font-size:0.6rem"></i> ' + cCity + '</span>' : '') +
+                  '</div>' +
+                  (sourceTag ? sourceTag : '') +
                 '</div>' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-light);margin-top:4px">' +
                   '<span><i class="fas fa-calendar"></i> ' + dateStr + '</span>' +
-                  (d.notes ? '<span><i class="fas fa-comment"></i> 1</span>' : '') +
+                  '<span>' +
+                    (cSourceUrl ? '<a href="' + cSourceUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir le lead" style="color:var(--primary);margin-right:4px"><i class="fas fa-external-link-alt"></i></a>' : '') +
+                    (d.notes ? '<span><i class="fas fa-comment"></i> 1</span>' : '') +
+                  '</span>' +
                 '</div>' +
                 (d.value > 0 ? '<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-top:4px">' + formatCurrency(d.value) + '</div>' : '') +
                 lateHtml +
@@ -3074,6 +3117,9 @@ window.dealView = async function(id) {
       val = '<a href="tel:' + val.replace(/\s/g, '') + '"><i class="fas fa-phone"></i> ' + escHtml(val) + '</a>';
     } else if (['mail', 'email'].indexOf(labelLC) >= 0) {
       val = '<a href="mailto:' + val + '"><i class="fas fa-envelope"></i> ' + escHtml(val) + '</a>';
+    } else if (labelLC === 'source_url') {
+      val = '<a href="' + escHtml(val) + '" target="_blank" rel="noopener" style="color:var(--primary)"><i class="fas fa-external-link-alt"></i> Voir le lead</a>';
+      label = 'Lien source';
     } else {
       val = escHtml(val);
     }
@@ -3258,7 +3304,9 @@ window.dealView = async function(id) {
               ${contact.company ? '<div class="sc-row"><span class="sc-label">Societe</span><span class="sc-val">' + escHtml(contact.company) + '</span></div>' : ''}
               ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:' + contact.email + '">' + escHtml(contact.email) + '</a></span></div>' : ''}
               ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '" class="deal-phone-call" data-phone="' + escHtml(contact.phone) + '"><i class="fas fa-phone"></i> ' + escHtml(contact.phone) + '</a></span></div>' : ''}
-              ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + '</span></div>' : ''}
+              ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + (contact.postal_code ? ' <span style="color:var(--text-light);font-size:0.8em">(' + escHtml(contact.postal_code) + ')</span>' : '') + '</span></div>' : ''}
+              ${contact.city ? '<div class="sc-row"><span class="sc-label">Distance</span><span class="sc-val"><a href="https://www.google.com/maps/dir/Soissons,02200/' + encodeURIComponent((contact.city || '') + (contact.postal_code ? ' ' + contact.postal_code : '')) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-route"></i> Itinéraire depuis l\'atelier</a></span></div>' : ''}
+              ${(function(){ var m = (contact.notes||'').match(/^source_url:\s*(.+)$/m); return m ? '<div class="sc-row"><span class="sc-label">Lien</span><span class="sc-val"><a href="' + escHtml(m[1].trim()) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-external-link-alt"></i> Voir le lead</a></span></div>' : ''; })()}
             ` : '<div class="text-muted text-small">Aucun contact associe</div>'}
           </div>
           <div id="contact-change" style="display:none;padding:8px">
