@@ -1442,7 +1442,36 @@ a.att-item { position: relative; display: block; }
   font-size: 0.75rem;
   font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
 }
+.avatar-sm img, .deal-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+.deal-avatar { overflow: hidden; }
+
+/* Photo upload in form */
+.photo-upload-zone {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 4px;
+}
+.photo-preview {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--primary-light); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; font-weight: 800;
+  overflow: hidden; flex-shrink: 0;
+  border: 2px dashed var(--border); cursor: pointer; position: relative;
+}
+.photo-preview:hover::after {
+  content: '📷'; position: absolute; inset: 0;
+  background: rgba(0,0,0,0.45); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+}
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.photo-upload-zone input[type="file"] { display: none; }
 
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -1842,6 +1871,44 @@ function timeAgo(d) {
 }
 function initials(first, last) {
   return ((first?.[0] || '') + (last?.[0] || '')).toUpperCase();
+}
+
+// ── Photo contacts (localStorage) ──────────────────────────────────────────
+function contactPhotoKey(id) { return 'crm_photo_' + id; }
+function getContactPhoto(id) { return id ? localStorage.getItem(contactPhotoKey(id)) : null; }
+function setContactPhoto(id, base64) { if (id) localStorage.setItem(contactPhotoKey(id), base64); }
+function removeContactPhoto(id) { if (id) localStorage.removeItem(contactPhotoKey(id)); }
+
+// Returns inner HTML for an avatar: photo <img> or initials text
+function avatarHtml(contact, size) {
+  if (!contact) return 'NN';
+  var photo = getContactPhoto(contact.id);
+  if (photo) return '<img src="' + photo + '" alt="' + initials(contact.first_name, contact.last_name) + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
+  return initials(contact.first_name, contact.last_name);
+}
+
+// Read a File as base64 data URL, resize to max 256×256 PNG
+function fileToBase64Png(file, maxSize) {
+  maxSize = maxSize || 256;
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var s = Math.min(img.width, img.height, maxSize);
+        canvas.width = s; canvas.height = s;
+        var ctx = canvas.getContext('2d');
+        var ox = (img.width - s) / 2, oy = (img.height - s) / 2;
+        ctx.drawImage(img, ox, oy, s, s, 0, 0, s, s);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ============================================
@@ -2475,7 +2542,7 @@ pages.crm = async function(subTab) {
                   <tr>
                     <td>
                       <div style="display:flex;align-items:center;gap:10px">
-                        <div class="avatar-sm">${initials(c.first_name, c.last_name)}</div>
+                        <div class="avatar-sm">${avatarHtml(c)}</div>
                         <div>
                           <strong>${c.first_name} ${c.last_name}</strong>
                           ${c.city ? `<br><span class="text-small text-muted">${c.city}</span>` : ''}
@@ -2525,7 +2592,20 @@ pages.crm = async function(subTab) {
 function crmForm(contact = null) {
   const isEdit = !!contact;
   const c = contact || {};
+  const existingPhoto = c.id ? getContactPhoto(c.id) : null;
   openModal(isEdit ? 'Modifier le contact' : 'Nouveau contact', `
+    <div class="photo-upload-zone">
+      <div class="photo-preview" id="photo-preview-zone" title="Cliquer pour ajouter une photo PNG">
+        ${existingPhoto ? '<img src="' + existingPhoto + '" id="photo-preview-img">' : '<span id="photo-preview-initials" style="font-size:1.3rem;font-weight:800;color:var(--primary)">' + initials(c.first_name || '?', c.last_name || '') + '</span>'}
+      </div>
+      <div>
+        <div style="font-weight:600;font-size:0.88rem;margin-bottom:4px">Photo du contact</div>
+        <div style="font-size:0.78rem;color:var(--text-light);margin-bottom:8px">PNG, JPG — recadrage auto en cercle</div>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-pick-photo"><i class="fas fa-upload"></i> Choisir une photo</button>
+        ${existingPhoto ? '<button type="button" class="btn btn-sm" id="btn-remove-photo" style="color:#e74c3c;background:none;border:1px solid #e74c3c;margin-left:6px"><i class="fas fa-trash"></i></button>' : ''}
+      </div>
+      <input type="file" id="f-photo-input" accept="image/*">
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label>Prenom *</label>
@@ -2617,6 +2697,38 @@ function crmForm(contact = null) {
   }
   if (srcSel) srcSel.addEventListener('change', toggleSourceUrl);
 
+  // ── Photo upload ────────────────────────────────────────────────────────────
+  var pendingPhoto = null; // base64 PNG, set when user picks a file
+  var removePhoto = false;
+
+  var pickBtn = document.getElementById('btn-pick-photo');
+  var fileInput = document.getElementById('f-photo-input');
+  var previewZone = document.getElementById('photo-preview-zone');
+
+  if (pickBtn && fileInput) {
+    pickBtn.addEventListener('click', function() { fileInput.click(); });
+    previewZone.addEventListener('click', function() { fileInput.click(); });
+    fileInput.addEventListener('change', async function() {
+      var file = fileInput.files[0];
+      if (!file) return;
+      try {
+        var b64 = await fileToBase64Png(file, 256);
+        pendingPhoto = b64;
+        removePhoto = false;
+        previewZone.innerHTML = '<img src="' + b64 + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+      } catch(e) { toast('Erreur lecture image', 'error'); }
+    });
+  }
+  var removeBtn = document.getElementById('btn-remove-photo');
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      removePhoto = true; pendingPhoto = null;
+      previewZone.innerHTML = '<span style="font-size:1.3rem;font-weight:800;color:var(--primary)">' + initials(c.first_name || '?', c.last_name || '') + '</span>';
+      removeBtn.remove();
+    });
+  }
+
   $('#btn-save-contact').addEventListener('click', async () => {
     const fname = $('#f-fname').value.trim();
     const lname = $('#f-lname').value.trim();
@@ -2638,9 +2750,12 @@ function crmForm(contact = null) {
     };
     if (isEdit) {
       await dbUpdate('contacts', c.id, row);
+      if (pendingPhoto) setContactPhoto(c.id, pendingPhoto);
+      else if (removePhoto) removeContactPhoto(c.id);
       toast('Contact mis a jour');
     } else {
-      await dbInsert('contacts', row);
+      const inserted = await dbInsert('contacts', row);
+      if (inserted && inserted.id && pendingPhoto) setContactPhoto(inserted.id, pendingPhoto);
       toast('Contact cree');
     }
     closeModal();
@@ -2896,7 +3011,7 @@ async function renderPipeline(content) {
               else if (cSource === 'travaux.com') sourceTag = '<span style="background:#e8f5e9;color:#2e7d32;font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid #a5d6a7">Tv</span>';
               return '<div class="deal-card" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
-                  '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + (c ? initials(c.first_name, c.last_name) : 'NN') + '</div>' +
+                  '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + (c ? avatarHtml(c) : 'NN') + '</div>' +
                   '<div style="flex:1;min-width:0"><strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + contactName + company + '</strong>' +
                     (cCity ? '<span style="display:block;font-size:0.7rem;color:var(--text-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="fas fa-map-marker-alt" style="font-size:0.6rem"></i> ' + cCity + '</span>' : '') +
                   '</div>' +
@@ -3275,7 +3390,7 @@ window.dealView = async function(id) {
   popupBody.innerHTML = `
     <div class="deal-header" style="padding:0 0 12px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
       <div class="deal-header-left">
-        <div class="deal-avatar" style="background:${stageColor}">${contactInits}</div>
+        <div class="deal-avatar" style="background:${stageColor}">${contact ? avatarHtml(contact) : contactInits}</div>
         <div>
           <h2 style="font-size:1.2rem;margin:0">${escHtml(d.title || contactName)}</h2>
           <span class="deal-stage-badge" style="background:${stageColor}">${stageLabel}</span>
@@ -5000,7 +5115,7 @@ pages.suivi = async function() {
           var pendingCount = cActivities.filter(function(a) { return !a.completed; }).length;
           return '<div class="panel mb-16">' +
             '<div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">' +
-              '<h3 style="display:flex;align-items:center;gap:10px"><div class="avatar-sm">' + initials(c.first_name, c.last_name) + '</div> ' + c.first_name + ' ' + c.last_name + (c.company ? ' <span class="text-muted text-small">(' + c.company + ')</span>' : '') + '</h3>' +
+              '<h3 style="display:flex;align-items:center;gap:10px"><div class="avatar-sm">' + avatarHtml(c) + '</div> ' + c.first_name + ' ' + c.last_name + (c.company ? ' <span class="text-muted text-small">(' + c.company + ')</span>' : '') + '</h3>' +
               '<div style="display:flex;gap:8px">' +
                 '<span class="badge-status ' + c.status + '">' + c.status + '</span>' +
                 (pendingCount > 0 ? '<span style="background:var(--warning-light);color:var(--warning);padding:2px 10px;border-radius:12px;font-size:0.75rem">' + pendingCount + ' en attente</span>' : '<span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:0.75rem">A jour</span>') +
@@ -5934,7 +6049,7 @@ $('#global-search')?.addEventListener('keydown', async (e) => {
         <div class="panel-body" style="padding:0">
           <table class="data-table"><tbody>
             ${matchContacts.slice(0, 10).map(c => `<tr>
-              <td><div class="avatar-sm" style="display:inline-flex">${initials(c.first_name, c.last_name)}</div> ${c.first_name} ${c.last_name}</td>
+              <td><div class="avatar-sm" style="display:inline-flex">${avatarHtml(c)}</div> ${c.first_name} ${c.last_name}</td>
               <td>${c.email || '—'}</td>
               <td><span class="badge-status ${c.status}">${c.status}</span></td>
               <td><button class="btn btn-xs btn-outline" onclick="crmEdit('${c.id}')">Voir</button></td>
