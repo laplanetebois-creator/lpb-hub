@@ -3844,6 +3844,146 @@ window.dealView = async function(id) {
     </div>
   `;
 
+  // ── Pièces jointes — helpers ────────────────────────────────────────────────
+  function notesWithoutAttTag(notes, idx) {
+    // Remove the [FICHIER: ...] tag at position idx from notes
+    var count = -1;
+    return (notes || '').replace(/\[FICHIER:[^\]]*\]/gi, function(match) {
+      count++;
+      return count === idx ? '' : match;
+    }).replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function addAttTagToNotes(notes, name, url, date) {
+    var tag = '[FICHIER: ' + name + (date ? ' - ' + date : '') + (url ? ' - ' + url : '') + ']';
+    return (notes || '').trim() + '\n' + tag;
+  }
+
+  function refreshAttBlock(newAtts) {
+    var block = popupBody.querySelector('#att-block');
+    if (block) { block.outerHTML = buildAttHtml(newAtts); wireAttEvents(newAtts); }
+  }
+
+  function wireAttEvents(currentAtts) {
+    // Bouton Ajouter
+    var btnAdd = popupBody.querySelector('#btn-add-att');
+    if (btnAdd) {
+      btnAdd.addEventListener('click', function() {
+        openModal('Ajouter une pièce jointe', `
+          <div class="att-upload-zone" id="att-drop-zone">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:4px">Glisser un fichier ici ou cliquer pour uploader</div>
+            <div style="font-size:0.75rem;color:var(--text-light)">Image : stockée localement — Autre : collez un lien</div>
+            <input type="file" id="att-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none">
+          </div>
+          <div id="att-preview" style="display:none;text-align:center;margin-bottom:8px">
+            <img id="att-preview-img" style="max-height:80px;border-radius:6px;margin-bottom:4px">
+            <div id="att-preview-name" style="font-size:0.78rem;color:var(--text-light)"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label>Nom du fichier *</label>
+            <input type="text" id="att-name" placeholder="Ex: plan-facade.pdf">
+          </div>
+          <div class="form-group">
+            <label>Lien URL (optionnel — Google Drive, Dropbox…)</label>
+            <input type="url" id="att-url" placeholder="https://drive.google.com/...">
+          </div>
+        `, `
+          <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+          <button class="btn btn-primary" id="btn-att-confirm"><i class="fas fa-check"></i> Ajouter</button>
+        `);
+
+        var fileInput = document.getElementById('att-file-input');
+        var dropZone = document.getElementById('att-drop-zone');
+        var pendingBase64 = null;
+        var pendingIdx = currentAtts.length;
+
+        function handleFile(file) {
+          var nameEl = document.getElementById('att-name');
+          if (nameEl && !nameEl.value) nameEl.value = file.name;
+          var isImg = file.type.startsWith('image/') || file.name.toLowerCase().match(/\.(heic|heif)$/);
+          if (isImg) {
+            fileToBase64Png(file, 512).then(function(b64) {
+              pendingBase64 = b64;
+              var prev = document.getElementById('att-preview');
+              var prevImg = document.getElementById('att-preview-img');
+              var prevName = document.getElementById('att-preview-name');
+              if (prev) prev.style.display = 'block';
+              if (prevImg) prevImg.src = b64;
+              if (prevName) prevName.textContent = file.name;
+              if (dropZone) dropZone.style.opacity = '0.5';
+            }).catch(function() { toast('Erreur lecture image', 'error'); });
+          } else {
+            var prev = document.getElementById('att-preview');
+            var prevName = document.getElementById('att-preview-name');
+            if (prev) prev.style.display = 'block';
+            if (prevName) prevName.textContent = file.name + ' (lien requis pour les non-images)';
+          }
+        }
+
+        if (dropZone) {
+          dropZone.addEventListener('click', function() { if (fileInput) fileInput.click(); });
+          dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; });
+          dropZone.addEventListener('dragleave', function() { dropZone.style.borderColor = ''; });
+          dropZone.addEventListener('drop', function(e) {
+            e.preventDefault(); dropZone.style.borderColor = '';
+            var file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+          });
+        }
+        if (fileInput) fileInput.addEventListener('change', function() { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+        var btnConfirm = document.getElementById('btn-att-confirm');
+        if (btnConfirm) {
+          btnConfirm.addEventListener('click', async function() {
+            var name = (document.getElementById('att-name').value || '').trim();
+            var url = (document.getElementById('att-url').value || '').trim();
+            if (!name) { toast('Nom requis', 'error'); return; }
+            var date = new Date().toLocaleDateString('fr-FR');
+            var newNotes = addAttTagToNotes(d.notes, name, url, date);
+            await dbUpdate('deals', d.id, { notes: newNotes });
+            d.notes = newNotes;
+            // Store image locally
+            if (pendingBase64) {
+              localStorage.setItem('att_img_' + d.id + '_' + pendingIdx, pendingBase64);
+            }
+            toast('Pièce jointe ajoutée ✓');
+            closeModal();
+            var newAtts = extractAttachments(newNotes);
+            refreshAttBlock(newAtts);
+          });
+        }
+      });
+    }
+
+    // Boutons Supprimer
+    popupBody.querySelectorAll('.att-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var idx = parseInt(btn.dataset.attIdx);
+        var att = currentAtts[idx];
+        if (!att) return;
+        if (!confirm('Supprimer "' + att.name + '" ?')) return;
+        var newNotes = notesWithoutAttTag(d.notes, idx);
+        await dbUpdate('deals', d.id, { notes: newNotes });
+        d.notes = newNotes;
+        // Remove local image if any
+        localStorage.removeItem('att_img_' + d.id + '_' + idx);
+        // Re-index remaining local images
+        currentAtts.forEach(function(_, i) {
+          if (i > idx) {
+            var img = localStorage.getItem('att_img_' + d.id + '_' + i);
+            if (img) { localStorage.setItem('att_img_' + d.id + '_' + (i-1), img); localStorage.removeItem('att_img_' + d.id + '_' + i); }
+          }
+        });
+        toast('Pièce jointe supprimée');
+        var newAtts = extractAttachments(newNotes);
+        refreshAttBlock(newAtts);
+      });
+    });
+  }
+
+  wireAttEvents(attachments);
+
   // ── Quick note ──────────────────────────────────────────────────────────────
   var btnQnSave = popupBody.querySelector('#btn-qn-save');
   if (btnQnSave) {

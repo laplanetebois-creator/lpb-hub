@@ -1218,6 +1218,10 @@ a:hover { text-decoration: underline; }
 }
 .att-item:hover { border-color: var(--primary); background: var(--primary-light); }
 a.att-item:hover::after { content: '\f019'; font-family: 'Font Awesome 6 Free'; font-weight: 900; position: absolute; top: 6px; right: 6px; font-size: 0.6rem; color: var(--primary); }
+.att-item:hover .att-del-btn { opacity: 1 !important; }
+.att-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: border-color 0.15s; margin-bottom: 8px; }
+.att-upload-zone:hover { border-color: var(--primary); background: var(--primary-light); }
+.att-upload-zone i { font-size: 1.5rem; color: var(--text-light); margin-bottom: 6px; display: block; }
 a.att-item { position: relative; display: block; }
 .att-item .att-icon { font-size: 1.8rem; color: var(--text-light); margin-bottom: 6px; }
 .att-item .att-icon.img { color: var(--info); }
@@ -3572,25 +3576,40 @@ window.dealView = async function(id) {
   // Raw description (text that wasn't parsed as key-value)
   var rawDesc = parsedFields.__raw || '';
 
-  // Attachments HTML
-  var attHtml = '';
-  if (attachments.length > 0) {
-    attHtml = '<div class="deal-attachments"><div class="att-header"><i class="fas fa-paperclip"></i> Pieces jointes (' + attachments.length + ')</div><div class="att-grid">' +
-      attachments.map(function(att) {
-        var iconClass = 'fas fa-file';
-        var colorClass = '';
-        var nameLC = att.name.toLowerCase();
-        if (nameLC.match(/\.(jpg|jpeg|png|gif|heic|webp|bmp|svg)$/)) { iconClass = 'fas fa-file-image'; colorClass = 'img'; }
-        else if (nameLC.match(/\.(pdf)$/)) { iconClass = 'fas fa-file-pdf'; colorClass = 'pdf'; }
-        else if (nameLC.match(/\.(doc|docx)$/)) { iconClass = 'fas fa-file-word'; colorClass = 'doc'; }
-        else if (nameLC.match(/\.(xls|xlsx)$/)) { iconClass = 'fas fa-file-excel'; colorClass = 'doc'; }
-        var wrapStart = att.url ? '<a href="' + escHtml(att.url) + '" target="_blank" class="att-item" style="text-decoration:none;color:inherit;cursor:pointer">' : '<div class="att-item">';
-        var wrapEnd = att.url ? '</a>' : '</div>';
-        return wrapStart + '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div><div class="att-name" title="' + escHtml(att.name) + '">' + escHtml(att.name) + '</div>' +
-          (att.date ? '<div class="att-date">' + att.date + '</div>' : '') + wrapEnd;
-      }).join('') +
-    '</div></div>';
+  // Attachments HTML — toujours visible avec bouton Ajouter
+  function buildAttHtml(atts) {
+    return '<div class="deal-attachments" id="att-block">' +
+      '<div class="att-header" style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span><i class="fas fa-paperclip"></i> Pièces jointes (' + atts.length + ')</span>' +
+        '<button class="btn btn-outline btn-sm" id="btn-add-att" style="font-size:0.72rem"><i class="fas fa-plus"></i> Ajouter</button>' +
+      '</div>' +
+      (atts.length === 0 ? '<div class="text-muted text-small" style="padding:8px 4px">Aucune pièce jointe</div>' :
+      '<div class="att-grid">' +
+        atts.map(function(att, idx) {
+          var iconClass = 'fas fa-file', colorClass = '';
+          var nameLC = att.name.toLowerCase();
+          var isImg = nameLC.match(/\.(jpg|jpeg|png|gif|heic|webp|bmp|svg)$/);
+          if (isImg) { iconClass = 'fas fa-file-image'; colorClass = 'img'; }
+          else if (nameLC.match(/\.(pdf)$/)) { iconClass = 'fas fa-file-pdf'; colorClass = 'pdf'; }
+          else if (nameLC.match(/\.(doc|docx)$/)) { iconClass = 'fas fa-file-word'; colorClass = 'doc'; }
+          else if (nameLC.match(/\.(xls|xlsx)$/)) { iconClass = 'fas fa-file-excel'; colorClass = 'doc'; }
+          // Check local image cache
+          var localImg = localStorage.getItem('att_img_' + d.id + '_' + idx);
+          var urlToUse = att.url || localImg;
+          var thumbHtml = (localImg && isImg) ? '<img src="' + localImg + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;margin-bottom:4px">' : '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div>';
+          return '<div class="att-item" style="position:relative" data-att-idx="' + idx + '">' +
+            (urlToUse ? '<a href="' + escHtml(urlToUse) + '" target="_blank" style="text-decoration:none;color:inherit;display:contents">' : '') +
+            thumbHtml +
+            '<div class="att-name" title="' + escHtml(att.name) + '">' + escHtml(att.name) + '</div>' +
+            (att.date ? '<div class="att-date">' + att.date + '</div>' : '') +
+            (urlToUse ? '</a>' : '') +
+            '<button class="btn-ghost att-del-btn" data-att-idx="' + idx + '" title="Supprimer" style="position:absolute;top:2px;right:2px;font-size:0.65rem;color:var(--danger);opacity:0;background:var(--card);border-radius:50%;width:18px;height:18px;padding:0;line-height:18px;text-align:center" onclick="event.preventDefault();event.stopPropagation()"><i class="fas fa-times"></i></button>' +
+          '</div>';
+        }).join('') +
+      '</div>') +
+    '</div>';
   }
+  var attHtml = buildAttHtml(attachments);
 
   // Planning events for this contact
   var contactEvents = planningEvents.filter(function(ev) { return ev.contact_id === d.contact_id; });
@@ -3824,6 +3843,146 @@ window.dealView = async function(id) {
       </div>
     </div>
   `;
+
+  // ── Pièces jointes — helpers ────────────────────────────────────────────────
+  function notesWithoutAttTag(notes, idx) {
+    // Remove the [FICHIER: ...] tag at position idx from notes
+    var count = -1;
+    return (notes || '').replace(/\[FICHIER:[^\]]*\]/gi, function(match) {
+      count++;
+      return count === idx ? '' : match;
+    }).replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function addAttTagToNotes(notes, name, url, date) {
+    var tag = '[FICHIER: ' + name + (date ? ' - ' + date : '') + (url ? ' - ' + url : '') + ']';
+    return (notes || '').trim() + '\n' + tag;
+  }
+
+  function refreshAttBlock(newAtts) {
+    var block = popupBody.querySelector('#att-block');
+    if (block) { block.outerHTML = buildAttHtml(newAtts); wireAttEvents(newAtts); }
+  }
+
+  function wireAttEvents(currentAtts) {
+    // Bouton Ajouter
+    var btnAdd = popupBody.querySelector('#btn-add-att');
+    if (btnAdd) {
+      btnAdd.addEventListener('click', function() {
+        openModal('Ajouter une pièce jointe', `
+          <div class="att-upload-zone" id="att-drop-zone">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:4px">Glisser un fichier ici ou cliquer pour uploader</div>
+            <div style="font-size:0.75rem;color:var(--text-light)">Image : stockée localement — Autre : collez un lien</div>
+            <input type="file" id="att-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none">
+          </div>
+          <div id="att-preview" style="display:none;text-align:center;margin-bottom:8px">
+            <img id="att-preview-img" style="max-height:80px;border-radius:6px;margin-bottom:4px">
+            <div id="att-preview-name" style="font-size:0.78rem;color:var(--text-light)"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label>Nom du fichier *</label>
+            <input type="text" id="att-name" placeholder="Ex: plan-facade.pdf">
+          </div>
+          <div class="form-group">
+            <label>Lien URL (optionnel — Google Drive, Dropbox…)</label>
+            <input type="url" id="att-url" placeholder="https://drive.google.com/...">
+          </div>
+        `, `
+          <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+          <button class="btn btn-primary" id="btn-att-confirm"><i class="fas fa-check"></i> Ajouter</button>
+        `);
+
+        var fileInput = document.getElementById('att-file-input');
+        var dropZone = document.getElementById('att-drop-zone');
+        var pendingBase64 = null;
+        var pendingIdx = currentAtts.length;
+
+        function handleFile(file) {
+          var nameEl = document.getElementById('att-name');
+          if (nameEl && !nameEl.value) nameEl.value = file.name;
+          var isImg = file.type.startsWith('image/') || file.name.toLowerCase().match(/\.(heic|heif)$/);
+          if (isImg) {
+            fileToBase64Png(file, 512).then(function(b64) {
+              pendingBase64 = b64;
+              var prev = document.getElementById('att-preview');
+              var prevImg = document.getElementById('att-preview-img');
+              var prevName = document.getElementById('att-preview-name');
+              if (prev) prev.style.display = 'block';
+              if (prevImg) prevImg.src = b64;
+              if (prevName) prevName.textContent = file.name;
+              if (dropZone) dropZone.style.opacity = '0.5';
+            }).catch(function() { toast('Erreur lecture image', 'error'); });
+          } else {
+            var prev = document.getElementById('att-preview');
+            var prevName = document.getElementById('att-preview-name');
+            if (prev) prev.style.display = 'block';
+            if (prevName) prevName.textContent = file.name + ' (lien requis pour les non-images)';
+          }
+        }
+
+        if (dropZone) {
+          dropZone.addEventListener('click', function() { if (fileInput) fileInput.click(); });
+          dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; });
+          dropZone.addEventListener('dragleave', function() { dropZone.style.borderColor = ''; });
+          dropZone.addEventListener('drop', function(e) {
+            e.preventDefault(); dropZone.style.borderColor = '';
+            var file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+          });
+        }
+        if (fileInput) fileInput.addEventListener('change', function() { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+        var btnConfirm = document.getElementById('btn-att-confirm');
+        if (btnConfirm) {
+          btnConfirm.addEventListener('click', async function() {
+            var name = (document.getElementById('att-name').value || '').trim();
+            var url = (document.getElementById('att-url').value || '').trim();
+            if (!name) { toast('Nom requis', 'error'); return; }
+            var date = new Date().toLocaleDateString('fr-FR');
+            var newNotes = addAttTagToNotes(d.notes, name, url, date);
+            await dbUpdate('deals', d.id, { notes: newNotes });
+            d.notes = newNotes;
+            // Store image locally
+            if (pendingBase64) {
+              localStorage.setItem('att_img_' + d.id + '_' + pendingIdx, pendingBase64);
+            }
+            toast('Pièce jointe ajoutée ✓');
+            closeModal();
+            var newAtts = extractAttachments(newNotes);
+            refreshAttBlock(newAtts);
+          });
+        }
+      });
+    }
+
+    // Boutons Supprimer
+    popupBody.querySelectorAll('.att-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var idx = parseInt(btn.dataset.attIdx);
+        var att = currentAtts[idx];
+        if (!att) return;
+        if (!confirm('Supprimer "' + att.name + '" ?')) return;
+        var newNotes = notesWithoutAttTag(d.notes, idx);
+        await dbUpdate('deals', d.id, { notes: newNotes });
+        d.notes = newNotes;
+        // Remove local image if any
+        localStorage.removeItem('att_img_' + d.id + '_' + idx);
+        // Re-index remaining local images
+        currentAtts.forEach(function(_, i) {
+          if (i > idx) {
+            var img = localStorage.getItem('att_img_' + d.id + '_' + i);
+            if (img) { localStorage.setItem('att_img_' + d.id + '_' + (i-1), img); localStorage.removeItem('att_img_' + d.id + '_' + i); }
+          }
+        });
+        toast('Pièce jointe supprimée');
+        var newAtts = extractAttachments(newNotes);
+        refreshAttBlock(newAtts);
+      });
+    });
+  }
+
+  wireAttEvents(attachments);
 
   // ── Quick note ──────────────────────────────────────────────────────────────
   var btnQnSave = popupBody.querySelector('#btn-qn-save');
