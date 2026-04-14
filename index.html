@@ -1667,8 +1667,29 @@ function gcalInit() {
         if (response.access_token) {
           localStorage.setItem('gcal_access_token', response.access_token);
           localStorage.setItem('gcal_token_time', Date.now().toString());
-          toast('Google Agenda connecte !');
-          if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
+          toast('Google Agenda connecte ! Synchronisation en cours...');
+          // Auto-sync planning events not yet in GCal
+          dbSelect('planning').then(function(events) {
+            var unsynced = events.filter(function(e){ return !e.gcal_event_id; });
+            if (unsynced.length === 0) {
+              toast('Google Agenda connecte !');
+              if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
+              return;
+            }
+            var calId = getGcalCalendarId();
+            var done = 0;
+            unsynced.forEach(function(ev) {
+              gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', planningToGcalEvent(ev))
+                .then(function(created) {
+                  if (created && created.id) dbUpdate('planning', ev.id, { gcal_event_id: created.id });
+                  done++;
+                  if (done === unsynced.length) {
+                    toast('Google Agenda connecte ! ' + unsynced.length + ' evenements synchronises 🔄');
+                    if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
+                  }
+                }).catch(function() { done++; });
+            });
+          });
         } else if (response.error) {
           toast('Erreur Google: ' + response.error, 'error');
         }
