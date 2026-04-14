@@ -1479,6 +1479,7 @@ a.att-item { position: relative; display: block; }
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
 
@@ -1888,8 +1889,22 @@ function avatarHtml(contact, size) {
 }
 
 // Read a File as base64 data URL, resize to max 256×256 PNG
-function fileToBase64Png(file, maxSize) {
+// Handles HEIC/HEIF (iPhone) automatically via heic2any
+async function fileToBase64Png(file, maxSize) {
   maxSize = maxSize || 256;
+
+  // Detect HEIC : by MIME type ou extension
+  var isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
+               file.name.toLowerCase().match(/\.(heic|heif)$/);
+
+  if (isHeic) {
+    if (typeof heic2any === 'undefined') throw new Error('heic2any non chargé');
+    // Convert HEIC → PNG blob
+    var pngBlob = await heic2any({ blob: file, toType: 'image/png', quality: 0.9 });
+    if (Array.isArray(pngBlob)) pngBlob = pngBlob[0];
+    file = pngBlob; // continue with the converted blob
+  }
+
   return new Promise(function(resolve, reject) {
     var reader = new FileReader();
     reader.onload = function(e) {
