@@ -44,11 +44,15 @@
 }
 
 html { font-size: 14px; }
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
 body {
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  min-height: 100%;
   display: flex;
 }
 
@@ -184,7 +188,8 @@ a:hover { text-decoration: underline; }
 .main {
   margin-left: var(--sidebar-w);
   flex: 1;
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
