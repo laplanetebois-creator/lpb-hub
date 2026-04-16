@@ -4430,7 +4430,17 @@ pages['google-ads'] = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  let googleAds = await dbSelect('google_ads_data', { order: ['date', false] });
+  let [googleAds, jordanSuggestions, jordanThresholds] = await Promise.all([
+    dbSelect('google_ads_data', { order: ['date', false] }),
+    dbSelect('ads_suggestions_tracking', { order: ['created_at', false] }),
+    dbSelect('ads_thresholds_config', { order: ['id', true] })
+  ]);
+
+  window.jordanDecide = async function(id, decision) {
+    await db.from('ads_suggestions_tracking').update({ status: decision, yoann_decision: decision, decision_date: new Date().toISOString() }).eq('id', id);
+    jordanSuggestions = await dbSelect('ads_suggestions_tracking', { order: ['created_at', false] });
+    render();
+  };
 
   function render() {
     const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
@@ -4501,6 +4511,62 @@ pages['google-ads'] = async function() {
             `}
           </div>
         </div>
+        ${(() => {
+          const thMap = {};
+          jordanThresholds.forEach(t => thMap[t.config_key] = t.config_value);
+          const pending = jordanSuggestions.filter(s => s.status === 'pending');
+          const approved = jordanSuggestions.filter(s => s.status === 'approved').length;
+          const jDays = Math.max(1, Math.round((Date.now() - new Date('2026-04-11').getTime()) / 86400000));
+          const cplBrut = gaTotalConv > 0 ? (gaTotalSpend / gaTotalConv).toFixed(0) : null;
+          const cplColor = !cplBrut ? '#6c757d' : cplBrut < thMap['cpl_target'] ? '#27ae60' : cplBrut < thMap['cpl_warning'] ? '#e67e22' : '#e74c3c';
+          return \`
+          <div class="panel" style="margin-top:20px;border-top:3px solid #1a1a2e">
+            <div class="panel-header" style="background:linear-gradient(135deg,#1a1a2e,#16213e)">
+              <h3 style="color:#fff;margin:0"><i class="fas fa-robot"></i> Jordan — Rapport du jour
+                <span style="font-size:0.72rem;opacity:0.65;margin-left:10px">Campagne J+\${jDays} · Phase démarrage</span>
+              </h3>
+              <span style="color:#adb5bd;font-size:0.78rem">\${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
+            </div>
+            <div class="panel-body">
+              <div class="stats-grid" style="margin-bottom:16px">
+                <div class="stat-card">
+                  <div class="stat-icon" style="background:\${cplColor}1a;color:\${cplColor}"><i class="fas fa-coins"></i></div>
+                  <div class="stat-info"><h3 style="color:\${cplColor}">\${cplBrut ? cplBrut+'€' : 'N/A'}</h3><p>CPL brut (cible \${thMap['cpl_target']||25}€)</p></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-icon blue"><i class="fas fa-euro-sign"></i></div>
+                  <div class="stat-info"><h3>\${formatCurrency(gaTotalSpend)}</h3><p>Dépensé · budget 150€/mois</p></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-icon \${pending.length > 0 ? 'gold' : 'green'}"><i class="fas fa-tasks"></i></div>
+                  <div class="stat-info"><h3>\${pending.length}</h3><p>Actions en attente · \${approved} validées</p></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-icon purple"><i class="fas fa-sliders-h"></i></div>
+                  <div class="stat-info"><h3>\${thMap['cpl_warning']||120}€</h3><p>Seuil alerte CPL (phase J+30)</p></div>
+                </div>
+              </div>
+              \${pending.length > 0 ? \`
+              <div style="margin-bottom:8px"><strong style="font-size:0.85rem;color:#495057"><i class="fas fa-exclamation-triangle" style="color:#e67e22"></i> Actions en attente (\${pending.length})</strong></div>
+              \${pending.map(s => \`
+                <div style="border:1px solid #fce4b5;background:#fffbf0;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                  <div style="flex:1">
+                    <span style="background:#e67e22;color:#fff;font-size:0.7rem;padding:2px 7px;border-radius:4px;margin-right:6px">\${s.priority||'P1'}</span>
+                    <strong style="font-size:0.85rem">\${s.title}</strong>
+                    <div style="font-size:0.8rem;color:#666;margin-top:4px">\${s.action_description||''}</div>
+                    <div style="font-size:0.78rem;color:#999;margin-top:3px">⏱ \${s.effort_level||'?'} · \${s.estimated_impact||''}</div>
+                  </div>
+                  <div style="display:flex;gap:6px;flex-shrink:0">
+                    <button onclick="jordanDecide(\${s.id},'approved')" style="background:#27ae60;color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:0.78rem;cursor:pointer;font-weight:600">✓ OK</button>
+                    <button onclick="jordanDecide(\${s.id},'rejected')" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:0.78rem;cursor:pointer">✗ Non</button>
+                  </div>
+                </div>
+              \`).join('')}
+              \` : '<div style="color:#27ae60;font-size:0.85rem;padding:4px 0"><i class="fas fa-check-circle"></i> Aucune action en attente — campagne sous contrôle</div>'}
+            </div>
+          </div>
+          \`;
+        })()}
         <div class="text-small text-muted mt-16" style="text-align:right">
           <i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google Ads — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}
         </div>
