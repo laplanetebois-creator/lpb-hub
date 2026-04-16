@@ -531,8 +531,13 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   cursor: pointer;
   transition: box-shadow var(--transition);
+  border-left: 4px solid transparent;
 }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.deal-card.src-travaux    { border-left-color: #2e7d32; background: linear-gradient(to right, #e8f5e922, var(--card)); }
+.deal-card.src-helloartisan { border-left-color: #1976d2; background: linear-gradient(to right, #e3f2fd22, var(--card)); }
+.deal-card.src-website    { border-left-color: #c62828; background: linear-gradient(to right, #ffebee22, var(--card)); }
+.deal-card.src-facebook   { border-left-color: #e65100; background: linear-gradient(to right, #fff3e022, var(--card)); }
 .deal-card.dragging { opacity: 0.4; transform: rotate(2deg); }
 .pipeline-col-body.drag-over { background: var(--primary-light); border: 2px dashed var(--primary); border-radius: 8px; }
 .deal-card h4 { font-size: 0.88rem; margin-bottom: 6px; }
@@ -3055,10 +3060,25 @@ async function renderPipeline(content) {
               var cCity = c && c.city ? c.city : '';
               var cSource = c && c.source ? c.source : '';
               var cSourceUrl = c ? (function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? m[1].trim() : ''; })() : '';
-              var sourceTag = '';
-              if (cSource === 'helloartisan') sourceTag = '<span style="background:#fff3e0;color:#e65100;font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid #ffcc80">hA</span>';
-              else if (cSource === 'travaux.com') sourceTag = '<span style="background:#e8f5e9;color:#2e7d32;font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid #a5d6a7">Tv</span>';
-              return '<div class="deal-card" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
+              var srcClass = '';
+              if (cSource === 'travaux.com') srcClass = 'src-travaux';
+              else if (cSource === 'helloartisan') srcClass = 'src-helloartisan';
+              else if (cSource === 'website') srcClass = 'src-website';
+              else if (cSource === 'facebook') srcClass = 'src-facebook';
+              var SOURCE_BADGE = {
+                'helloartisan': { bg:'#e3f2fd', color:'#1976d2', border:'#90caf9', label:'hA' },
+                'travaux.com':  { bg:'#e8f5e9', color:'#2e7d32', border:'#a5d6a7', label:'Tv' },
+                'website':      { bg:'#ffebee', color:'#c62828', border:'#ef9a9a', label:'Web' },
+                'facebook':     { bg:'#fff3e0', color:'#e65100', border:'#ffcc80', label:'FB' },
+                'google':       { bg:'#fce4ec', color:'#880e4f', border:'#f48fb1', label:'G' },
+                'linkedin':     { bg:'#e1f5fe', color:'#0277bd', border:'#81d4fa', label:'Li' },
+                'referral':     { bg:'#f3e5f5', color:'#7b1fa2', border:'#ce93d8', label:'Ref' }
+              };
+              var badgeConf = SOURCE_BADGE[cSource];
+              var sourceTag = badgeConf
+                ? '<span style="background:'+badgeConf.bg+';color:'+badgeConf.color+';font-size:0.62rem;font-weight:700;padding:1px 6px;border-radius:3px;border:1px solid '+badgeConf.border+';white-space:nowrap">'+badgeConf.label+'</span>'
+                : '';
+              return '<div class="deal-card ' + srcClass + '" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
                   '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + (c ? avatarHtml(c) : 'NN') + '</div>' +
                   '<div style="flex:1;min-width:0"><strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + contactName + company + '</strong>' +
