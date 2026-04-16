@@ -3303,6 +3303,39 @@ window.closeDealPopup = function() {
 $('#deal-popup-close')?.addEventListener('click', closeDealPopup);
 $('#deal-popup-overlay')?.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeDealPopup(); });
 
+// Edit / Delete activity inline
+window._editActivity = function(actId, btn) {
+  var textEl = document.getElementById('tl-text-' + actId);
+  if (!textEl) return;
+  if (textEl.querySelector('textarea')) return; // already editing
+  var currentText = textEl.textContent;
+  textEl.innerHTML =
+    '<textarea style="width:100%;min-height:60px;border:1px solid var(--primary);border-radius:6px;padding:6px;font-size:0.85rem;resize:vertical;font-family:inherit;background:var(--bg);color:var(--text)">' + escHtml(currentText) + '</textarea>' +
+    '<div style="display:flex;gap:6px;margin-top:6px">' +
+      '<button id="act-save-' + actId + '" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer">Enregistrer</button>' +
+      '<button id="act-cancel-' + actId + '" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer">Annuler</button>' +
+    '</div>';
+  textEl.querySelector('textarea').focus();
+  document.getElementById('act-cancel-' + actId).addEventListener('click', function() {
+    textEl.innerHTML = escHtml(currentText);
+  });
+  document.getElementById('act-save-' + actId).addEventListener('click', async function() {
+    var newText = textEl.querySelector('textarea').value.trim();
+    if (!newText) return;
+    await dbUpdate('activities', actId, { notes: newText });
+    textEl.innerHTML = escHtml(newText);
+    toast('Commentaire modifié ✓');
+  });
+};
+
+window._deleteActivity = async function(actId, dealId) {
+  if (!confirm('Supprimer ce commentaire ?')) return;
+  await dbDelete('activities', actId);
+  var item = document.querySelector('.tl-item[data-act-id="' + actId + '"]');
+  if (item) { item.style.transition = 'opacity 0.2s'; item.style.opacity = '0'; setTimeout(function(){ item.remove(); }, 200); }
+  toast('Commentaire supprimé');
+};
+
 // ============================================================
 // LEADS CONSOLIDÉS (leads_CONSOLIDE.xlsx → leads_consolide.json)
 // ============================================================
@@ -3655,11 +3688,13 @@ window.dealView = async function(id) {
 
   dealActivities.forEach(function(a) {
     allTimelineItems.push({
+      id: a.id,
       type: a.type || 'activity',
       author: 'Yoann Contal',
       date: formatDateTime(a.created_at),
       text: a.notes || a.description || (a.type === 'call' ? 'Appel telephonique' : a.type === 'email' ? 'Email envoye' : a.type === 'meeting' ? 'Rendez-vous' : 'Activite'),
-      sortDate: new Date(a.created_at)
+      sortDate: new Date(a.created_at),
+      editable: true
     });
   });
 
@@ -3672,15 +3707,20 @@ window.dealView = async function(id) {
         var authorInits = item.author.split(' ').map(function(w) { return w[0] || ''; }).join('').toUpperCase().substring(0, 2);
         var typeClass = item.type === 'comment' ? 'comment' : item.type === 'status' ? 'status' : 'activity';
         var typeLabel = item.type === 'comment' ? 'Commentaire' : item.type === 'call' ? 'Appel' : item.type === 'email' ? 'Email' : item.type === 'meeting' ? 'RDV' : item.type === 'status' ? 'Statut' : 'Note';
-        return '<div class="tl-item">' +
+        var actId = item.id || '';
+        return '<div class="tl-item" data-act-id="' + actId + '">' +
           '<div class="tl-avatar">' + authorInits + '</div>' +
           '<div class="tl-content">' +
             '<div class="tl-meta">' +
               '<span class="tl-author">' + escHtml(item.author) + '</span>' +
               '<span class="tl-date">' + escHtml(item.date) + '</span>' +
               '<span class="tl-type ' + typeClass + '">' + typeLabel + '</span>' +
+              (item.editable && actId ? '<span class="tl-actions" style="margin-left:auto;display:flex;gap:4px">' +
+                '<button onclick="window._editActivity(\'' + actId + '\',this)" title="Modifier" style="background:none;border:none;cursor:pointer;padding:2px 5px;color:var(--text-light);border-radius:4px;font-size:0.8rem" onmouseover="this.style.color=\'var(--primary)\'" onmouseout="this.style.color=\'var(--text-light)\'"><i class="fas fa-pen"></i></button>' +
+                '<button onclick="window._deleteActivity(\'' + actId + '\',\'' + escHtml(d.id) + '\')" title="Supprimer" style="background:none;border:none;cursor:pointer;padding:2px 5px;color:var(--text-light);border-radius:4px;font-size:0.8rem" onmouseover="this.style.color=\'#e74c3c\'" onmouseout="this.style.color=\'var(--text-light)\'"><i class="fas fa-trash"></i></button>' +
+              '</span>' : '') +
             '</div>' +
-            '<div class="tl-text">' + escHtml(item.text) + '</div>' +
+            '<div class="tl-text" id="tl-text-' + actId + '">' + escHtml(item.text) + '</div>' +
           '</div>' +
         '</div>';
       }).join('') +
