@@ -4877,6 +4877,7 @@ pages.seo = async function() {
         <button class="tab-btn ${activeTab === 'keywords' ? 'active' : ''}" data-tab="keywords"><i class="fas fa-key"></i> Mots-cles manuels</button>
         <button class="tab-btn ${activeTab === 'tasks' ? 'active' : ''}" data-tab="tasks"><i class="fas fa-tasks"></i> Taches SEO</button>
         <button class="tab-btn ${activeTab === 'pages' ? 'active' : ''}" data-tab="pages"><i class="fas fa-file-alt"></i> Pages</button>
+        <button class="tab-btn ${activeTab === 'rapports' ? 'active' : ''}" data-tab="rapports"><i class="fas fa-chart-line"></i> Rapports</button>
       </div>
 
       <div id="seo-tab-content"></div>
@@ -5041,6 +5042,75 @@ pages.seo = async function() {
         </div></div>
       `;
       tabContent.querySelector('#btn-add-page')?.addEventListener('click', () => seoPageForm());
+    }
+
+    else if (activeTab === 'rapports') {
+      const rapports = [
+        {
+          date: '2026-04-16',
+          status: 'red',
+          title: 'Rapport SEO Hebdo — Semaine du 10 au 16 avril 2026',
+          summary: 'Visibilite organique tres faible. Urgence : creer du contenu local optimise.',
+          metrics: [
+            { label: 'Impressions Search', value: '13', icon: 'fa-eye', color: 'var(--danger)' },
+            { label: 'Clics organiques', value: '1', icon: 'fa-mouse-pointer', color: 'var(--danger)' },
+            { label: 'CTR moyen', value: '7.69%', icon: 'fa-percentage', color: 'var(--warning)' },
+            { label: 'Position moyenne', value: '18.6', icon: 'fa-crosshairs', color: 'var(--danger)' }
+          ],
+          quickWins: [
+            'Creer page "terrasse bois Soissons" — volume estime 110/mois, difficulte faible',
+            'Creer page "pergola bois sur mesure Aisne" — pas de contenu existant',
+            'Optimiser balise title page accueil avec mot-cle geo principal',
+            'Ajouter schema LocalBusiness JSON-LD sur toutes les pages'
+          ],
+          actions: [
+            { priority: 'P0', text: 'Publier 1 page locale optimisee "terrasse bois Soissons" cette semaine' },
+            { priority: 'P0', text: 'Poster 1 article GBP avec photo chantier + mot-cle geo' },
+            { priority: 'P1', text: 'Creer pages villes satellites (Laon, Reims, Chateau-Thierry)' },
+            { priority: 'P1', text: 'Ajouter FAQ schema sur les pages services' }
+          ]
+        }
+      ];
+
+      tabContent.innerHTML = `
+        <div class="toolbar">
+          <div class="toolbar-left"><span class="text-muted">${rapports.length} rapport(s)</span></div>
+        </div>
+        ${rapports.map(r => {
+          const statusEmoji = r.status === 'red' ? '🔴' : r.status === 'yellow' ? '🟡' : '🟢';
+          return `
+          <div class="panel" style="margin-bottom:20px">
+            <div class="panel-header">
+              <h3>${statusEmoji} ${r.title}</h3>
+              <span class="text-small text-muted">${formatDate(r.date)}</span>
+            </div>
+            <div class="panel-body">
+              <p style="margin-bottom:16px;font-style:italic;color:var(--text-secondary)">${r.summary}</p>
+              <div class="stats-grid" style="margin-bottom:20px">
+                ${r.metrics.map(m => `
+                  <div class="stat-card">
+                    <div class="stat-icon" style="background:${m.color}20;color:${m.color}"><i class="fas ${m.icon}"></i></div>
+                    <div class="stat-info"><h3 style="color:${m.color}">${m.value}</h3><p>${m.label}</p></div>
+                  </div>
+                `).join('')}
+              </div>
+              <h4 style="margin-bottom:8px"><i class="fas fa-bolt" style="color:var(--warning)"></i> Quick Wins</h4>
+              <ul style="margin-bottom:16px;padding-left:20px">
+                ${r.quickWins.map(q => `<li style="margin-bottom:4px">${q}</li>`).join('')}
+              </ul>
+              <h4 style="margin-bottom:8px"><i class="fas fa-flag" style="color:var(--danger)"></i> Actions prioritaires</h4>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                ${r.actions.map(a => `
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span class="badge-status ${a.priority === 'P0' ? 'lost' : 'prospect'}" style="min-width:30px;text-align:center">${a.priority}</span>
+                    <span>${a.text}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      `;
     }
   }
 
