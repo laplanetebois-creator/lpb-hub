@@ -1746,12 +1746,28 @@ async function gcalApi(method, path, body) {
 
 var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', autre: '8' };
 
-function planningToGcalEvent(ev) {
+function planningToGcalEvent(ev, contact) {
   var startDate = (ev.start_date || '').substring(0, 10);
   var endDate = ev.end_date ? ev.end_date.substring(0, 10) : startDate;
+  var descLines = [];
+  // Infos contact/lead
+  if (contact) {
+    var nom = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+    if (nom) descLines.push('👤 ' + nom);
+    if (contact.company) descLines.push('🏢 ' + contact.company);
+    if (contact.phone) descLines.push('📞 ' + contact.phone);
+    if (contact.email) descLines.push('✉️ ' + contact.email);
+    if (contact.city) descLines.push('📍 ' + contact.city + (contact.postal_code ? ' ' + contact.postal_code : ''));
+    var crmUrl = 'https://laplanetebois-creator.github.io/lpb-hub/';
+    descLines.push('🔗 CRM: ' + crmUrl);
+    descLines.push('');
+  }
+  if (ev.notes) descLines.push(ev.notes);
+  descLines.push('');
+  descLines.push('— Source: LPB Hub | Type: ' + (ev.type || '') + ' | Statut: ' + (ev.status || ''));
   var gcalEvent = {
     summary: ev.title || '',
-    description: [ev.notes || '', '', 'Source: LPB Hub', 'Type: ' + (ev.type || ''), 'Statut: ' + (ev.status || '')].join('\n').trim(),
+    description: descLines.join('\n').trim(),
     colorId: GCAL_COLOR_MAP[ev.type] || '8'
   };
   if (ev.start_time) {
@@ -4024,7 +4040,7 @@ window.dealView = async function(id) {
       // Push to Google Calendar with popup reminder
       if (gcalIsConnected() && inserted) {
         var calId = getGcalCalendarId();
-        var gcalEvent = planningToGcalEvent(inserted);
+        var gcalEvent = planningToGcalEvent(inserted, contact);
         gcalEvent.reminders = {
           useDefault: false,
           overrides: [{ method: 'popup', minutes: remindMin }]
@@ -6028,11 +6044,14 @@ function planForm(ev, contacts) {
       status: $('#f-evstatus').value,
       notes: $('#f-evnotes').value.trim() || null
     };
+    // Récupérer le contact pour enrichir GCal
+    var evContactId = row.contact_id;
+    var evContact = evContactId ? contacts.find(function(c){ return c.id === evContactId; }) || null : null;
     if (isEdit) {
       await dbUpdate('planning', d.id, row);
       if (gcalIsConnected()) {
         row.id = d.id; row.gcal_event_id = d.gcal_event_id;
-        var gcalEv = planningToGcalEvent(row);
+        var gcalEv = planningToGcalEvent(row, evContact);
         if (remindMin >= 0) gcalEv.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: remindMin }] };
         else gcalEv.reminders = { useDefault: false, overrides: [] };
         var calId = getGcalCalendarId();
@@ -6047,7 +6066,7 @@ function planForm(ev, contacts) {
     } else {
       var inserted = await dbInsert('planning', row);
       if (gcalIsConnected() && inserted) {
-        var gcalEv2 = planningToGcalEvent(inserted);
+        var gcalEv2 = planningToGcalEvent(inserted, evContact);
         if (remindMin >= 0) gcalEv2.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: remindMin }] };
         else gcalEv2.reminders = { useDefault: false, overrides: [] };
         var calId2 = getGcalCalendarId();
