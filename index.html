@@ -1080,17 +1080,72 @@ a:hover { text-decoration: underline; }
   /* Deal cards: touch-friendly */
   .deal-card { padding: 12px; }
   .deal-card h4 { font-size: 0.85rem; }
+
+  /* Force all inline stats-grid with 3 cols to 2 cols on mobile */
+  .stats-grid[style*="1fr 1fr 1fr"] { grid-template-columns: 1fr 1fr !important; }
+
+  /* Date bar: wrap properly on small screens */
+  .date-bar { flex-wrap: wrap; }
+  .date-bar label { font-size: 0.75rem; white-space: nowrap; }
+  .date-bar .date-range { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .date-bar input[type="date"] { max-width: 130px; }
+
+  /* Charts: ensure readable height */
+  .chart-container, [style*="height:300px"], [style*="height: 300px"] {
+    min-height: 200px !important;
+    max-height: 260px !important;
+  }
+
+  /* CRM table: hide email column on small mobile, show on tap */
+  .data-table td:nth-child(3), .data-table th:nth-child(3) {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Activity feed items: tighter */
+  .activity-item { padding: 10px 12px; }
+  .activity-item .activity-text { font-size: 0.82rem; line-height: 1.4; }
+
+  /* Panel improvements */
+  .panel { border-radius: 10px; margin-bottom: 14px; }
+  .panel-header { border-radius: 10px 10px 0 0; }
+
+  /* Tabs on mobile: scrollable */
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; gap: 0; }
+  .tabs a, .tabs button { white-space: nowrap; flex-shrink: 0; padding: 10px 14px; font-size: 0.8rem; }
+
+  /* Calendar: compact on mobile */
+  .cal-cell { min-height: 50px; padding: 4px; }
+  .cal-event { font-size: 0.6rem; padding: 1px 4px; }
+
+  /* Scrollable content area */
+  .main { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* ============================================
    VERY SMALL SCREENS — max 340px
    ============================================ */
 @media (max-width: 340px) {
-  .stats-grid { grid-template-columns: 1fr; }
+  .stats-grid, .stats-grid[style*="1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
   .stat-card { flex-direction: row; align-items: center; }
   .pipeline-col { min-width: 90vw; }
   .bottom-nav a { font-size: 0.58rem; }
   .bottom-nav a i { font-size: 1rem; }
+  .date-bar input[type="date"] { max-width: 110px; font-size: 0.75rem; }
+  .topbar-left h2 { font-size: 0.9rem; }
+  .filter-group button { font-size: 0.65rem; padding: 6px 4px; }
+}
+
+/* ============================================
+   MEDIUM PHONES — 341-480px
+   ============================================ */
+@media (min-width: 341px) and (max-width: 480px) {
+  .stats-grid { gap: 8px; }
+  .stat-card { padding: 12px 10px; }
+  .stat-info h3 { font-size: 1.1rem; }
+  .bottom-more-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
 }
 
 /* ============================================
