@@ -531,8 +531,13 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   cursor: pointer;
   transition: box-shadow var(--transition);
+  border-left: 4px solid transparent;
 }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.deal-card.src-travaux    { border-left-color: #2e7d32; background: linear-gradient(to right, #e8f5e922, var(--card)); }
+.deal-card.src-helloartisan { border-left-color: #1976d2; background: linear-gradient(to right, #bbdefb88, #e3f2fd44); }
+.deal-card.src-website    { border-left-color: #c62828; background: linear-gradient(to right, #ffebee22, var(--card)); }
+.deal-card.src-facebook   { border-left-color: #e65100; background: linear-gradient(to right, #fff3e022, var(--card)); }
 .deal-card.dragging { opacity: 0.4; transform: rotate(2deg); }
 .pipeline-col-body.drag-over { background: var(--primary-light); border: 2px dashed var(--primary); border-radius: 8px; }
 .deal-card h4 { font-size: 0.88rem; margin-bottom: 6px; }
@@ -884,7 +889,7 @@ a:hover { text-decoration: underline; }
    ============================================ */
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .cal-header { background: var(--sidebar-bg); color: #fff; padding: 10px; text-align: center; font-weight: 600; font-size: 0.82rem; }
-.cal-cell { background: var(--card); min-height: 90px; padding: 6px; cursor: pointer; transition: background 0.15s; }
+.cal-cell { background: var(--card); min-height: 120px; padding: 8px; cursor: pointer; transition: background 0.15s; }
 .cal-cell:hover { background: var(--primary-light); }
 .cal-cell.cal-empty { background: var(--bg); cursor: default; }
 .cal-cell.cal-today { background: #eef6ff; }
@@ -1741,12 +1746,28 @@ async function gcalApi(method, path, body) {
 
 var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', autre: '8' };
 
-function planningToGcalEvent(ev) {
+function planningToGcalEvent(ev, contact) {
   var startDate = (ev.start_date || '').substring(0, 10);
   var endDate = ev.end_date ? ev.end_date.substring(0, 10) : startDate;
+  var descLines = [];
+  // Infos contact/lead
+  if (contact) {
+    var nom = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+    if (nom) descLines.push('👤 ' + nom);
+    if (contact.company) descLines.push('🏢 ' + contact.company);
+    if (contact.phone) descLines.push('📞 ' + contact.phone);
+    if (contact.email) descLines.push('✉️ ' + contact.email);
+    if (contact.city) descLines.push('📍 ' + contact.city + (contact.postal_code ? ' ' + contact.postal_code : ''));
+    var crmUrl = 'https://laplanetebois-creator.github.io/lpb-hub/';
+    descLines.push('🔗 CRM: ' + crmUrl);
+    descLines.push('');
+  }
+  if (ev.notes) descLines.push(ev.notes);
+  descLines.push('');
+  descLines.push('— Source: LPB Hub | Type: ' + (ev.type || '') + ' | Statut: ' + (ev.status || ''));
   var gcalEvent = {
     summary: ev.title || '',
-    description: [ev.notes || '', '', 'Source: LPB Hub', 'Type: ' + (ev.type || ''), 'Statut: ' + (ev.status || '')].join('\n').trim(),
+    description: descLines.join('\n').trim(),
     colorId: GCAL_COLOR_MAP[ev.type] || '8'
   };
   if (ev.start_time) {
@@ -2353,8 +2374,8 @@ pages.dashboard = async function() {
   const gmbDirections = gmbData.reduce((s, r) => s + (r.direction_requests || 0), 0);
 
   // Stage counts for pipeline chart
-  const stages = ['nouveaux_leads', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2'];
-  const stageLabels = ['Nvx leads', 'NRP', 'Suivi', 'RDV', 'Devis', 'Att. rep.', 'R2'];
+  const stages = ['nouveaux_leads', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2', 'foireux'];
+  const stageLabels = ['Nvx leads', 'NRP', 'Suivi', 'RDV', 'Devis', 'Att. rep.', 'R2', 'Foireux'];
   const stageCounts = stages.map(s => deals.filter(d => d.stage === s).length);
   const stageValues = stages.map(s => deals.filter(d => d.stage === s).reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0));
 
@@ -3011,7 +3032,8 @@ async function renderPipeline(content) {
     { key: 'attente_reponse', label: 'Attente reponse devis', color: '#e67e22' },
     { key: 'r2', label: 'R2', color: '#8e44ad' },
     { key: 'gagne', label: 'Gagne', color: '#2d6a4f' },
-    { key: 'perdu', label: 'Perdu', color: '#e74c3c' }
+    { key: 'perdu', label: 'Perdu', color: '#e74c3c' },
+    { key: 'foireux', label: 'Leads foireux', color: '#78909c' }
   ];
 
   const now = new Date();
@@ -3055,10 +3077,25 @@ async function renderPipeline(content) {
               var cCity = c && c.city ? c.city : '';
               var cSource = c && c.source ? c.source : '';
               var cSourceUrl = c ? (function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? m[1].trim() : ''; })() : '';
-              var sourceTag = '';
-              if (cSource === 'helloartisan') sourceTag = '<span style="background:#fff3e0;color:#e65100;font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid #ffcc80">hA</span>';
-              else if (cSource === 'travaux.com') sourceTag = '<span style="background:#e8f5e9;color:#2e7d32;font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid #a5d6a7">Tv</span>';
-              return '<div class="deal-card" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
+              var srcClass = '';
+              if (cSource === 'travaux.com') srcClass = 'src-travaux';
+              else if (cSource === 'helloartisan') srcClass = 'src-helloartisan';
+              else if (cSource === 'website') srcClass = 'src-website';
+              else if (cSource === 'facebook') srcClass = 'src-facebook';
+              var SOURCE_BADGE = {
+                'helloartisan': { bg:'#e3f2fd', color:'#1976d2', border:'#90caf9', label:'hA' },
+                'travaux.com':  { bg:'#e8f5e9', color:'#2e7d32', border:'#a5d6a7', label:'Tv' },
+                'website':      { bg:'#ffebee', color:'#c62828', border:'#ef9a9a', label:'Web' },
+                'facebook':     { bg:'#fff3e0', color:'#e65100', border:'#ffcc80', label:'FB' },
+                'google':       { bg:'#fce4ec', color:'#880e4f', border:'#f48fb1', label:'G' },
+                'linkedin':     { bg:'#e1f5fe', color:'#0277bd', border:'#81d4fa', label:'Li' },
+                'referral':     { bg:'#f3e5f5', color:'#7b1fa2', border:'#ce93d8', label:'Ref' }
+              };
+              var badgeConf = SOURCE_BADGE[cSource];
+              var sourceTag = badgeConf
+                ? '<span style="background:'+badgeConf.bg+';color:'+badgeConf.color+';font-size:0.62rem;font-weight:700;padding:1px 6px;border-radius:3px;border:1px solid '+badgeConf.border+';white-space:nowrap">'+badgeConf.label+'</span>'
+                : '';
+              return '<div class="deal-card ' + srcClass + '" draggable="true" data-deal-id="' + d.id + '" onclick="dealView(\'' + d.id + '\')" style="position:relative">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
                   '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + (c ? avatarHtml(c) : 'NN') + '</div>' +
                   '<div style="flex:1;min-width:0"><strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + contactName + company + '</strong>' +
@@ -3157,13 +3194,7 @@ async function renderPipeline(content) {
       if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null; }
     });
 
-    // Also enable scroll with mouse wheel horizontally
-    pipelineEl.addEventListener('wheel', function(e) {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        e.preventDefault();
-        pipelineEl.scrollLeft += e.deltaY;
-      }
-    }, { passive: false });
+    // Mouse wheel scrolls page vertically (default behavior)
   }
 
   // CRM sub-tabs
@@ -3194,7 +3225,7 @@ function dealForm(deal = null, contacts = []) {
       <div class="form-group">
         <label>Etape</label>
         <select id="f-dstage">
-          ${['nouveaux_leads','nrp','suivi','rdv_sur_place','devis','attente_reponse','r2','gagne','perdu'].map(s => `<option value="${s}" ${d.stage === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${['nouveaux_leads','nrp','suivi','rdv_sur_place','devis','attente_reponse','r2','gagne','perdu','foireux'].map(s => `<option value="${s}" ${d.stage === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -3265,6 +3296,39 @@ window.closeDealPopup = function() {
 };
 $('#deal-popup-close')?.addEventListener('click', closeDealPopup);
 $('#deal-popup-overlay')?.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeDealPopup(); });
+
+// Edit / Delete activity inline
+window._editActivity = function(actId, btn) {
+  var textEl = document.getElementById('tl-text-' + actId);
+  if (!textEl) return;
+  if (textEl.querySelector('textarea')) return; // already editing
+  var currentText = textEl.textContent;
+  textEl.innerHTML =
+    '<textarea style="width:100%;min-height:60px;border:1px solid var(--primary);border-radius:6px;padding:6px;font-size:0.85rem;resize:vertical;font-family:inherit;background:var(--bg);color:var(--text)">' + escHtml(currentText) + '</textarea>' +
+    '<div style="display:flex;gap:6px;margin-top:6px">' +
+      '<button id="act-save-' + actId + '" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer">Enregistrer</button>' +
+      '<button id="act-cancel-' + actId + '" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer">Annuler</button>' +
+    '</div>';
+  textEl.querySelector('textarea').focus();
+  document.getElementById('act-cancel-' + actId).addEventListener('click', function() {
+    textEl.innerHTML = escHtml(currentText);
+  });
+  document.getElementById('act-save-' + actId).addEventListener('click', async function() {
+    var newText = textEl.querySelector('textarea').value.trim();
+    if (!newText) return;
+    await dbUpdate('activities', actId, { notes: newText });
+    textEl.innerHTML = escHtml(newText);
+    toast('Commentaire modifié ✓');
+  });
+};
+
+window._deleteActivity = async function(actId, dealId) {
+  if (!confirm('Supprimer ce commentaire ?')) return;
+  await dbDelete('activities', actId);
+  var item = document.querySelector('.tl-item[data-act-id="' + actId + '"]');
+  if (item) { item.style.transition = 'opacity 0.2s'; item.style.opacity = '0'; setTimeout(function(){ item.remove(); }, 200); }
+  toast('Commentaire supprimé');
+};
 
 // ============================================================
 // LEADS CONSOLIDÉS (leads_CONSOLIDE.xlsx → leads_consolide.json)
@@ -3492,12 +3556,12 @@ window.dealView = async function(id) {
   var stageColors = {
     nouveaux_leads: '#3498db', nrp: '#9b59b6', suivi: '#1abc9c',
     rdv_sur_place: '#2ecc71', devis: '#e0a030', attente_reponse: '#e67e22',
-    r2: '#8e44ad', gagne: '#2d6a4f', perdu: '#e74c3c'
+    r2: '#8e44ad', gagne: '#2d6a4f', perdu: '#e74c3c', foireux: '#78909c'
   };
   var stageLabels = {
     nouveaux_leads: 'Nouveaux leads', nrp: 'NRP', suivi: 'Suivi',
     rdv_sur_place: 'RDV sur place', devis: 'Devis', attente_reponse: 'Attente reponse',
-    r2: 'R2', gagne: 'Gagne', perdu: 'Perdu'
+    r2: 'R2', gagne: 'Gagne', perdu: 'Perdu', foireux: 'Leads foireux'
   };
   var stageColor = stageColors[d.stage] || '#888';
   var stageLabel = stageLabels[d.stage] || d.stage;
@@ -3618,11 +3682,13 @@ window.dealView = async function(id) {
 
   dealActivities.forEach(function(a) {
     allTimelineItems.push({
+      id: a.id,
       type: a.type || 'activity',
       author: 'Yoann Contal',
       date: formatDateTime(a.created_at),
       text: a.notes || a.description || (a.type === 'call' ? 'Appel telephonique' : a.type === 'email' ? 'Email envoye' : a.type === 'meeting' ? 'Rendez-vous' : 'Activite'),
-      sortDate: new Date(a.created_at)
+      sortDate: new Date(a.created_at),
+      editable: true
     });
   });
 
@@ -3635,15 +3701,20 @@ window.dealView = async function(id) {
         var authorInits = item.author.split(' ').map(function(w) { return w[0] || ''; }).join('').toUpperCase().substring(0, 2);
         var typeClass = item.type === 'comment' ? 'comment' : item.type === 'status' ? 'status' : 'activity';
         var typeLabel = item.type === 'comment' ? 'Commentaire' : item.type === 'call' ? 'Appel' : item.type === 'email' ? 'Email' : item.type === 'meeting' ? 'RDV' : item.type === 'status' ? 'Statut' : 'Note';
-        return '<div class="tl-item">' +
+        var actId = item.id || '';
+        return '<div class="tl-item" data-act-id="' + actId + '">' +
           '<div class="tl-avatar">' + authorInits + '</div>' +
           '<div class="tl-content">' +
             '<div class="tl-meta">' +
               '<span class="tl-author">' + escHtml(item.author) + '</span>' +
               '<span class="tl-date">' + escHtml(item.date) + '</span>' +
               '<span class="tl-type ' + typeClass + '">' + typeLabel + '</span>' +
+              (item.editable && actId ? '<span class="tl-actions" style="margin-left:auto;display:flex;gap:4px">' +
+                '<button onclick="window._editActivity(\'' + actId + '\',this)" title="Modifier" style="background:none;border:none;cursor:pointer;padding:2px 5px;color:var(--text-light);border-radius:4px;font-size:0.8rem" onmouseover="this.style.color=\'var(--primary)\'" onmouseout="this.style.color=\'var(--text-light)\'"><i class="fas fa-pen"></i></button>' +
+                '<button onclick="window._deleteActivity(\'' + actId + '\',\'' + escHtml(d.id) + '\')" title="Supprimer" style="background:none;border:none;cursor:pointer;padding:2px 5px;color:var(--text-light);border-radius:4px;font-size:0.8rem" onmouseover="this.style.color=\'#e74c3c\'" onmouseout="this.style.color=\'var(--text-light)\'"><i class="fas fa-trash"></i></button>' +
+              '</span>' : '') +
             '</div>' +
-            '<div class="tl-text">' + escHtml(item.text) + '</div>' +
+            '<div class="tl-text" id="tl-text-' + actId + '">' + escHtml(item.text) + '</div>' +
           '</div>' +
         '</div>';
       }).join('') +
@@ -3702,6 +3773,13 @@ window.dealView = async function(id) {
       </div>
 
       <div class="deal-detail-sidebar">
+        <div class="deal-sidebar-card" style="text-align:center;padding:16px">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-light);margin-bottom:8px;font-weight:600"><i class="fas fa-stream"></i> Etape du lead</div>
+          <select id="f-deal-stage" style="width:100%;border:2px solid ${stageColor};border-radius:10px;padding:10px 14px;font-size:1.1rem;font-weight:700;background:${stageColor};color:#fff;cursor:pointer;text-align:center;appearance:auto">
+            ${Object.entries(stageLabels).map(function(kv) { return '<option value="' + kv[0] + '"' + (d.stage === kv[0] ? ' selected' : '') + '>' + kv[1] + '</option>'; }).join('')}
+          </select>
+        </div>
+
         <div class="deal-sidebar-card">
           <div class="deal-value-big" style="cursor:pointer" id="deal-value-display" title="Cliquer pour modifier">
             ${formatCurrency(d.value || 0)}
@@ -3763,11 +3841,6 @@ window.dealView = async function(id) {
         <div class="deal-sidebar-card">
           <div class="sc-header"><i class="fas fa-info-circle"></i> Details</div>
           <div class="sc-body">
-            <div class="sc-row"><span class="sc-label">Etape</span><span class="sc-val">
-              <select id="f-deal-stage" style="border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:0.78rem;background:${stageColor};color:#fff;cursor:pointer">
-                ${Object.entries(stageLabels).map(function(kv) { return '<option value="' + kv[0] + '"' + (d.stage === kv[0] ? ' selected' : '') + '>' + kv[1] + '</option>'; }).join('')}
-              </select>
-            </span></div>
             <div class="sc-row"><span class="sc-label">Probabilite</span><span class="sc-val">${d.probability || 0}%</span></div>
             <div class="sc-row"><span class="sc-label">Cloture prevue</span><span class="sc-val">${d.expected_close ? formatDate(d.expected_close) : '—'}</span></div>
             <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDate(d.created_at)}</span></div>
@@ -4003,7 +4076,7 @@ window.dealView = async function(id) {
       // Push to Google Calendar with popup reminder
       if (gcalIsConnected() && inserted) {
         var calId = getGcalCalendarId();
-        var gcalEvent = planningToGcalEvent(inserted);
+        var gcalEvent = planningToGcalEvent(inserted, contact);
         gcalEvent.reminders = {
           useDefault: false,
           overrides: [{ method: 'popup', minutes: remindMin }]
@@ -5775,6 +5848,9 @@ window.cmdDelete = async function(id) {
 // ============================================
 // PLANNING MODULE
 // ============================================
+var planningView = '2weeks'; // 'week', '2weeks', 'month'
+var planningOffset = 0; // offset in periods from today
+
 pages.planning = async function() {
   var content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
@@ -5787,59 +5863,86 @@ pages.planning = async function() {
   var contactMap = {};
   contacts.forEach(function(c) { contactMap[c.id] = c; });
 
-  // Build calendar for current month
+  // Compute date range based on view
   var now = new Date();
-  var currentMonth = now.getMonth();
-  var currentYear = now.getFullYear();
-  var firstDay = new Date(currentYear, currentMonth, 1);
-  var lastDay = new Date(currentYear, currentMonth + 1, 0);
-  var startDow = firstDay.getDay() || 7; // Monday = 1
-  var daysInMonth = lastDay.getDate();
+  var rangeStart, rangeEnd, headerLabel;
   var monthNames = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
 
-  // Group events by date
+  if (planningView === 'month') {
+    var m = new Date(now.getFullYear(), now.getMonth() + planningOffset, 1);
+    rangeStart = new Date(m);
+    rangeEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+    headerLabel = monthNames[m.getMonth()] + ' ' + m.getFullYear();
+    // Align to Monday
+    var dow = rangeStart.getDay() || 7;
+    rangeStart.setDate(rangeStart.getDate() - (dow - 1));
+    var endDow = rangeEnd.getDay() || 7;
+    if (endDow < 7) rangeEnd.setDate(rangeEnd.getDate() + (7 - endDow));
+  } else {
+    var daysCount = planningView === 'week' ? 7 : 14;
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var todayDow = today.getDay() || 7;
+    rangeStart = new Date(today);
+    rangeStart.setDate(today.getDate() - (todayDow - 1) + planningOffset * daysCount);
+    rangeEnd = new Date(rangeStart);
+    rangeEnd.setDate(rangeStart.getDate() + daysCount - 1);
+    var opts = { day: 'numeric', month: 'short' };
+    headerLabel = rangeStart.toLocaleDateString('fr-FR', opts) + ' — ' + rangeEnd.toLocaleDateString('fr-FR', opts) + ' ' + rangeEnd.getFullYear();
+  }
+
+  // Group events by date — use lead name as title when available
   var eventsByDate = {};
   events.forEach(function(ev) {
     var d = ev.start_date;
     if (!d) return;
     var key = d.substring(0, 10);
     if (!eventsByDate[key]) eventsByDate[key] = [];
-    eventsByDate[key].push(ev);
+    var c = contactMap[ev.contact_id];
+    var displayTitle = c ? c.first_name + ' ' + c.last_name : ev.title;
+    eventsByDate[key].push(Object.assign({}, ev, { displayTitle: displayTitle }));
   });
 
-  // Add commande delivery dates
   commandes.forEach(function(cmd) {
     if (!cmd.date_livraison) return;
     var key = cmd.date_livraison.substring(0, 10);
     if (!eventsByDate[key]) eventsByDate[key] = [];
-    eventsByDate[key].push({ title: 'Livraison: ' + (cmd.objet || cmd.numero), type: 'livraison', color: '#9b59b6', id: 'cmd-' + cmd.id });
+    eventsByDate[key].push({ title: 'Livraison: ' + (cmd.objet || cmd.numero), displayTitle: 'Livraison: ' + (cmd.objet || cmd.numero), type: 'livraison', color: '#9b59b6', id: 'cmd-' + cmd.id });
   });
 
+  // Build calendar cells for range
   var calendarHtml = '';
-  // Empty cells before first day
-  for (var i = 1; i < startDow; i++) calendarHtml += '<div class="cal-cell cal-empty"></div>';
-  for (var day = 1; day <= daysInMonth; day++) {
-    var dateKey = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  var cursor = new Date(rangeStart);
+  while (cursor <= rangeEnd) {
+    var dateKey = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0') + '-' + String(cursor.getDate()).padStart(2, '0');
     var dayEvents = eventsByDate[dateKey] || [];
-    var isToday = day === now.getDate() && currentMonth === now.getMonth();
+    var isToday = cursor.getDate() === now.getDate() && cursor.getMonth() === now.getMonth() && cursor.getFullYear() === now.getFullYear();
     calendarHtml += '<div class="cal-cell' + (isToday ? ' cal-today' : '') + '" data-date="' + dateKey + '">' +
-      '<div class="cal-day">' + day + '</div>' +
+      '<div class="cal-day">' + cursor.getDate() + '</div>' +
       dayEvents.slice(0, 3).map(function(ev) {
         var timeStr = ev.start_time ? '<span style="font-weight:600">' + ev.start_time.substring(0,5) + '</span> ' : '';
-        return '<div class="cal-event" style="background:' + (ev.color || '#2d6a4f') + '">' + timeStr + ev.title + '</div>';
+        return '<div class="cal-event" data-evid="' + (ev.id || '') + '" style="background:' + (ev.color || '#2d6a4f') + ';cursor:pointer">' + timeStr + escHtml(ev.displayTitle) + '</div>';
       }).join('') +
       (dayEvents.length > 3 ? '<div class="text-muted text-small">+' + (dayEvents.length - 3) + '</div>' : '') +
     '</div>';
+    cursor.setDate(cursor.getDate() + 1);
   }
 
   var typeLabels = { tache: 'Tache', rdv: 'RDV', chantier: 'Chantier', livraison: 'Livraison', autre: 'Autre' };
 
   content.innerHTML = `
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <h3 style="margin:0"><i class="fas fa-calendar-alt"></i> ${monthNames[currentMonth]} ${currentYear}</h3>
+    <div class="toolbar" style="flex-wrap:wrap;gap:8px">
+      <div class="toolbar-left" style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-outline btn-sm" id="btn-plan-prev"><i class="fas fa-chevron-left"></i></button>
+        <h3 style="margin:0;min-width:180px;text-align:center"><i class="fas fa-calendar-alt"></i> ${headerLabel}</h3>
+        <button class="btn btn-outline btn-sm" id="btn-plan-next"><i class="fas fa-chevron-right"></i></button>
+        <button class="btn btn-outline btn-sm" id="btn-plan-today" style="margin-left:6px">Aujourd'hui</button>
       </div>
-      <div class="toolbar-right">
+      <div class="toolbar-right" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <button class="btn btn-sm ${planningView === 'week' ? 'btn-primary' : 'btn-outline'}" data-planview="week" style="border-radius:0;border:none">Semaine</button>
+          <button class="btn btn-sm ${planningView === '2weeks' ? 'btn-primary' : 'btn-outline'}" data-planview="2weeks" style="border-radius:0;border:none">2 semaines</button>
+          <button class="btn btn-sm ${planningView === 'month' ? 'btn-primary' : 'btn-outline'}" data-planview="month" style="border-radius:0;border:none">Mois</button>
+        </div>
         ${gcalIsConnected() ? `
           <button class="btn btn-outline btn-sm" id="btn-gcal-import" title="Importer depuis Google Agenda"><i class="fab fa-google"></i> Importer</button>
           <button class="btn btn-outline btn-sm" id="btn-gcal-sync" title="Synchroniser vers Google Agenda"><i class="fas fa-sync-alt"></i> Sync Google</button>
@@ -5869,10 +5972,11 @@ pages.planning = async function() {
               ${events.map(function(ev) {
                 var c = contactMap[ev.contact_id];
                 var cName = c ? c.first_name + ' ' + c.last_name : '—';
+                var displayTitle = c ? cName : ev.title;
                 var timeInfo = ev.start_time ? ' <strong>' + ev.start_time.substring(0,5) + '</strong>' + (ev.end_time ? '-' + ev.end_time.substring(0,5) : '') : '';
                 return '<tr>' +
                   '<td class="text-small">' + formatDate(ev.start_date) + timeInfo + (ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : '') + '</td>' +
-                  '<td><strong>' + ev.title + '</strong></td>' +
+                  '<td><strong>' + displayTitle + '</strong>' + (c ? ' <span class="text-muted text-small">(' + ev.title + ')</span>' : '') + '</td>' +
                   '<td class="text-small">' + (typeLabels[ev.type] || ev.type) + '</td>' +
                   '<td class="text-small">' + cName + '</td>' +
                   '<td><span style="background:' + (ev.status === 'termine' ? 'var(--success)' : ev.status === 'annule' ? 'var(--danger)' : 'var(--info)') + ';color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem">' + ev.status + '</span></td>' +
@@ -5889,6 +5993,16 @@ pages.planning = async function() {
     </div>
   `;
 
+  // Navigation prev/next/today
+  content.querySelector('#btn-plan-prev').addEventListener('click', function() { planningOffset--; pages.planning(); });
+  content.querySelector('#btn-plan-next').addEventListener('click', function() { planningOffset++; pages.planning(); });
+  content.querySelector('#btn-plan-today').addEventListener('click', function() { planningOffset = 0; pages.planning(); });
+
+  // View switcher
+  content.querySelectorAll('[data-planview]').forEach(function(btn) {
+    btn.addEventListener('click', function() { planningView = btn.dataset.planview; planningOffset = 0; pages.planning(); });
+  });
+
   content.querySelector('#btn-add-event')?.addEventListener('click', function() { planForm(null, contacts); });
   content.querySelector('#btn-gcal-connect')?.addEventListener('click', function() { gcalConnect(); });
   content.querySelector('#btn-gcal-sync')?.addEventListener('click', async function() {
@@ -5902,7 +6016,35 @@ pages.planning = async function() {
     pages.planning();
   });
 
-  // Click on calendar cell to add event
+  // Click on event to show detail popup
+  content.querySelectorAll('.cal-event[data-evid]').forEach(function(evEl) {
+    evEl.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var evId = evEl.dataset.evid;
+      if (!evId || evId.startsWith('cmd-')) return;
+      var ev = events.find(function(x) { return x.id === evId; });
+      if (!ev) return;
+      var c = contactMap[ev.contact_id];
+      var cName = c ? c.first_name + ' ' + c.last_name : '—';
+      var typeLabel = typeLabels[ev.type] || ev.type || '—';
+      openModal(c ? cName : ev.title, `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><strong style="color:var(--text-light);font-size:.78rem">Type</strong><div>${typeLabel}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Statut</strong><div><span style="background:${ev.status === 'termine' ? 'var(--success)' : ev.status === 'annule' ? 'var(--danger)' : 'var(--info)'};color:#fff;padding:2px 10px;border-radius:12px;font-size:0.8rem">${ev.status || 'planifie'}</span></div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Date</strong><div>${formatDate(ev.start_date)}${ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : ''}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Horaire</strong><div>${ev.start_time ? ev.start_time.substring(0,5) : '—'}${ev.end_time ? ' — ' + ev.end_time.substring(0,5) : ''}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Client</strong><div>${escHtml(cName)}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Titre evenement</strong><div>${escHtml(ev.title)}</div></div>
+        </div>
+        ${ev.notes ? '<div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:8px"><strong style="color:var(--text-light);font-size:.78rem">Notes</strong><div style="margin-top:4px;white-space:pre-wrap">' + escHtml(ev.notes) + '</div></div>' : ''}
+      `, `
+        <button class="btn btn-outline" onclick="closeModal()">Fermer</button>
+        <button class="btn btn-primary" onclick="closeModal();planEdit('${ev.id}')"><i class="fas fa-pen"></i> Modifier</button>
+      `);
+    });
+  });
+
+  // Double-click on calendar cell to add event
   content.querySelectorAll('.cal-cell[data-date]').forEach(function(cell) {
     cell.addEventListener('dblclick', function() {
       planForm({ start_date: cell.dataset.date }, contacts);
@@ -6007,11 +6149,14 @@ function planForm(ev, contacts) {
       status: $('#f-evstatus').value,
       notes: $('#f-evnotes').value.trim() || null
     };
+    // Récupérer le contact pour enrichir GCal
+    var evContactId = row.contact_id;
+    var evContact = evContactId ? contacts.find(function(c){ return c.id === evContactId; }) || null : null;
     if (isEdit) {
       await dbUpdate('planning', d.id, row);
       if (gcalIsConnected()) {
         row.id = d.id; row.gcal_event_id = d.gcal_event_id;
-        var gcalEv = planningToGcalEvent(row);
+        var gcalEv = planningToGcalEvent(row, evContact);
         if (remindMin >= 0) gcalEv.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: remindMin }] };
         else gcalEv.reminders = { useDefault: false, overrides: [] };
         var calId = getGcalCalendarId();
@@ -6026,7 +6171,7 @@ function planForm(ev, contacts) {
     } else {
       var inserted = await dbInsert('planning', row);
       if (gcalIsConnected() && inserted) {
-        var gcalEv2 = planningToGcalEvent(inserted);
+        var gcalEv2 = planningToGcalEvent(inserted, evContact);
         if (remindMin >= 0) gcalEv2.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: remindMin }] };
         else gcalEv2.reminders = { useDefault: false, overrides: [] };
         var calId2 = getGcalCalendarId();
@@ -6848,6 +6993,20 @@ function showApp() {
   document.querySelector('.sidebar').style.display = '';
   document.querySelector('.main').style.display = '';
   navigate('dashboard');
+
+  // Auto-sync Google Calendar at login if connected
+  if (gcalIsConnected()) {
+    setTimeout(async function() {
+      try {
+        var imported = await gcalImportToPlanning();
+        var synced = await gcalSyncAll();
+        var msg = [];
+        if (imported > 0) msg.push(imported + ' importe(s)');
+        if (synced && (synced.created > 0 || synced.updated > 0)) msg.push(synced.created + ' crees, ' + synced.updated + ' mis a jour');
+        if (msg.length > 0) toast('Sync Google Agenda : ' + msg.join(' / '), 'success');
+      } catch(e) { console.error('Auto GCal sync error', e); }
+    }, 1500);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
