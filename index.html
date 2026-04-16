@@ -3194,13 +3194,7 @@ async function renderPipeline(content) {
       if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null; }
     });
 
-    // Also enable scroll with mouse wheel horizontally
-    pipelineEl.addEventListener('wheel', function(e) {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        e.preventDefault();
-        pipelineEl.scrollLeft += e.deltaY;
-      }
-    }, { passive: false });
+    // Mouse wheel scrolls page vertically (default behavior)
   }
 
   // CRM sub-tabs
