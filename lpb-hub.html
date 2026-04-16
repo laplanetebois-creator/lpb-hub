@@ -6843,6 +6843,53 @@ pages.rapport = async function() {
     return;
   }
 
+  // Jordan Ads — charger suggestions + seuils
+  var [jordanSuggestions, jordanThresholds] = await Promise.all([
+    dbSelect('ads_suggestions_tracking', { order: ['created_at', false] }),
+    dbSelect('ads_thresholds_config', { order: ['id', true] })
+  ]);
+
+  var pendingSuggestions = jordanSuggestions.filter(function(s) { return s.status === 'pending'; });
+  var thresholdMap = {};
+  jordanThresholds.forEach(function(t) { thresholdMap[t.config_key] = t.config_value; });
+
+  var jordanHtml = '<div class="panel" style="margin-bottom:20px">' +
+    '<div class="panel-header" style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff">' +
+    '<h3 style="color:#fff"><i class="fas fa-chart-line"></i> Jordan — Agent Google Ads <span style="font-size:0.75rem;opacity:0.7;margin-left:8px">Campagne J-' + Math.max(1, Math.round((Date.now() - new Date('2026-04-11').getTime()) / 86400000)) + '</span></h3>' +
+    '</div><div class="panel-body">' +
+    // Stats ads 7j
+    '<div class="stats-grid" style="margin-bottom:16px">' +
+    '<div class="stat-card"><div class="stat-icon green"><i class="fas fa-eye"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(r.impressions||0);},0) + '</h3><p>Impressions 7j</p></div></div>' +
+    '<div class="stat-card"><div class="stat-icon blue"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(r.clicks||0);},0) + '</h3><p>Clics 7j</p></div></div>' +
+    '<div class="stat-card"><div class="stat-icon gold"><i class="fas fa-euro-sign"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(parseFloat(r.spend)||0);},0).toFixed(2) + '€</h3><p>Dépensé 7j</p></div></div>' +
+    '<div class="stat-card"><div class="stat-icon ' + (adsData.reduce(function(s,r){return s+(r.conversions||0);},0) > 0 ? 'green' : 'gray') + '"><i class="fas fa-phone"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(r.conversions||0);},0) + '</h3><p>Conversions</p></div></div>' +
+    '</div>' +
+    // Seuils phase démarrage
+    '<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.84rem">' +
+    '<strong style="display:block;margin-bottom:8px;color:#495057"><i class="fas fa-sliders-h"></i> Seuils pilotage — Phase démarrage J+30</strong>' +
+    '<div style="display:flex;gap:24px;flex-wrap:wrap">' +
+    '<span>CPL cible : <strong>' + (thresholdMap['cpl_target'] || 25) + '€</strong></span>' +
+    '<span>CPL attention : <strong style="color:#e67e22">' + (thresholdMap['cpl_warning'] || 120) + '€</strong></span>' +
+    '<span>CPL critique : <strong style="color:#e74c3c">' + (thresholdMap['cpl_critical'] || 180) + '€</strong></span>' +
+    '<span>Volume mini : <strong>' + (thresholdMap['volume_min_monthly'] || 3) + ' leads/mois</strong></span>' +
+    '</div></div>' +
+    // Suggestions P0
+    (pendingSuggestions.length > 0 ?
+      '<div style="margin-bottom:8px"><strong style="font-size:0.85rem"><i class="fas fa-exclamation-triangle" style="color:#e67e22"></i> Actions en attente (' + pendingSuggestions.length + ')</strong></div>' +
+      pendingSuggestions.map(function(s) {
+        return '<div style="border:1px solid #fce4b5;background:#fffbf0;border-radius:8px;padding:12px 16px;margin-bottom:8px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+          '<div><span class="badge" style="background:#e67e22;color:#fff;font-size:0.7rem;margin-right:6px">' + (s.priority || 'P1') + '</span><strong style="font-size:0.85rem">' + s.title + '</strong>' +
+          '<div style="font-size:0.8rem;color:#666;margin-top:4px">' + (s.action_description || '') + '</div>' +
+          '<div style="font-size:0.78rem;color:#888;margin-top:4px">Effort : ' + (s.effort_level || '?') + ' · Impact : ' + (s.estimated_impact || '?') + '</div></div>' +
+          '<div style="display:flex;gap:6px;flex-shrink:0">' +
+          '<button onclick="jordanDecide(' + s.id + ',\'approved\')" style="background:#27ae60;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:0.75rem;cursor:pointer">✓ OK</button>' +
+          '<button onclick="jordanDecide(' + s.id + ',\'rejected\')" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:0.75rem;cursor:pointer">✗ Non</button>' +
+          '</div></div></div>';
+      }).join('')
+      : '<div style="color:#27ae60;font-size:0.85rem"><i class="fas fa-check-circle"></i> Aucune action en attente</div>') +
+    '</div></div>';
+
   // Summary KPIs for full period
   var totalNewLeads = contacts.filter(function(c) { return c.status === 'lead' || c.status === 'prospect'; }).length;
   var totalRdv = planning.length;
@@ -6869,11 +6916,20 @@ pages.rapport = async function() {
       </div>
     </div>
 
+    <div id="jordan-rapport-block"></div>
     <div class="panel">
       <div class="panel-header"><h3><i class="fas fa-clipboard-list"></i> Rapports quotidiens</h3></div>
       <div class="panel-body" id="rapport-days" style="max-height:calc(100vh - 340px);overflow-y:auto"></div>
     </div>
   `;
+
+  $('#jordan-rapport-block').innerHTML = jordanHtml;
+
+  // Jordan decide helper
+  window.jordanDecide = async function(id, decision) {
+    await db.from('ads_suggestions_tracking').update({ status: decision, yoann_decision: decision, decision_date: new Date().toISOString() }).eq('id', id);
+    pages.rapport();
+  };
 
   var rapportContainer = $('#rapport-days');
   rapportContainer.innerHTML = sortedDays.map(function(day) {
