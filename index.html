@@ -2358,8 +2358,8 @@ pages.dashboard = async function() {
   const gmbDirections = gmbData.reduce((s, r) => s + (r.direction_requests || 0), 0);
 
   // Stage counts for pipeline chart
-  const stages = ['nouveaux_leads', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2'];
-  const stageLabels = ['Nvx leads', 'NRP', 'Suivi', 'RDV', 'Devis', 'Att. rep.', 'R2'];
+  const stages = ['nouveaux_leads', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2', 'foireux'];
+  const stageLabels = ['Nvx leads', 'NRP', 'Suivi', 'RDV', 'Devis', 'Att. rep.', 'R2', 'Foireux'];
   const stageCounts = stages.map(s => deals.filter(d => d.stage === s).length);
   const stageValues = stages.map(s => deals.filter(d => d.stage === s).reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0));
 
@@ -3016,7 +3016,8 @@ async function renderPipeline(content) {
     { key: 'attente_reponse', label: 'Attente reponse devis', color: '#e67e22' },
     { key: 'r2', label: 'R2', color: '#8e44ad' },
     { key: 'gagne', label: 'Gagne', color: '#2d6a4f' },
-    { key: 'perdu', label: 'Perdu', color: '#e74c3c' }
+    { key: 'perdu', label: 'Perdu', color: '#e74c3c' },
+    { key: 'foireux', label: 'Leads foireux', color: '#78909c' }
   ];
 
   const now = new Date();
@@ -3214,7 +3215,7 @@ function dealForm(deal = null, contacts = []) {
       <div class="form-group">
         <label>Etape</label>
         <select id="f-dstage">
-          ${['nouveaux_leads','nrp','suivi','rdv_sur_place','devis','attente_reponse','r2','gagne','perdu'].map(s => `<option value="${s}" ${d.stage === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${['nouveaux_leads','nrp','suivi','rdv_sur_place','devis','attente_reponse','r2','gagne','perdu','foireux'].map(s => `<option value="${s}" ${d.stage === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -3512,12 +3513,12 @@ window.dealView = async function(id) {
   var stageColors = {
     nouveaux_leads: '#3498db', nrp: '#9b59b6', suivi: '#1abc9c',
     rdv_sur_place: '#2ecc71', devis: '#e0a030', attente_reponse: '#e67e22',
-    r2: '#8e44ad', gagne: '#2d6a4f', perdu: '#e74c3c'
+    r2: '#8e44ad', gagne: '#2d6a4f', perdu: '#e74c3c', foireux: '#78909c'
   };
   var stageLabels = {
     nouveaux_leads: 'Nouveaux leads', nrp: 'NRP', suivi: 'Suivi',
     rdv_sur_place: 'RDV sur place', devis: 'Devis', attente_reponse: 'Attente reponse',
-    r2: 'R2', gagne: 'Gagne', perdu: 'Perdu'
+    r2: 'R2', gagne: 'Gagne', perdu: 'Perdu', foireux: 'Leads foireux'
   };
   var stageColor = stageColors[d.stage] || '#888';
   var stageLabel = stageLabels[d.stage] || d.stage;
