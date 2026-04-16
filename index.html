@@ -3779,6 +3779,13 @@ window.dealView = async function(id) {
       </div>
 
       <div class="deal-detail-sidebar">
+        <div class="deal-sidebar-card" style="text-align:center;padding:16px">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-light);margin-bottom:8px;font-weight:600"><i class="fas fa-stream"></i> Etape du lead</div>
+          <select id="f-deal-stage" style="width:100%;border:2px solid ${stageColor};border-radius:10px;padding:10px 14px;font-size:1.1rem;font-weight:700;background:${stageColor};color:#fff;cursor:pointer;text-align:center;appearance:auto">
+            ${Object.entries(stageLabels).map(function(kv) { return '<option value="' + kv[0] + '"' + (d.stage === kv[0] ? ' selected' : '') + '>' + kv[1] + '</option>'; }).join('')}
+          </select>
+        </div>
+
         <div class="deal-sidebar-card">
           <div class="deal-value-big" style="cursor:pointer" id="deal-value-display" title="Cliquer pour modifier">
             ${formatCurrency(d.value || 0)}
@@ -3840,11 +3847,6 @@ window.dealView = async function(id) {
         <div class="deal-sidebar-card">
           <div class="sc-header"><i class="fas fa-info-circle"></i> Details</div>
           <div class="sc-body">
-            <div class="sc-row"><span class="sc-label">Etape</span><span class="sc-val">
-              <select id="f-deal-stage" style="border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:0.78rem;background:${stageColor};color:#fff;cursor:pointer">
-                ${Object.entries(stageLabels).map(function(kv) { return '<option value="' + kv[0] + '"' + (d.stage === kv[0] ? ' selected' : '') + '>' + kv[1] + '</option>'; }).join('')}
-              </select>
-            </span></div>
             <div class="sc-row"><span class="sc-label">Probabilite</span><span class="sc-val">${d.probability || 0}%</span></div>
             <div class="sc-row"><span class="sc-label">Cloture prevue</span><span class="sc-val">${d.expected_close ? formatDate(d.expected_close) : '—'}</span></div>
             <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDate(d.created_at)}</span></div>
@@ -5852,6 +5854,9 @@ window.cmdDelete = async function(id) {
 // ============================================
 // PLANNING MODULE
 // ============================================
+var planningView = '2weeks'; // 'week', '2weeks', 'month'
+var planningOffset = 0; // offset in periods from today
+
 pages.planning = async function() {
   var content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
@@ -5864,59 +5869,86 @@ pages.planning = async function() {
   var contactMap = {};
   contacts.forEach(function(c) { contactMap[c.id] = c; });
 
-  // Build calendar for current month
+  // Compute date range based on view
   var now = new Date();
-  var currentMonth = now.getMonth();
-  var currentYear = now.getFullYear();
-  var firstDay = new Date(currentYear, currentMonth, 1);
-  var lastDay = new Date(currentYear, currentMonth + 1, 0);
-  var startDow = firstDay.getDay() || 7; // Monday = 1
-  var daysInMonth = lastDay.getDate();
+  var rangeStart, rangeEnd, headerLabel;
   var monthNames = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
 
-  // Group events by date
+  if (planningView === 'month') {
+    var m = new Date(now.getFullYear(), now.getMonth() + planningOffset, 1);
+    rangeStart = new Date(m);
+    rangeEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+    headerLabel = monthNames[m.getMonth()] + ' ' + m.getFullYear();
+    // Align to Monday
+    var dow = rangeStart.getDay() || 7;
+    rangeStart.setDate(rangeStart.getDate() - (dow - 1));
+    var endDow = rangeEnd.getDay() || 7;
+    if (endDow < 7) rangeEnd.setDate(rangeEnd.getDate() + (7 - endDow));
+  } else {
+    var daysCount = planningView === 'week' ? 7 : 14;
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var todayDow = today.getDay() || 7;
+    rangeStart = new Date(today);
+    rangeStart.setDate(today.getDate() - (todayDow - 1) + planningOffset * daysCount);
+    rangeEnd = new Date(rangeStart);
+    rangeEnd.setDate(rangeStart.getDate() + daysCount - 1);
+    var opts = { day: 'numeric', month: 'short' };
+    headerLabel = rangeStart.toLocaleDateString('fr-FR', opts) + ' — ' + rangeEnd.toLocaleDateString('fr-FR', opts) + ' ' + rangeEnd.getFullYear();
+  }
+
+  // Group events by date — use lead name as title when available
   var eventsByDate = {};
   events.forEach(function(ev) {
     var d = ev.start_date;
     if (!d) return;
     var key = d.substring(0, 10);
     if (!eventsByDate[key]) eventsByDate[key] = [];
-    eventsByDate[key].push(ev);
+    var c = contactMap[ev.contact_id];
+    var displayTitle = c ? c.first_name + ' ' + c.last_name : ev.title;
+    eventsByDate[key].push(Object.assign({}, ev, { displayTitle: displayTitle }));
   });
 
-  // Add commande delivery dates
   commandes.forEach(function(cmd) {
     if (!cmd.date_livraison) return;
     var key = cmd.date_livraison.substring(0, 10);
     if (!eventsByDate[key]) eventsByDate[key] = [];
-    eventsByDate[key].push({ title: 'Livraison: ' + (cmd.objet || cmd.numero), type: 'livraison', color: '#9b59b6', id: 'cmd-' + cmd.id });
+    eventsByDate[key].push({ title: 'Livraison: ' + (cmd.objet || cmd.numero), displayTitle: 'Livraison: ' + (cmd.objet || cmd.numero), type: 'livraison', color: '#9b59b6', id: 'cmd-' + cmd.id });
   });
 
+  // Build calendar cells for range
   var calendarHtml = '';
-  // Empty cells before first day
-  for (var i = 1; i < startDow; i++) calendarHtml += '<div class="cal-cell cal-empty"></div>';
-  for (var day = 1; day <= daysInMonth; day++) {
-    var dateKey = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  var cursor = new Date(rangeStart);
+  while (cursor <= rangeEnd) {
+    var dateKey = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0') + '-' + String(cursor.getDate()).padStart(2, '0');
     var dayEvents = eventsByDate[dateKey] || [];
-    var isToday = day === now.getDate() && currentMonth === now.getMonth();
+    var isToday = cursor.getDate() === now.getDate() && cursor.getMonth() === now.getMonth() && cursor.getFullYear() === now.getFullYear();
     calendarHtml += '<div class="cal-cell' + (isToday ? ' cal-today' : '') + '" data-date="' + dateKey + '">' +
-      '<div class="cal-day">' + day + '</div>' +
+      '<div class="cal-day">' + cursor.getDate() + '</div>' +
       dayEvents.slice(0, 3).map(function(ev) {
         var timeStr = ev.start_time ? '<span style="font-weight:600">' + ev.start_time.substring(0,5) + '</span> ' : '';
-        return '<div class="cal-event" style="background:' + (ev.color || '#2d6a4f') + '">' + timeStr + ev.title + '</div>';
+        return '<div class="cal-event" data-evid="' + (ev.id || '') + '" style="background:' + (ev.color || '#2d6a4f') + ';cursor:pointer">' + timeStr + escHtml(ev.displayTitle) + '</div>';
       }).join('') +
       (dayEvents.length > 3 ? '<div class="text-muted text-small">+' + (dayEvents.length - 3) + '</div>' : '') +
     '</div>';
+    cursor.setDate(cursor.getDate() + 1);
   }
 
   var typeLabels = { tache: 'Tache', rdv: 'RDV', chantier: 'Chantier', livraison: 'Livraison', autre: 'Autre' };
 
   content.innerHTML = `
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <h3 style="margin:0"><i class="fas fa-calendar-alt"></i> ${monthNames[currentMonth]} ${currentYear}</h3>
+    <div class="toolbar" style="flex-wrap:wrap;gap:8px">
+      <div class="toolbar-left" style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-outline btn-sm" id="btn-plan-prev"><i class="fas fa-chevron-left"></i></button>
+        <h3 style="margin:0;min-width:180px;text-align:center"><i class="fas fa-calendar-alt"></i> ${headerLabel}</h3>
+        <button class="btn btn-outline btn-sm" id="btn-plan-next"><i class="fas fa-chevron-right"></i></button>
+        <button class="btn btn-outline btn-sm" id="btn-plan-today" style="margin-left:6px">Aujourd'hui</button>
       </div>
-      <div class="toolbar-right">
+      <div class="toolbar-right" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <button class="btn btn-sm ${planningView === 'week' ? 'btn-primary' : 'btn-outline'}" data-planview="week" style="border-radius:0;border:none">Semaine</button>
+          <button class="btn btn-sm ${planningView === '2weeks' ? 'btn-primary' : 'btn-outline'}" data-planview="2weeks" style="border-radius:0;border:none">2 semaines</button>
+          <button class="btn btn-sm ${planningView === 'month' ? 'btn-primary' : 'btn-outline'}" data-planview="month" style="border-radius:0;border:none">Mois</button>
+        </div>
         ${gcalIsConnected() ? `
           <button class="btn btn-outline btn-sm" id="btn-gcal-import" title="Importer depuis Google Agenda"><i class="fab fa-google"></i> Importer</button>
           <button class="btn btn-outline btn-sm" id="btn-gcal-sync" title="Synchroniser vers Google Agenda"><i class="fas fa-sync-alt"></i> Sync Google</button>
@@ -5946,10 +5978,11 @@ pages.planning = async function() {
               ${events.map(function(ev) {
                 var c = contactMap[ev.contact_id];
                 var cName = c ? c.first_name + ' ' + c.last_name : '—';
+                var displayTitle = c ? cName : ev.title;
                 var timeInfo = ev.start_time ? ' <strong>' + ev.start_time.substring(0,5) + '</strong>' + (ev.end_time ? '-' + ev.end_time.substring(0,5) : '') : '';
                 return '<tr>' +
                   '<td class="text-small">' + formatDate(ev.start_date) + timeInfo + (ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : '') + '</td>' +
-                  '<td><strong>' + ev.title + '</strong></td>' +
+                  '<td><strong>' + displayTitle + '</strong>' + (c ? ' <span class="text-muted text-small">(' + ev.title + ')</span>' : '') + '</td>' +
                   '<td class="text-small">' + (typeLabels[ev.type] || ev.type) + '</td>' +
                   '<td class="text-small">' + cName + '</td>' +
                   '<td><span style="background:' + (ev.status === 'termine' ? 'var(--success)' : ev.status === 'annule' ? 'var(--danger)' : 'var(--info)') + ';color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem">' + ev.status + '</span></td>' +
@@ -5966,6 +5999,16 @@ pages.planning = async function() {
     </div>
   `;
 
+  // Navigation prev/next/today
+  content.querySelector('#btn-plan-prev').addEventListener('click', function() { planningOffset--; pages.planning(); });
+  content.querySelector('#btn-plan-next').addEventListener('click', function() { planningOffset++; pages.planning(); });
+  content.querySelector('#btn-plan-today').addEventListener('click', function() { planningOffset = 0; pages.planning(); });
+
+  // View switcher
+  content.querySelectorAll('[data-planview]').forEach(function(btn) {
+    btn.addEventListener('click', function() { planningView = btn.dataset.planview; planningOffset = 0; pages.planning(); });
+  });
+
   content.querySelector('#btn-add-event')?.addEventListener('click', function() { planForm(null, contacts); });
   content.querySelector('#btn-gcal-connect')?.addEventListener('click', function() { gcalConnect(); });
   content.querySelector('#btn-gcal-sync')?.addEventListener('click', async function() {
@@ -5979,7 +6022,35 @@ pages.planning = async function() {
     pages.planning();
   });
 
-  // Click on calendar cell to add event
+  // Click on event to show detail popup
+  content.querySelectorAll('.cal-event[data-evid]').forEach(function(evEl) {
+    evEl.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var evId = evEl.dataset.evid;
+      if (!evId || evId.startsWith('cmd-')) return;
+      var ev = events.find(function(x) { return x.id === evId; });
+      if (!ev) return;
+      var c = contactMap[ev.contact_id];
+      var cName = c ? c.first_name + ' ' + c.last_name : '—';
+      var typeLabel = typeLabels[ev.type] || ev.type || '—';
+      openModal(c ? cName : ev.title, `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><strong style="color:var(--text-light);font-size:.78rem">Type</strong><div>${typeLabel}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Statut</strong><div><span style="background:${ev.status === 'termine' ? 'var(--success)' : ev.status === 'annule' ? 'var(--danger)' : 'var(--info)'};color:#fff;padding:2px 10px;border-radius:12px;font-size:0.8rem">${ev.status || 'planifie'}</span></div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Date</strong><div>${formatDate(ev.start_date)}${ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : ''}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Horaire</strong><div>${ev.start_time ? ev.start_time.substring(0,5) : '—'}${ev.end_time ? ' — ' + ev.end_time.substring(0,5) : ''}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Client</strong><div>${escHtml(cName)}</div></div>
+          <div><strong style="color:var(--text-light);font-size:.78rem">Titre evenement</strong><div>${escHtml(ev.title)}</div></div>
+        </div>
+        ${ev.notes ? '<div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:8px"><strong style="color:var(--text-light);font-size:.78rem">Notes</strong><div style="margin-top:4px;white-space:pre-wrap">' + escHtml(ev.notes) + '</div></div>' : ''}
+      `, `
+        <button class="btn btn-outline" onclick="closeModal()">Fermer</button>
+        <button class="btn btn-primary" onclick="closeModal();planEdit('${ev.id}')"><i class="fas fa-pen"></i> Modifier</button>
+      `);
+    });
+  });
+
+  // Double-click on calendar cell to add event
   content.querySelectorAll('.cal-cell[data-date]').forEach(function(cell) {
     cell.addEventListener('dblclick', function() {
       planForm({ start_date: cell.dataset.date }, contacts);
@@ -6928,6 +6999,20 @@ function showApp() {
   document.querySelector('.sidebar').style.display = '';
   document.querySelector('.main').style.display = '';
   navigate('dashboard');
+
+  // Auto-sync Google Calendar at login if connected
+  if (gcalIsConnected()) {
+    setTimeout(async function() {
+      try {
+        var imported = await gcalImportToPlanning();
+        var synced = await gcalSyncAll();
+        var msg = [];
+        if (imported > 0) msg.push(imported + ' importe(s)');
+        if (synced && (synced.created > 0 || synced.updated > 0)) msg.push(synced.created + ' crees, ' + synced.updated + ' mis a jour');
+        if (msg.length > 0) toast('Sync Google Agenda : ' + msg.join(' / '), 'success');
+      } catch(e) { console.error('Auto GCal sync error', e); }
+    }, 1500);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
