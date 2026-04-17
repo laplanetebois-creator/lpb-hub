@@ -6213,6 +6213,15 @@ window.suiviView = async function(contactId) {
           </div>
         </div>
 
+        <!-- Date de chantier -->
+        <div class="deal-sidebar-card">
+          <div class="sc-header"><i class="fas fa-hard-hat"></i> Date de chantier</div>
+          <div class="sc-body" style="padding:12px 16px">
+            <input type="date" id="f-chantier-date" value="${(function(){ var m=(c.notes||'').match(/^chantier_date:\s*(\S+)/m); return m?m[1]:''; })()}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem;background:var(--bg);color:var(--text);cursor:pointer">
+            <div id="chantier-date-display" style="margin-top:8px;font-size:0.8rem;color:var(--text-light);text-align:center"></div>
+          </div>
+        </div>
+
         <!-- Lien vers fiche CRM -->
         ${bestDeal ? `<div class="deal-sidebar-card" style="text-align:center;padding:12px">
           <button onclick="closeDealPopup();dealView('${bestDeal.id}')" class="btn btn-outline btn-sm" style="width:100%"><i class="fas fa-external-link-alt"></i> Voir fiche CRM</button>
@@ -6233,6 +6242,65 @@ window.suiviView = async function(contactId) {
     await dbUpdate('contacts', c.id, { notes: newNotes.trim() });
     c.notes = newNotes.trim();
     toast('Étape client → ' + sc.label + ' ✓');
+  });
+
+  // Date de chantier — save + sync planning
+  var chantierInput = popupBody.querySelector('#f-chantier-date');
+  var chantierDisplay = popupBody.querySelector('#chantier-date-display');
+
+  function updateChantierDisplay(val) {
+    if (!val) { chantierDisplay.textContent = ''; return; }
+    var d = new Date(val + 'T00:00:00');
+    var diff = Math.round((d - new Date()) / 86400000);
+    var label = d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    var diffStr = diff === 0 ? "Aujourd'hui" : diff > 0 ? 'Dans ' + diff + ' jour' + (diff>1?'s':'') : Math.abs(diff) + ' jour' + (Math.abs(diff)>1?'s':'') + ' passé' + (Math.abs(diff)>1?'s':'');
+    chantierDisplay.innerHTML = '<i class="fas fa-calendar-day"></i> ' + label + '<br><span style="color:' + (diff < 0 ? '#e74c3c' : diff <= 7 ? '#e0a030' : 'var(--primary)') + ';font-weight:700">' + diffStr + '</span>';
+  }
+  updateChantierDisplay(chantierInput.value);
+
+  chantierInput.addEventListener('change', async function() {
+    var val = chantierInput.value;
+    // Sauvegarder dans notes contact
+    var newNotes = (c.notes || '').replace(/^chantier_date:.*$/m, '').trim();
+    newNotes = (newNotes || '') + '\nchantier_date: ' + (val || '');
+    await dbUpdate('contacts', c.id, { notes: newNotes.trim() });
+    c.notes = newNotes.trim();
+    updateChantierDisplay(val);
+
+    if (!val) { toast('Date de chantier effacée'); return; }
+
+    // Créer/MAJ événement dans le planning
+    var existingEvents = await dbSelect('planning', { eq: [['contact_id', c.id]] });
+    var chantierEv = existingEvents.find(function(e){ return e.type === 'chantier'; });
+    var evData = {
+      title: 'Chantier — ' + c.first_name + ' ' + c.last_name,
+      type: 'chantier',
+      start_date: val,
+      color: '#2d6a4f',
+      contact_id: c.id,
+      status: 'planifie',
+      notes: (c.city ? c.city + ' ' : '') + (c.postal_code || '')
+    };
+    if (chantierEv) {
+      await dbUpdate('planning', chantierEv.id, evData);
+      // Sync GCal si connecté
+      if (gcalIsConnected()) {
+        var gcalEv = planningToGcalEvent(Object.assign({}, evData, { id: chantierEv.id, gcal_event_id: chantierEv.gcal_event_id }), c);
+        var calId = getGcalCalendarId();
+        if (chantierEv.gcal_event_id) await gcalApi('PUT', '/calendars/'+encodeURIComponent(calId)+'/events/'+chantierEv.gcal_event_id, gcalEv);
+        else { var cr = await gcalApi('POST', '/calendars/'+encodeURIComponent(calId)+'/events', gcalEv); if(cr&&cr.id) await dbUpdate('planning', chantierEv.id, {gcal_event_id:cr.id}); }
+      }
+      toast('📅 Date de chantier mise à jour dans le planning ✓');
+    } else {
+      var inserted = await dbInsert('planning', evData);
+      if (gcalIsConnected() && inserted) {
+        var gcalEv2 = planningToGcalEvent(inserted, c);
+        var calId2 = getGcalCalendarId();
+        var cr2 = await gcalApi('POST', '/calendars/'+encodeURIComponent(calId2)+'/events', gcalEv2);
+        if (cr2 && cr2.id) await dbUpdate('planning', inserted.id, { gcal_event_id: cr2.id });
+      }
+      toast('📅 Chantier ajouté au planning' + (gcalIsConnected() ? ' + Google Agenda ✓' : ' ✓'));
+    }
   });
 
   // Note rapide
