@@ -5550,26 +5550,37 @@ pages['dashboard-devis'] = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  const [devisList, contacts] = await Promise.all([
-    dbSelect('devis', { order: ['created_at', false] }),
+  const [deals, contacts] = await Promise.all([
+    dbSelect('deals', { order: ['created_at', false] }),
     dbSelect('contacts')
   ]);
   const contactMap = {};
   contacts.forEach(c => { contactMap[c.id] = c; });
 
-  const statusColors = { envoye: '#f39c12', refuse: '#e74c3c', accepte: '#27ae60', brouillon: '#95a5a6', expire: '#7f8c8d' };
-  const statusLabels = { envoye: 'Envoyé', refuse: 'Refusé', accepte: 'Accepté (signé)', brouillon: 'Brouillon', expire: 'Expiré' };
+  const statusColors = { envoye: '#f39c12', refuse: '#e74c3c', accepte: '#27ae60', attente: '#3498db', autres: '#95a5a6' };
+  const statusLabels = { envoye: 'Envoyé (devis)', refuse: 'Refusé', accepte: 'Signé (client)', attente: 'En attente', autres: 'Autres étapes' };
 
-  const totalDevis = devisList.length;
-  const sent = devisList.filter(d => d.status === 'envoye');
-  const signed = devisList.filter(d => d.status === 'accepte');
-  const refused = devisList.filter(d => d.status === 'refuse');
-  const signedCount = signed.length;
-  const sumTotal = arr => arr.reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
-  const caSigned = sumTotal(signed);
-  const caPending = sumTotal(sent);
-  const caRefused = sumTotal(refused);
-  const signRate = totalDevis > 0 ? (signedCount / totalDevis * 100) : 0;
+  // Règles métier (mapping pipeline -> "devis")
+  const val = d => parseFloat(d.value) || 0;
+  const sumVal = arr => arr.reduce((s, d) => s + val(d), 0);
+
+  const dealsPending = deals.filter(d => d.stage === 'attente_reponse'); // envoyés en attente
+  const dealsRefused = deals.filter(d => d.stage === 'foireux');         // refusés
+  const signedContacts = contacts.filter(c => c.status === 'client');
+  const signedContactIds = new Set(signedContacts.map(c => c.id));
+  const dealsSigned = deals.filter(d => signedContactIds.has(d.contact_id)); // deals des clients signés
+
+  // Envoyés = leads passés par "attente_reponse" → en attente + déjà signés + refusés
+  const sent = [...dealsPending, ...dealsSigned, ...dealsRefused];
+  const sentCount = sent.length;
+  const signedCount = signedContacts.length;
+  const refusedCount = dealsRefused.length;
+  const totalDevis = sentCount;
+
+  const caSigned = sumVal(dealsSigned);   // Valeur du contrat des clients
+  const caPending = sumVal(dealsPending); // opportunités en attente
+  const caRefused = sumVal(dealsRefused);
+  const signRate = sentCount > 0 ? (signedCount / sentCount * 100) : 0;
   const avgSigned = signedCount > 0 ? caSigned / signedCount : 0;
 
   // Evolution par mois (12 derniers mois) par statut
