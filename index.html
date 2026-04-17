@@ -5565,14 +5565,17 @@ pages['dashboard-devis'] = async function() {
   const sumVal = arr => arr.reduce((s, d) => s + val(d), 0);
 
   const dealsPending = deals.filter(d => d.stage === 'attente_reponse'); // envoyés en attente
-  const dealsRefused = deals.filter(d => d.stage === 'foireux');         // refusés
+  const dealsRefused = deals.filter(d => d.stage === 'perdu');           // refusés (colonne "Perdu")
+  const dealsWon     = deals.filter(d => d.stage === 'gagne');           // gagnés (colonne "Gagné")
   const signedContacts = contacts.filter(c => c.status === 'client');
   const signedContactIds = new Set(signedContacts.map(c => c.id));
-  const dealsSigned = deals.filter(d => signedContactIds.has(d.contact_id)); // deals des clients signés
+  // deals de clients signés, mais pas encore comptés dans pending/refused/won
+  const countedIds = new Set([...dealsPending, ...dealsRefused, ...dealsWon].map(d => d.id));
+  const dealsSignedExtra = deals.filter(d => signedContactIds.has(d.contact_id) && !countedIds.has(d.id));
+  const dealsSigned = [...dealsWon, ...dealsSignedExtra];
 
-  // Envoyés = leads passés par "attente_reponse" → en attente + déjà signés + refusés
-  const sent = [...dealsPending, ...dealsSigned, ...dealsRefused];
-  const sentCount = sent.length;
+  // Envoyés = leads passés par "attente_reponse" → en attente + signés + refusés (sans doublon)
+  const sentCount = dealsPending.length + dealsSigned.length + dealsRefused.length;
   const signedCount = signedContacts.length;
   const refusedCount = dealsRefused.length;
   const totalDevis = sentCount;
