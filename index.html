@@ -5590,35 +5590,25 @@ pages['dashboard-devis'] = async function() {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     months.push({ key: d.toISOString().slice(0, 7), label: d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }) });
   }
+  const bucketMonth = (dateStr) => (dateStr || '').slice(0, 7);
   const seriesByStatus = { envoye: [], refuse: [], accepte: [] };
+  const monthSum = (arr, m) => arr.filter(d => bucketMonth(d.created_at) === m.key).reduce((s, d) => s + val(d), 0);
   months.forEach(m => {
-    Object.keys(seriesByStatus).forEach(st => {
-      const sum = devisList
-        .filter(d => d.status === st && (d.created_at || '').slice(0, 7) === m.key)
-        .reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
-      seriesByStatus[st].push(sum);
-    });
+    seriesByStatus.envoye.push(monthSum(dealsPending, m));
+    seriesByStatus.refuse.push(monthSum(dealsRefused, m));
+    seriesByStatus.accepte.push(monthSum(dealsSigned, m));
   });
-  const totalByStatus = {
-    envoye: seriesByStatus.envoye.reduce((a, b) => a + b, 0),
-    refuse: seriesByStatus.refuse.reduce((a, b) => a + b, 0),
-    accepte: seriesByStatus.accepte.reduce((a, b) => a + b, 0)
-  };
+  const totalByStatus = { envoye: caPending, refuse: caRefused, accepte: caSigned };
 
-  // Répartition (count par statut)
-  const statusKeys = ['envoye', 'refuse', 'accepte', 'brouillon', 'expire'];
-  const countByStatus = statusKeys.map(k => devisList.filter(d => d.status === k).length);
+  // Répartition (count par catégorie "devis")
+  const statusKeys = ['envoye', 'accepte', 'refuse'];
+  const countByStatus = [dealsPending.length, signedCount, refusedCount];
 
-  // Devis signés groupés par client (pour "suivi client")
-  const byClient = {};
-  signed.forEach(d => {
-    const key = d.contact_id || 'unknown';
-    if (!byClient[key]) byClient[key] = { contact: contactMap[d.contact_id], total: 0, count: 0, devis: [] };
-    byClient[key].total += parseFloat(d.total) || 0;
-    byClient[key].count++;
-    byClient[key].devis.push(d);
-  });
-  const clientRows = Object.values(byClient).sort((a, b) => b.total - a.total);
+  // Suivi client — prix des devis signés (par client signé)
+  const clientRows = signedContacts.map(c => {
+    const dls = deals.filter(d => d.contact_id === c.id);
+    return { contact: c, total: dls.reduce((s, d) => s + val(d), 0), count: dls.length, devis: dls };
+  }).filter(r => r.count > 0).sort((a, b) => b.total - a.total);
 
   const kpiCard = (bg, icon, value, label) =>
     '<div class="stat-card" style="background:' + bg + ';color:#fff;border:none">' +
@@ -5702,7 +5692,7 @@ pages['dashboard-devis'] = async function() {
                 const c = r.contact;
                 const name = c ? (c.first_name + ' ' + c.last_name) : '— Client inconnu —';
                 const comp = c && c.company ? c.company : '—';
-                const devisTags = r.devis.map(d => '<span style="background:#e8f5ee;color:#1b4332;padding:2px 8px;border-radius:10px;font-size:.75rem;margin-right:4px">' + d.numero + ' · ' + formatCurrency(d.total) + '</span>').join('');
+                const devisTags = r.devis.map(d => '<span style="background:#e8f5ee;color:#1b4332;padding:2px 8px;border-radius:10px;font-size:.75rem;margin-right:4px">' + (d.title || d.stage || 'deal') + ' · ' + formatCurrency(val(d)) + '</span>').join('');
                 return '<tr>' +
                   '<td><strong>' + name + '</strong></td>' +
                   '<td class="text-muted">' + comp + '</td>' +
