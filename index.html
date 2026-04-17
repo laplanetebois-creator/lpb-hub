@@ -1572,6 +1572,7 @@ a.att-item { position: relative; display: block; }
       <a data-page="devis"><i class="fas fa-file-invoice-dollar"></i> Devis</a>
       <a data-page="dashboard-devis"><i class="fas fa-chart-bar"></i> Dashboard Devis</a>
       <a data-page="suivi"><i class="fas fa-handshake"></i> Suivi client</a>
+      <a data-page="prm"><i class="fas fa-briefcase"></i> PRM Pro</a>
       <a data-page="commandes"><i class="fas fa-box"></i> Commandes</a>
       <a data-page="planning"><i class="fas fa-calendar-alt"></i> Planning</a>
       <a data-page="rapport"><i class="fas fa-clipboard-list"></i> Rapports</a>
@@ -1682,6 +1683,7 @@ a.att-item { position: relative; display: block; }
       <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
       <a data-page="commandes"><i class="fas fa-box"></i>Commandes</a>
       <a data-page="suivi"><i class="fas fa-handshake"></i>Suivi client</a>
+      <a data-page="prm"><i class="fas fa-briefcase"></i>PRM Pro</a>
       <a data-page="rapport"><i class="fas fa-clipboard-list"></i>Rapports</a>
       <a data-page="presentation"><i class="fas fa-desktop"></i>Présentation</a>
       <a data-page="settings"><i class="fas fa-cog"></i>Paramètres</a>
@@ -2374,7 +2376,7 @@ window.navigate = function navigate(page) {
   const titles = {
     dashboard: 'Tableau de bord', crm: 'CRM', 'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
-    devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client',
+    devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client', prm: 'PRM Professionnels',
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
     rapport: 'Rapports'
   };
@@ -3153,6 +3155,7 @@ async function renderPipeline(content) {
 
   const stages = [
     { key: 'nouveaux_leads', label: 'Nouveaux leads', color: '#3498db' },
+    { key: 'foireux', label: 'Leads foireux', color: '#78909c' },
     { key: 'nrp', label: 'NRP', color: '#9b59b6' },
     { key: 'suivi', label: 'Suivi', color: '#1abc9c' },
     { key: 'rdv_sur_place', label: 'RDV sur place', color: '#2ecc71' },
@@ -3160,8 +3163,7 @@ async function renderPipeline(content) {
     { key: 'attente_reponse', label: 'Attente reponse devis', color: '#e67e22' },
     { key: 'r2', label: 'R2', color: '#8e44ad' },
     { key: 'gagne', label: 'Gagne', color: '#2d6a4f' },
-    { key: 'perdu', label: 'Perdu', color: '#e74c3c' },
-    { key: 'foireux', label: 'Leads foireux', color: '#78909c' }
+    { key: 'perdu', label: 'Perdu', color: '#e74c3c' }
   ];
 
   const now = new Date();
@@ -3583,7 +3585,8 @@ async function renderLeadsConsolides(content) {
               var prioCol = PRIO_COLORS[l.priorite] || '#888';
               var statutCol = STATUT_COLORS[l.statut] || '#78909c';
               var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
-              return '<tr>' +
+              var origIdx = allLeads.indexOf(l);
+              return '<tr style="cursor:pointer" onclick="window.prospectView('+origIdx+')" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'\'">' +
                 '<td><span style="background:'+prioCol+';color:#fff;font-size:0.75rem;font-weight:800;padding:2px 8px;border-radius:4px">'+(l.priorite||'—')+'</span></td>' +
                 '<td style="font-weight:700;color:var(--primary);text-align:center">'+(l.score||'—')+'</td>' +
                 '<td style="font-weight:600;max-width:180px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(l.entreprise||'')+'">'+escHtml(l.entreprise||'—')+'</div>'+(l.siret?'<div class="text-small text-muted">SIRET: '+escHtml(l.siret)+'</div>':'')+'</td>' +
@@ -3655,8 +3658,137 @@ async function renderLeadsConsolides(content) {
 
   window._lcPrioFilter = function(p) { filterPrio=p; render(); };
 
+  // Store leads globally for prospectView access
+  window._lcAllLeads = allLeads;
+
   render();
 }
+
+// ============================================
+// PROSPECT FICHE (Leads consolidés popup)
+// ============================================
+window.prospectView = function(idx) {
+  var l = (window._lcAllLeads || [])[idx];
+  if (!l) return;
+  var popup = $('#deal-popup-overlay');
+  var body = $('#deal-popup-body');
+  popup.style.display = 'flex';
+
+  var PRIO_COLORS = { A: '#e53935', B: '#fb8c00', C: '#43a047' };
+  var STATUT_COLORS = { Nouveau: '#3498db', Contacté: '#9b59b6', Qualifié: '#1abc9c', Converti: '#2d6a4f', Perdu: '#e74c3c' };
+  var prioCol = PRIO_COLORS[l.priorite] || '#888';
+  var statutCol = STATUT_COLORS[l.statut] || '#78909c';
+  var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
+
+  body.innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <!-- LEFT -->
+      <div style="flex:1;min-width:280px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div style="width:52px;height:52px;border-radius:50%;background:${prioCol}22;border:2px solid ${prioCol};display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:${prioCol}">
+            ${escHtml(l.priorite||'?')}
+          </div>
+          <div>
+            <div style="font-size:1.1rem;font-weight:700;line-height:1.2">${escHtml(l.entreprise||'—')}</div>
+            ${l.categorie ? '<div style="font-size:0.8rem;color:var(--text-light);margin-top:2px"><i class="fas fa-tag"></i> '+escHtml(l.categorie)+'</div>' : ''}
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+          <div class="panel" style="padding:12px;text-align:center">
+            <div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;font-weight:600">Score</div>
+            <div style="font-size:1.6rem;font-weight:800;color:var(--primary)">${escHtml(String(l.score||'—'))}</div>
+          </div>
+          <div class="panel" style="padding:12px;text-align:center">
+            <div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;font-weight:600">Priorité</div>
+            <span style="background:${prioCol};color:#fff;font-size:1rem;font-weight:800;padding:4px 14px;border-radius:6px;display:inline-block;margin-top:4px">${escHtml(l.priorite||'—')}</span>
+          </div>
+        </div>
+
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-address-book"></i> Coordonnées</div>
+          ${l.contact ? '<div style="margin-bottom:6px"><i class="fas fa-user" style="width:16px;color:var(--text-light)"></i> <strong>'+escHtml(l.contact)+'</strong></div>' : ''}
+          ${l.telephone ? '<div style="margin-bottom:6px"><a href="tel:'+l.telephone.replace(/\s/g,'')+'" style="color:var(--primary)"><i class="fas fa-phone" style="width:16px"></i> '+escHtml(l.telephone)+'</a></div>' : ''}
+          ${l.email ? '<div style="margin-bottom:6px"><a href="mailto:'+escHtml(l.email)+'" style="color:var(--primary)"><i class="fas fa-envelope" style="width:16px"></i> '+escHtml(l.email)+'</a></div>' : ''}
+          ${l.site ? '<div style="margin-bottom:6px"><a href="'+escHtml(l.site)+'" target="_blank" style="color:var(--primary)"><i class="fas fa-globe" style="width:16px"></i> '+escHtml(l.site)+'</a></div>' : ''}
+          ${l.siret ? '<div style="margin-bottom:6px;font-size:0.8rem;color:var(--text-light)"><i class="fas fa-id-card" style="width:16px"></i> SIRET : '+escHtml(l.siret)+'</div>' : ''}
+        </div>
+
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-map-marker-alt"></i> Localisation</div>
+          ${l.ville ? '<div style="margin-bottom:6px"><strong>'+escHtml(l.ville)+'</strong>'+(l.cp?' <span class="text-muted">'+escHtml(l.cp)+'</span>':'')+'</div>' : '<div class="text-muted">—</div>'}
+          ${mapsUrl ? '<a href="'+mapsUrl+'" target="_blank" class="btn btn-sm" style="margin-top:6px;font-size:0.8rem"><i class="fas fa-route"></i> Itinéraire depuis Soissons</a>' : ''}
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div style="flex:1;min-width:260px">
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-info-circle"></i> Statut & Source</div>
+          <div style="margin-bottom:8px">
+            <span style="background:${statutCol}22;color:${statutCol};font-size:0.8rem;font-weight:700;padding:4px 12px;border-radius:6px;border:1px solid ${statutCol}44">${escHtml(l.statut||'—')}</span>
+          </div>
+          ${l.source ? '<div style="font-size:0.82rem;color:var(--text-light)"><i class="fas fa-share-alt"></i> Source : '+escHtml(l.source)+'</div>' : ''}
+          ${l.date_ajout ? '<div style="font-size:0.8rem;color:var(--text-light);margin-top:6px"><i class="fas fa-calendar-plus"></i> Ajouté le : '+escHtml(l.date_ajout)+'</div>' : ''}
+        </div>
+
+        ${l.notes ? `<div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:8px"><i class="fas fa-sticky-note"></i> Notes</div>
+          <div style="font-size:0.85rem;white-space:pre-wrap;line-height:1.5">${escHtml(l.notes)}</div>
+        </div>` : ''}
+
+        <div class="panel" style="padding:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:12px"><i class="fas fa-rocket"></i> Actions</div>
+          <button onclick="window._prospectToPRM(${idx})" class="btn btn-primary" style="width:100%;margin-bottom:8px">
+            <i class="fas fa-briefcase"></i> Ajouter au PRM
+          </button>
+          ${l.telephone ? '<a href="tel:'+l.telephone.replace(/\s/g,'')+'" class="btn" style="width:100%;margin-bottom:8px;display:block;text-align:center"><i class="fas fa-phone"></i> Appeler</a>' : ''}
+          ${l.email ? '<a href="mailto:'+escHtml(l.email)+'" class="btn" style="width:100%;display:block;text-align:center"><i class="fas fa-envelope"></i> Envoyer un email</a>' : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  popup.onclick = function(e) { if (e.target === popup) popup.style.display = 'none'; };
+};
+
+window._prospectToPRM = async function(idx) {
+  var l = (window._lcAllLeads || [])[idx];
+  if (!l) return;
+  try {
+    var nameParts = (l.contact || l.entreprise || 'Inconnu').split(' ');
+    var firstName = nameParts[0] || 'Inconnu';
+    var lastName = nameParts.slice(1).join(' ') || '';
+    var notes = 'prm_stage: a_contacter\nsource_prm: leads_consolide\n'
+      + (l.priorite ? 'priorite: '+l.priorite+'\n' : '')
+      + (l.score ? 'score: '+l.score+'\n' : '')
+      + (l.categorie ? 'categorie: '+l.categorie+'\n' : '')
+      + (l.siret ? 'siret: '+l.siret+'\n' : '')
+      + (l.site ? 'site_web: '+l.site+'\n' : '')
+      + (l.notes ? 'notes_prospects: '+l.notes : '');
+    var payload = {
+      first_name: firstName,
+      last_name: lastName,
+      company: l.entreprise || '',
+      phone: l.telephone || '',
+      email: l.email || '',
+      city: l.ville || '',
+      source: 'prm',
+      status: 'prospect',
+      notes: notes
+    };
+    var res = await dbInsert('contacts', payload);
+    if (res && res[0] && res[0].id) {
+      toast('✅ ' + (l.entreprise || l.contact || 'Prospect') + ' ajouté au PRM !', 'success');
+      $('#deal-popup-overlay').style.display = 'none';
+      navigate('prm');
+    } else {
+      toast('Erreur lors de l\'ajout au PRM', 'error');
+    }
+  } catch(e) {
+    toast('Erreur : ' + e.message, 'error');
+  }
+};
 
 window.dealView = async function(id) {
   var popup = $('#deal-popup-overlay');
@@ -5706,9 +5838,9 @@ pages['dashboard-devis'] = async function() {
   content.innerHTML = `
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
       ${kpiCard('#e67e22', 'fa-file-invoice-dollar', totalDevis, 'Devis total')}
-      ${kpiCard('#f39c12', 'fa-paper-plane', sent.length, 'Envoyés')}
+      ${kpiCard('#f39c12', 'fa-paper-plane', dealsPending.length, 'Envoyés')}
       ${kpiCard('#27ae60', 'fa-file-signature', signedCount, 'Signés')}
-      ${kpiCard('#e74c3c', 'fa-times-circle', refused.length, 'Refusés')}
+      ${kpiCard('#e74c3c', 'fa-times-circle', refusedCount, 'Refusés')}
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
       ${kpiCard('#16a085', 'fa-euro-sign', formatCurrency(caSigned), 'CA signé')}
