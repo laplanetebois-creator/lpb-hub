@@ -5777,7 +5777,7 @@ pages.suivi = async function() {
                 var cDeals = dealsByContact[c.id] || [];
                 var bestDeal = cDeals.sort(function(a,b){ return (parseFloat(b.value)||0)-(parseFloat(a.value)||0); })[0];
                 var srcCol = SRC_COLORS[c.source] || '#78909c';
-                return '<div class="suivi-card" draggable="true" data-contact-id="'+c.id+'" onclick="dealView(\''+( bestDeal ? bestDeal.id : '')+'\');" style="background:var(--card);border-radius:8px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,0.07);cursor:pointer;border-left:3px solid '+srcCol+';transition:box-shadow 0.15s" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.12)\'" onmouseout="this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.07)\'">' +
+                return '<div class="suivi-card" draggable="true" data-contact-id="'+c.id+'" onclick="window.suiviView(\''+c.id+'\')" style="background:var(--card);border-radius:8px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,0.07);cursor:pointer;border-left:3px solid '+srcCol+';transition:box-shadow 0.15s" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.12)\'" onmouseout="this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.07)\'">' +
                   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
                     '<div class="avatar-sm" style="width:30px;height:30px;font-size:0.65rem;flex-shrink:0">'+avatarHtml(c)+'</div>' +
                     '<div style="min-width:0">' +
@@ -5872,6 +5872,159 @@ pages.suivi = async function() {
   };
 
   renderKanban();
+};
+
+// ============================================
+// SUIVI CLIENT — FICHE CLIENT (popup)
+// ============================================
+window.suiviView = async function(contactId) {
+  var popup = $('#deal-popup-overlay');
+  var popupBody = $('#deal-popup-body');
+  var popupTitle = $('#deal-popup-title');
+  popup.style.display = 'flex';
+  popupBody.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var SUIVI_STAGES = [
+    { key: 'nouveaux_clients',  label: 'Nouveaux clients',    color: '#3498db' },
+    { key: 'devis_signe',       label: 'Devis signé',         color: '#2ecc71' },
+    { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030' },
+    { key: 'date_installation', label: "Date d'installation", color: '#9b59b6' },
+    { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c' },
+    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f' }
+  ];
+
+  var [contacts, deals, activities] = await Promise.all([
+    dbSelect('contacts', { eq: [['id', contactId]] }),
+    dbSelect('deals', { order: ['created_at', false] }),
+    dbSelect('activities', { order: ['created_at', false] })
+  ]);
+
+  var c = contacts[0];
+  if (!c) { popupBody.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Client introuvable</h4></div>'; return; }
+
+  var cDeals = deals.filter(function(d){ return d.contact_id === c.id; });
+  var cActivities = activities.filter(function(a){ return a.contact_id === c.id || cDeals.some(function(d){ return d.id === a.deal_id; }); });
+  var bestDeal = cDeals.sort(function(a,b){ return (parseFloat(b.value)||0)-(parseFloat(a.value)||0); })[0];
+
+  function getSuiviStage() {
+    var m = (c.notes || '').match(/^suivi_stage:\s*(\S+)/m);
+    return m ? m[1] : 'nouveaux_clients';
+  }
+  var currentStage = getSuiviStage();
+  var stageConf = SUIVI_STAGES.find(function(s){ return s.key === currentStage; }) || SUIVI_STAGES[0];
+
+  popupTitle.textContent = c.first_name + ' ' + c.last_name;
+
+  popupBody.innerHTML = `
+    <div class="deal-header" style="padding:0 0 12px 0;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <div class="deal-header-left">
+        <div class="deal-avatar" style="background:${stageConf.color}">${avatarHtml(c)}</div>
+        <div>
+          <h2 style="font-size:1.2rem;margin:0">${escHtml(c.first_name + ' ' + c.last_name)}</h2>
+          ${c.company ? '<div style="font-size:0.85rem;color:var(--text-light)">' + escHtml(c.company) + '</div>' : ''}
+          ${c.city ? '<div style="font-size:0.82rem;color:var(--text-light)"><i class="fas fa-map-marker-alt"></i> ' + escHtml(c.city) + '</div>' : ''}
+        </div>
+      </div>
+      <div class="deal-header-actions">
+        ${c.phone ? '<a href="tel:' + c.phone.replace(/\s/g,'') + '" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> Appeler</a>' : ''}
+        ${c.email ? '<a href="mailto:' + c.email + '" class="btn btn-outline btn-sm"><i class="fas fa-envelope"></i> Email</a>' : ''}
+      </div>
+    </div>
+
+    <div class="deal-detail">
+      <div class="deal-detail-main">
+        <!-- Timeline activités -->
+        ${cActivities.length > 0 ? `
+        <div class="deal-timeline">
+          <div class="tl-header"><i class="fas fa-history"></i> Historique (${cActivities.length})</div>
+          <div class="tl-list">
+            ${cActivities.slice(0, 10).map(function(a) {
+              var typeLabel = a.type === 'comment' ? 'Note' : a.type === 'call' ? 'Appel' : a.type === 'email' ? 'Email' : a.type === 'meeting' ? 'RDV' : 'Note';
+              return '<div class="tl-item">' +
+                '<div class="tl-avatar">YC</div>' +
+                '<div class="tl-content">' +
+                  '<div class="tl-meta"><span class="tl-author">Yoann Contal</span><span class="tl-date">' + formatDateTime(a.created_at) + '</span><span class="tl-type activity">' + typeLabel + '</span></div>' +
+                  '<div class="tl-text">' + escHtml(a.notes || a.description || '') + '</div>' +
+                '</div>' +
+              '</div>';
+            }).join('')}
+          </div>
+        </div>` : '<div class="empty-state" style="padding:20px"><i class="fas fa-history"></i><p>Aucune activité</p></div>'}
+
+        <!-- Note rapide -->
+        <div class="quick-note-box" style="margin-top:12px">
+          <div class="qn-header"><i class="fas fa-pen"></i> Ajouter une note</div>
+          <textarea id="suivi-quick-note" placeholder="Note, appel, info..."></textarea>
+          <div class="qn-actions">
+            <select id="suivi-note-type" style="font-size:0.8rem;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--bg);color:var(--text)">
+              <option value="comment">Note</option>
+              <option value="call">Appel</option>
+              <option value="email">Email</option>
+              <option value="meeting">RDV</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="btn-suivi-save-note"><i class="fas fa-check"></i> Enregistrer</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="deal-detail-sidebar">
+        <!-- Étape du client -->
+        <div class="deal-sidebar-card" style="text-align:center;padding:16px">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-light);margin-bottom:8px;font-weight:600"><i class="fas fa-handshake"></i> Étape du client</div>
+          <select id="f-suivi-stage-select" style="width:100%;border:2px solid ${stageConf.color};border-radius:10px;padding:10px 14px;font-size:1rem;font-weight:700;background:${stageConf.color};color:#fff;cursor:pointer;text-align:center;appearance:auto">
+            ${SUIVI_STAGES.map(function(s){ return '<option value="'+s.key+'"'+(currentStage===s.key?' selected':'')+'>'+s.label+'</option>'; }).join('')}
+          </select>
+        </div>
+
+        <!-- Valeur deal -->
+        ${bestDeal && bestDeal.value > 0 ? `
+        <div class="deal-sidebar-card">
+          <div class="deal-value-big">${formatCurrency(bestDeal.value)}<small>Valeur du contrat</small></div>
+        </div>` : ''}
+
+        <!-- Infos contact -->
+        <div class="deal-sidebar-card">
+          <div class="sc-header"><i class="fas fa-info-circle"></i> Contact</div>
+          <div class="sc-body">
+            ${c.phone ? '<div class="sc-row"><span class="sc-label">Téléphone</span><span class="sc-val"><a href="tel:'+c.phone.replace(/\s/g,'')+'">'+escHtml(c.phone)+'</a></span></div>' : ''}
+            ${c.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:'+c.email+'">'+escHtml(c.email)+'</a></span></div>' : ''}
+            ${c.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">'+escHtml(c.city)+'</span></div>' : ''}
+            ${c.source ? '<div class="sc-row"><span class="sc-label">Source</span><span class="sc-val">'+escHtml(c.source)+'</span></div>' : ''}
+          </div>
+        </div>
+
+        <!-- Lien vers fiche CRM -->
+        ${bestDeal ? `<div class="deal-sidebar-card" style="text-align:center;padding:12px">
+          <button onclick="closeDealPopup();dealView('${bestDeal.id}')" class="btn btn-outline btn-sm" style="width:100%"><i class="fas fa-external-link-alt"></i> Voir fiche CRM</button>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+
+  // Changement d'étape
+  var stageSelect = popupBody.querySelector('#f-suivi-stage-select');
+  stageSelect.addEventListener('change', async function() {
+    var newStage = stageSelect.value;
+    var sc = SUIVI_STAGES.find(function(s){ return s.key===newStage; }) || SUIVI_STAGES[0];
+    stageSelect.style.background = sc.color;
+    stageSelect.style.borderColor = sc.color;
+    var newNotes = (c.notes || '').replace(/^suivi_stage:.*$/m, '').trim();
+    newNotes = 'suivi_stage: '+newStage+'\n'+(newNotes||'');
+    await dbUpdate('contacts', c.id, { notes: newNotes.trim() });
+    c.notes = newNotes.trim();
+    toast('Étape client → ' + sc.label + ' ✓');
+  });
+
+  // Note rapide
+  var btnSaveNote = popupBody.querySelector('#btn-suivi-save-note');
+  btnSaveNote.addEventListener('click', async function() {
+    var text = popupBody.querySelector('#suivi-quick-note').value.trim();
+    var type = popupBody.querySelector('#suivi-note-type').value;
+    if (!text) return;
+    await dbInsert('activities', { contact_id: c.id, deal_id: bestDeal ? bestDeal.id : null, type: type, notes: text });
+    toast('Note enregistrée ✓');
+    window.suiviView(c.id);
+  });
 };
 
 // ============================================
