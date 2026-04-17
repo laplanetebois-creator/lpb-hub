@@ -6240,7 +6240,9 @@ pages.suivi = async function() {
     { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030', icon: 'fa-euro-sign' },
     { key: 'date_installation', label: "Date d'installation", color: '#9b59b6', icon: 'fa-calendar-check' },
     { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c', icon: 'fa-box-open' },
-    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f', icon: 'fa-hard-hat' }
+    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f', icon: 'fa-hard-hat' },
+    { key: 'termine_paye',      label: 'Terminé / Payé',      color: '#00897b', icon: 'fa-check-double' },
+    { key: 'avis_google',       label: 'Avis Google validé',  color: '#f4a400', icon: 'fa-star' }
   ];
 
   // Helper: get/set suivi_stage from contact notes
@@ -6412,7 +6414,9 @@ window.suiviView = async function(contactId) {
     { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030' },
     { key: 'date_installation', label: "Date d'installation", color: '#9b59b6' },
     { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c' },
-    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f' }
+    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f' },
+    { key: 'termine_paye',      label: 'Terminé / Payé',      color: '#00897b' },
+    { key: 'avis_google',       label: 'Avis Google validé',  color: '#f4a400' }
   ];
 
   var [contacts, deals, activities] = await Promise.all([
