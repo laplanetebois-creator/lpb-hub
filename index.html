@@ -1732,28 +1732,21 @@ function gcalInit() {
         if (response.access_token) {
           localStorage.setItem('gcal_access_token', response.access_token);
           localStorage.setItem('gcal_token_time', Date.now().toString());
-          toast('Google Agenda connecte ! Synchronisation en cours...');
-          // Auto-sync planning events not yet in GCal
-          dbSelect('planning').then(function(events) {
+          // Sync planning → GCal (nouveaux événements sans gcal_event_id)
+          dbSelect('planning').then(async function(events) {
             var unsynced = events.filter(function(e){ return !e.gcal_event_id; });
-            if (unsynced.length === 0) {
-              toast('Google Agenda connecte !');
-              if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
-              return;
-            }
             var calId = getGcalCalendarId();
-            var done = 0;
-            unsynced.forEach(function(ev) {
-              gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', planningToGcalEvent(ev))
-                .then(function(created) {
-                  if (created && created.id) dbUpdate('planning', ev.id, { gcal_event_id: created.id });
-                  done++;
-                  if (done === unsynced.length) {
-                    toast('Google Agenda connecte ! ' + unsynced.length + ' evenements synchronises 🔄');
-                    if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
-                  }
-                }).catch(function() { done++; });
-            });
+            var created_count = 0;
+            for (var i = 0; i < unsynced.length; i++) {
+              var ev = unsynced[i];
+              try {
+                var created = await gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', planningToGcalEvent(ev));
+                if (created && created.id) { await dbUpdate('planning', ev.id, { gcal_event_id: created.id }); created_count++; }
+              } catch(e2) {}
+            }
+            var msg = created_count > 0 ? '📅 Planning sync : ' + created_count + ' événement(s) envoyé(s) dans Google Agenda ✓' : '📅 Google Agenda connecté — planning à jour';
+            toast(msg, 'success');
+            if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
           });
         } else if (response.error) {
           toast('Erreur Google: ' + response.error, 'error');
@@ -7049,19 +7042,37 @@ function showApp() {
   document.querySelector('.main').style.display = '';
   navigate('dashboard');
 
-  // Auto-sync Google Calendar at login if connected
-  if (gcalIsConnected()) {
-    setTimeout(async function() {
+  // Auto-sync Google Calendar at login
+  // Tente un token silencieux si Client ID configuré, sinon utilise le token existant
+  setTimeout(async function() {
+    var clientId = getGcalClientId();
+    if (!clientId) return; // GCal pas configuré
+
+    async function doSync() {
       try {
-        var imported = await gcalImportToPlanning();
         var synced = await gcalSyncAll();
         var msg = [];
-        if (imported > 0) msg.push(imported + ' importe(s)');
-        if (synced && (synced.created > 0 || synced.updated > 0)) msg.push(synced.created + ' crees, ' + synced.updated + ' mis a jour');
-        if (msg.length > 0) toast('Sync Google Agenda : ' + msg.join(' / '), 'success');
+        if (synced && synced.created > 0) msg.push(synced.created + ' sync(s) vers GCal');
+        if (synced && synced.updated > 0) msg.push(synced.updated + ' mis à jour');
+        if (msg.length > 0) toast('📅 Planning synchronisé : ' + msg.join(', '), 'success');
       } catch(e) { console.error('Auto GCal sync error', e); }
-    }, 1500);
-  }
+    }
+
+    if (gcalIsConnected()) {
+      // Token encore valide → sync direct
+      await doSync();
+    } else {
+      // Token expiré ou absent → demande silencieuse (sans popup)
+      if (!gcalTokenClient) gcalInit();
+      if (gcalTokenClient) {
+        try {
+          gcalTokenClient.requestAccessToken({ prompt: '' });
+          // Le callback dans gcalInit stocke le token et lance le sync auto
+          // On n'a rien d'autre à faire ici
+        } catch(e) { /* ignore si l'utilisateur n'a pas encore autorisé */ }
+      }
+    }
+  }, 1500);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
