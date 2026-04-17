@@ -3826,6 +3826,9 @@ window.dealView = async function(id) {
           <select id="f-deal-stage" style="width:100%;border:2px solid ${stageColor};border-radius:10px;padding:10px 14px;font-size:1.1rem;font-weight:700;background:${stageColor};color:#fff;cursor:pointer;text-align:center;appearance:auto">
             ${Object.entries(stageLabels).map(function(kv) { return '<option value="' + kv[0] + '"' + (d.stage === kv[0] ? ' selected' : '') + '>' + kv[1] + '</option>'; }).join('')}
           </select>
+          <button id="btn-to-client" style="margin-top:10px;width:100%;background:#27ae60;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 0.15s" onmouseover="this.style.background='#1e8449'" onmouseout="this.style.background='#27ae60'">
+            <i class="fas fa-handshake"></i> Convertir en Client
+          </button>
         </div>
 
         <div class="deal-sidebar-card">
@@ -4197,6 +4200,26 @@ window.dealView = async function(id) {
       await dbUpdate('deals', d.id, { stage: newStage });
       toast('Etape mise a jour: ' + stageLabels[newStage]);
       dealView(d.id);
+    });
+  }
+
+  // Convertir en client → Suivi client / Nouveaux clients
+  var btnToClient = popupBody.querySelector('#btn-to-client');
+  if (btnToClient) {
+    btnToClient.addEventListener('click', async function() {
+      if (!contact) { toast('Aucun contact associé à ce lead', 'warning'); return; }
+      btnToClient.disabled = true;
+      btnToClient.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Transfert...';
+      // Marquer deal comme gagné
+      await dbUpdate('deals', d.id, { stage: 'gagne' });
+      // Ajouter suivi_stage dans les notes du contact
+      var currentNotes = contact.notes || '';
+      var newNotes = currentNotes.replace(/^suivi_stage:.*$/m, '').trim();
+      newNotes = 'suivi_stage: nouveaux_clients\n' + (newNotes || '');
+      await dbUpdate('contacts', contact.id, { notes: newNotes.trim(), status: 'client' });
+      toast('✅ ' + escHtml(contact.first_name + ' ' + contact.last_name) + ' converti en client — visible dans Suivi client', 'success');
+      closeDealPopup();
+      pages.suivi();
     });
   }
 
