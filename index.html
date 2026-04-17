@@ -5684,65 +5684,171 @@ pages.suivi = async function() {
   var content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  var [contacts, activities, deals] = await Promise.all([
-    dbSelect('contacts', { order: ['last_name', true] }),
-    dbSelect('activities', { order: ['scheduled_at', false] }),
-    dbSelect('deals')
+  var [contacts, deals] = await Promise.all([
+    dbSelect('contacts', { order: ['created_at', false] }),
+    dbSelect('deals', { order: ['created_at', false] })
   ]);
 
-  var clients = contacts.filter(function(c) { return c.status === 'client' || c.status === 'prospect'; });
+  var SUIVI_STAGES = [
+    { key: 'nouveaux_clients',  label: 'Nouveaux clients',    color: '#3498db', icon: 'fa-user-plus' },
+    { key: 'devis_signe',       label: 'Devis signé',         color: '#2ecc71', icon: 'fa-file-signature' },
+    { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030', icon: 'fa-euro-sign' },
+    { key: 'date_installation', label: "Date d'installation", color: '#9b59b6', icon: 'fa-calendar-check' },
+    { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c', icon: 'fa-box-open' },
+    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f', icon: 'fa-hard-hat' }
+  ];
 
-  content.innerHTML = `
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <span class="text-muted"><i class="fas fa-handshake"></i> ${clients.length} client(s) / prospect(s) a suivre</span>
+  // Helper: get/set suivi_stage from contact notes
+  function getSuiviStage(c) {
+    var m = (c.notes || '').match(/^suivi_stage:\s*(\S+)/m);
+    return m ? m[1] : 'nouveaux_clients';
+  }
+
+  // Deals par contact
+  var dealsByContact = {};
+  deals.forEach(function(d) {
+    if (!d.contact_id) return;
+    if (!dealsByContact[d.contact_id]) dealsByContact[d.contact_id] = [];
+    dealsByContact[d.contact_id].push(d);
+  });
+
+  // Clients = contacts avec suivi_stage OU deal gagné OU status client
+  var clients = contacts.filter(function(c) {
+    var hasStage = /^suivi_stage:/m.test(c.notes || '');
+    var hasWon = (dealsByContact[c.id] || []).some(function(d){ return d.stage === 'gagne'; });
+    return hasStage || hasWon || c.status === 'client';
+  });
+
+  // Source colors
+  var SRC_COLORS = { 'travaux.com':'#2e7d32','helloartisan':'#1976d2','website':'#c62828','facebook':'#e65100' };
+
+  function renderKanban() {
+    var byStage = {};
+    SUIVI_STAGES.forEach(function(s){ byStage[s.key] = []; });
+    clients.forEach(function(c){
+      var st = getSuiviStage(c);
+      if (!byStage[st]) st = 'nouveaux_clients';
+      byStage[st].push(c);
+    });
+
+    content.innerHTML = `
+      <div class="toolbar" style="margin-bottom:12px">
+        <div class="toolbar-left">
+          <span class="text-muted"><i class="fas fa-handshake"></i> <strong>${clients.length}</strong> client(s) en suivi</span>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-primary" id="btn-add-suivi-client"><i class="fas fa-plus"></i> Ajouter un client</button>
+        </div>
       </div>
-      <div class="toolbar-right">
-        <button class="btn btn-primary" id="btn-add-suivi"><i class="fas fa-plus"></i> Nouvelle activite</button>
-      </div>
-    </div>
-    <div class="grid-1">
-      ${clients.length === 0 ? '<div class="empty-state"><i class="fas fa-handshake"></i><h4>Aucun client/prospect</h4><p>Ajoutez des contacts avec le statut client ou prospect dans le CRM.</p></div>' :
-        clients.map(function(c) {
-          var cActivities = activities.filter(function(a) { return a.contact_id === c.id; });
-          var cDeals = deals.filter(function(d) { return d.contact_id === c.id; });
-          var lastActivity = cActivities[0];
-          var pendingCount = cActivities.filter(function(a) { return !a.completed; }).length;
-          return '<div class="panel mb-16">' +
-            '<div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">' +
-              '<h3 style="display:flex;align-items:center;gap:10px"><div class="avatar-sm">' + avatarHtml(c) + '</div> ' + c.first_name + ' ' + c.last_name + (c.company ? ' <span class="text-muted text-small">(' + c.company + ')</span>' : '') + '</h3>' +
-              '<div style="display:flex;gap:8px">' +
-                '<span class="badge-status ' + c.status + '">' + c.status + '</span>' +
-                (pendingCount > 0 ? '<span style="background:var(--warning-light);color:var(--warning);padding:2px 10px;border-radius:12px;font-size:0.75rem">' + pendingCount + ' en attente</span>' : '<span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:0.75rem">A jour</span>') +
-              '</div>' +
+      <div class="pipeline" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;align-items:flex-start">
+        ${SUIVI_STAGES.map(function(st) {
+          var cards = byStage[st.key] || [];
+          return '<div class="pipeline-col" style="min-width:220px;flex:0 0 220px">' +
+            '<div class="pipeline-col-header" style="background:'+st.color+';color:#fff;padding:10px 14px;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px">' +
+              '<i class="fas '+st.icon+'"></i>' +
+              '<span style="font-weight:700;font-size:0.85rem;flex:1">'+escHtml(st.label)+'</span>' +
+              '<span style="background:rgba(255,255,255,0.25);border-radius:12px;padding:1px 8px;font-size:0.75rem;font-weight:700">'+cards.length+'</span>' +
             '</div>' +
-            '<div class="panel-body">' +
-              '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px">' +
-                '<div class="text-small"><i class="fas fa-phone"></i> ' + (c.phone || '—') + '</div>' +
-                '<div class="text-small"><i class="fas fa-envelope"></i> ' + (c.email || '—') + '</div>' +
-                '<div class="text-small"><i class="fas fa-handshake"></i> ' + cDeals.length + ' deal(s)</div>' +
-                '<div class="text-small"><i class="fas fa-clock"></i> Derniere activite: ' + (lastActivity ? formatDate(lastActivity.created_at) : 'Aucune') + '</div>' +
-              '</div>' +
-              (cActivities.length > 0 ? '<div style="border-top:1px solid var(--border);padding-top:10px"><strong class="text-small">Historique recent:</strong>' +
-                cActivities.slice(0, 5).map(function(a) {
-                  var icon = a.type === 'appel' ? 'phone' : a.type === 'email' ? 'envelope' : a.type === 'reunion' ? 'users' : a.type === 'relance' ? 'redo' : 'sticky-note';
-                  return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.82rem' + (a.completed ? ';opacity:0.5;text-decoration:line-through' : '') + '">' +
-                    '<i class="fas fa-' + icon + '" style="width:16px;color:var(--text-light)"></i> ' +
-                    '<span>' + (a.description || a.type) + '</span>' +
-                    '<span class="text-muted text-small" style="margin-left:auto">' + formatDate(a.scheduled_at || a.created_at) + '</span>' +
-                  '</div>';
-                }).join('') +
-              '</div>' : '') +
+            '<div class="suivi-col-body" data-suivi-stage="'+st.key+'" style="background:var(--bg);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:10px;min-height:200px;display:flex;flex-direction:column;gap:8px">' +
+              cards.map(function(c) {
+                var cDeals = dealsByContact[c.id] || [];
+                var bestDeal = cDeals.sort(function(a,b){ return (parseFloat(b.value)||0)-(parseFloat(a.value)||0); })[0];
+                var srcCol = SRC_COLORS[c.source] || '#78909c';
+                return '<div class="suivi-card" draggable="true" data-contact-id="'+c.id+'" onclick="dealView(\''+( bestDeal ? bestDeal.id : '')+'\');" style="background:var(--card);border-radius:8px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,0.07);cursor:pointer;border-left:3px solid '+srcCol+';transition:box-shadow 0.15s" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.12)\'" onmouseout="this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.07)\'">' +
+                  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+                    '<div class="avatar-sm" style="width:30px;height:30px;font-size:0.65rem;flex-shrink:0">'+avatarHtml(c)+'</div>' +
+                    '<div style="min-width:0">' +
+                      '<div style="font-weight:700;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(c.first_name+' '+c.last_name)+'</div>' +
+                      (c.company ? '<div style="font-size:0.72rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(c.company)+'</div>' : '') +
+                    '</div>' +
+                  '</div>' +
+                  (c.phone ? '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:3px"><i class="fas fa-phone" style="width:12px"></i> '+escHtml(c.phone)+'</div>' : '') +
+                  (c.city ? '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:3px"><i class="fas fa-map-marker-alt" style="width:12px"></i> '+escHtml(c.city)+'</div>' : '') +
+                  (bestDeal && bestDeal.value > 0 ? '<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-top:4px">'+formatCurrency(bestDeal.value)+'</div>' : '') +
+                  '<div style="display:flex;justify-content:flex-end;margin-top:6px;gap:4px" onclick="event.stopPropagation()">' +
+                    SUIVI_STAGES.filter(function(s){ return s.key !== st.key; }).map(function(s2) {
+                      return '<button title="→ '+s2.label+'" onclick="window._suiviMove(\''+c.id+'\',\''+s2.key+'\')" style="background:'+s2.color+'22;border:1px solid '+s2.color+'44;color:'+s2.color+';border-radius:4px;padding:1px 5px;font-size:0.6rem;cursor:pointer;white-space:nowrap">'+s2.label.split(' ')[0]+'→</button>';
+                    }).join('') +
+                  '</div>' +
+                '</div>';
+              }).join('') +
             '</div>' +
           '</div>';
-        }).join('')
-      }
-    </div>
-  `;
+        }).join('')}
+      </div>
+    `;
 
-  content.querySelector('#btn-add-suivi')?.addEventListener('click', function() {
-    activityForm(contacts);
-  });
+    // Drag & drop
+    content.querySelectorAll('.suivi-card').forEach(function(card) {
+      card.addEventListener('dragstart', function(e) {
+        e.dataTransfer.setData('text/plain', card.dataset.contactId);
+        card.style.opacity = '0.4';
+      });
+      card.addEventListener('dragend', function() { card.style.opacity = '1'; });
+    });
+    content.querySelectorAll('.suivi-col-body').forEach(function(col) {
+      col.addEventListener('dragover', function(e) { e.preventDefault(); col.style.background = 'var(--primary-light)'; });
+      col.addEventListener('dragleave', function() { col.style.background = 'var(--bg)'; });
+      col.addEventListener('drop', async function(e) {
+        e.preventDefault();
+        col.style.background = 'var(--bg)';
+        var cid = e.dataTransfer.getData('text/plain');
+        await window._suiviMove(cid, col.dataset.suiviStage);
+      });
+    });
+
+    // Ajouter client
+    content.querySelector('#btn-add-suivi-client')?.addEventListener('click', function() {
+      var available = contacts.filter(function(c){ return !clients.find(function(cl){ return cl.id===c.id; }); });
+      openModal('Ajouter un client au suivi', `
+        <div class="form-group">
+          <label>Client</label>
+          <select id="f-suivi-contact" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+            <option value="">— Choisir —</option>
+            ${contacts.map(function(c){ return '<option value="'+c.id+'">'+escHtml(c.first_name+' '+c.last_name+(c.company?' ('+c.company+')':''))+'</option>'; }).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Étape initiale</label>
+          <select id="f-suivi-stage" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+            ${SUIVI_STAGES.map(function(s){ return '<option value="'+s.key+'">'+s.label+'</option>'; }).join('')}
+          </select>
+        </div>
+      `, `
+        <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" id="btn-confirm-suivi">Ajouter</button>
+      `);
+      $('#btn-confirm-suivi').addEventListener('click', async function() {
+        var cid = $('#f-suivi-contact').value;
+        var stage = $('#f-suivi-stage').value;
+        if (!cid) { toast('Choisissez un client', 'warning'); return; }
+        var c = contacts.find(function(x){ return x.id===cid; });
+        if (!c) return;
+        var newNotes = (c.notes || '').replace(/^suivi_stage:.*$/m, '').trim();
+        newNotes = 'suivi_stage: '+stage+'\n'+(newNotes||'');
+        await dbUpdate('contacts', cid, { notes: newNotes.trim(), status: 'client' });
+        c.notes = newNotes.trim(); c.status = 'client';
+        if (!clients.find(function(x){ return x.id===cid; })) clients.push(c);
+        closeModal();
+        renderKanban();
+        toast(escHtml(c.first_name+' '+c.last_name)+' ajouté au suivi ✓');
+      });
+    });
+  }
+
+  window._suiviMove = async function(contactId, newStage) {
+    var c = clients.find(function(x){ return x.id===contactId; });
+    if (!c) return;
+    var newNotes = (c.notes || '').replace(/^suivi_stage:.*$/m, '').trim();
+    newNotes = 'suivi_stage: '+newStage+'\n'+(newNotes||'');
+    await dbUpdate('contacts', contactId, { notes: newNotes.trim() });
+    c.notes = newNotes.trim();
+    renderKanban();
+    var stageName = (SUIVI_STAGES.find(function(s){ return s.key===newStage; })||{}).label||newStage;
+    toast('Déplacé vers "'+stageName+'" ✓');
+  };
+
+  renderKanban();
 };
 
 // ============================================
