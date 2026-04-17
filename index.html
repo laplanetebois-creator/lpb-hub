@@ -3778,7 +3778,7 @@ window._prospectToPRM = async function(idx) {
       notes: notes
     };
     var res = await dbInsert('contacts', payload);
-    if (res && res[0] && res[0].id) {
+    if (res && res.id) {
       toast('✅ ' + (l.entreprise || l.contact || 'Prospect') + ' ajouté au PRM !', 'success');
       $('#deal-popup-overlay').style.display = 'none';
       navigate('prm');
@@ -7868,7 +7868,7 @@ window.prmForm = function() {
       notes: notes
     };
     var res = await dbInsert('contacts', payload);
-    if (res && res[0] && res[0].id) {
+    if (res && res.id) {
       toast('Prospect pro créé !', 'success');
       popup.style.display = 'none';
       pages.prm();
