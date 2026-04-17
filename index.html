@@ -2433,7 +2433,81 @@ pages.dashboard = async function() {
   ga4.forEach(r => { ga4ByDate[r.date] = (ga4ByDate[r.date] || 0) + (r.sessions || 0); });
   const ga4Dates = Object.keys(ga4ByDate).sort().slice(-14);
 
+  // === Tableau Évolution du CA (12 derniers mois) ===
+  const caMonths = [];
+  const _now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const dd = new Date(_now.getFullYear(), _now.getMonth() - i, 1);
+    caMonths.push({ key: dd.toISOString().slice(0, 7), label: dd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) });
+  }
+  const _val = d => parseFloat(d.value) || 0;
+  const _dealsWon = deals.filter(d => d.stage === 'gagne');
+  const _dealsPending = deals.filter(d => d.stage === 'attente_reponse');
+  const _dealsRefused = deals.filter(d => d.stage === 'perdu');
+  const signedContactIdsDash = new Set(contacts.filter(c => c.status === 'client').map(c => c.id));
+  const _countedIds = new Set([..._dealsPending, ..._dealsRefused, ..._dealsWon].map(d => d.id));
+  const _dealsSigned = [..._dealsWon, ...deals.filter(d => signedContactIdsDash.has(d.contact_id) && !_countedIds.has(d.id))];
+  const monthBucket = (arr, key) => arr.filter(d => (d.created_at || '').slice(0, 7) === key).reduce((s, d) => s + _val(d), 0);
+
+  let cumul = 0;
+  const caRows = caMonths.map((m, i) => {
+    const signe = monthBucket(_dealsSigned, m.key);
+    const attente = monthBucket(_dealsPending, m.key);
+    const perdu = monthBucket(_dealsRefused, m.key);
+    cumul += signe;
+    const prevSigne = i > 0 ? monthBucket(_dealsSigned, caMonths[i - 1].key) : 0;
+    const evol = prevSigne > 0 ? ((signe - prevSigne) / prevSigne * 100) : (signe > 0 ? 100 : 0);
+    return { label: m.label, signe, attente, perdu, cumul, evol };
+  });
+  const totalSigne = caRows.reduce((s, r) => s + r.signe, 0);
+  const totalAttente = caRows.reduce((s, r) => s + r.attente, 0);
+  const totalPerdu = caRows.reduce((s, r) => s + r.perdu, 0);
+
   content.innerHTML = `
+    <!-- CA Evolution Table -->
+    <div class="panel" style="margin-bottom:20px;border-top:3px solid #27ae60">
+      <div class="panel-header">
+        <h3><i class="fas fa-euro-sign"></i> Évolution du chiffre d'affaires</h3>
+        <span class="text-muted text-small">12 derniers mois — basé sur le pipeline</span>
+      </div>
+      <div class="panel-body" style="padding:0;overflow-x:auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>Mois</th>
+            <th class="text-right">CA signé</th>
+            <th class="text-right">CA en attente</th>
+            <th class="text-right">CA perdu</th>
+            <th class="text-right">Évolution signé</th>
+            <th class="text-right">CA cumulé</th>
+          </tr></thead>
+          <tbody>
+            ${caRows.map(r => {
+              const evolColor = r.evol > 0 ? '#27ae60' : (r.evol < 0 ? '#e74c3c' : '#7f8c8d');
+              const evolIcon = r.evol > 0 ? 'fa-arrow-up' : (r.evol < 0 ? 'fa-arrow-down' : 'fa-minus');
+              return '<tr>' +
+                '<td><strong>' + r.label + '</strong></td>' +
+                '<td class="text-right" style="color:#27ae60;font-weight:600">' + formatCurrency(r.signe) + '</td>' +
+                '<td class="text-right" style="color:#3498db">' + formatCurrency(r.attente) + '</td>' +
+                '<td class="text-right" style="color:#e74c3c">' + formatCurrency(r.perdu) + '</td>' +
+                '<td class="text-right" style="color:' + evolColor + '"><i class="fas ' + evolIcon + '"></i> ' + (r.signe === 0 && r.evol === 0 ? '—' : r.evol.toFixed(1) + ' %') + '</td>' +
+                '<td class="text-right"><strong>' + formatCurrency(r.cumul) + '</strong></td>' +
+              '</tr>';
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f4f6f9;font-weight:700">
+              <td>Total 12 mois</td>
+              <td class="text-right" style="color:#27ae60">${formatCurrency(totalSigne)}</td>
+              <td class="text-right" style="color:#3498db">${formatCurrency(totalAttente)}</td>
+              <td class="text-right" style="color:#e74c3c">${formatCurrency(totalPerdu)}</td>
+              <td></td>
+              <td class="text-right">${formatCurrency(totalSigne)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
     <!-- KPI Cards -->
     <div class="stats-grid">
       <div class="stat-card">
