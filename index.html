@@ -2471,47 +2471,14 @@ pages.dashboard = async function() {
   } catch (e) { console.error('CA evolution table:', e); }
 
   content.innerHTML = `
-    <!-- CA Evolution Table -->
-    <div class="panel" style="margin-bottom:20px;border-top:3px solid #27ae60">
+    <!-- CA Evolution Chart (lié au CA signé du Dashboard Devis) -->
+    <div class="panel" style="margin-bottom:20px;border-top:3px solid #27ae60;cursor:pointer" onclick="navigate('dashboard-devis')">
       <div class="panel-header">
         <h3><i class="fas fa-euro-sign"></i> Évolution du chiffre d'affaires</h3>
-        <span class="text-muted text-small">12 derniers mois — basé sur le pipeline</span>
+        <span class="text-muted text-small">12 derniers mois · total signé <strong style="color:#27ae60">${formatCurrency(totalSigne)}</strong> · cliquez pour voir le Dashboard Devis</span>
       </div>
-      <div class="panel-body" style="padding:0;overflow-x:auto">
-        <table class="data-table">
-          <thead><tr>
-            <th>Mois</th>
-            <th class="text-right">CA signé</th>
-            <th class="text-right">CA en attente</th>
-            <th class="text-right">CA perdu</th>
-            <th class="text-right">Évolution signé</th>
-            <th class="text-right">CA cumulé</th>
-          </tr></thead>
-          <tbody>
-            ${caRows.map(r => {
-              const evolColor = r.evol > 0 ? '#27ae60' : (r.evol < 0 ? '#e74c3c' : '#7f8c8d');
-              const evolIcon = r.evol > 0 ? 'fa-arrow-up' : (r.evol < 0 ? 'fa-arrow-down' : 'fa-minus');
-              return '<tr>' +
-                '<td><strong>' + r.label + '</strong></td>' +
-                '<td class="text-right" style="color:#27ae60;font-weight:600">' + formatCurrency(r.signe) + '</td>' +
-                '<td class="text-right" style="color:#3498db">' + formatCurrency(r.attente) + '</td>' +
-                '<td class="text-right" style="color:#e74c3c">' + formatCurrency(r.perdu) + '</td>' +
-                '<td class="text-right" style="color:' + evolColor + '"><i class="fas ' + evolIcon + '"></i> ' + (r.signe === 0 && r.evol === 0 ? '—' : r.evol.toFixed(1) + ' %') + '</td>' +
-                '<td class="text-right"><strong>' + formatCurrency(r.cumul) + '</strong></td>' +
-              '</tr>';
-            }).join('')}
-          </tbody>
-          <tfoot>
-            <tr style="background:#f4f6f9;font-weight:700">
-              <td>Total 12 mois</td>
-              <td class="text-right" style="color:#27ae60">${formatCurrency(totalSigne)}</td>
-              <td class="text-right" style="color:#3498db">${formatCurrency(totalAttente)}</td>
-              <td class="text-right" style="color:#e74c3c">${formatCurrency(totalPerdu)}</td>
-              <td></td>
-              <td class="text-right">${formatCurrency(totalSigne)}</td>
-            </tr>
-          </tfoot>
-        </table>
+      <div class="panel-body">
+        <div style="position:relative;height:300px"><canvas id="chart-ca-evolution"></canvas></div>
       </div>
     </div>
 
@@ -2605,6 +2572,27 @@ pages.dashboard = async function() {
         </div>
       </div>`;
     }).join('');
+  }
+
+  // Chart CA evolution (courbe — lié au CA signé du Dashboard Devis)
+  const caEvoCanvas = document.getElementById('chart-ca-evolution');
+  if (caEvoCanvas && caRows.length) {
+    new Chart(caEvoCanvas, {
+      type: 'line',
+      data: {
+        labels: caRows.map(r => r.label),
+        datasets: [
+          { label: 'CA signé', data: caRows.map(r => r.signe), borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,.15)', tension: .4, fill: true, borderWidth: 3, pointRadius: 4, pointBackgroundColor: '#27ae60' },
+          { label: 'CA cumulé', data: caRows.map(r => r.cumul), borderColor: '#2d6a4f', borderDash: [6,4], tension: .4, fill: false, borderWidth: 2, pointRadius: 3 },
+          { label: 'CA en attente', data: caRows.map(r => r.attente), borderColor: '#3498db', tension: .4, fill: false, borderWidth: 2, pointRadius: 3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + formatCurrency(ctx.parsed.y) } } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+      }
+    });
   }
 
   // Charts
@@ -5852,7 +5840,7 @@ pages['dashboard-devis'] = async function() {
     <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:20px">
       <div class="panel">
         <div class="panel-header"><h3>Évolution des devis</h3><span class="text-muted text-small">12 derniers mois</span></div>
-        <div class="panel-body"><canvas id="chart-devis-evolution" height="110"></canvas>
+        <div class="panel-body"><div style="position:relative;height:280px"><canvas id="chart-devis-evolution"></canvas></div>
           <div style="display:flex;gap:24px;margin-top:14px;flex-wrap:wrap">
             <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f39c12;margin-right:6px"></span><strong>Envoyé</strong> · ${formatCurrency(totalByStatus.envoye)}</div>
             <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e74c3c;margin-right:6px"></span><strong>Refusé</strong> · ${formatCurrency(totalByStatus.refuse)}</div>
@@ -5862,7 +5850,7 @@ pages['dashboard-devis'] = async function() {
       </div>
       <div class="panel">
         <div class="panel-header"><h3>Répartition des devis</h3></div>
-        <div class="panel-body"><canvas id="chart-devis-repartition" height="180"></canvas></div>
+        <div class="panel-body"><div style="position:relative;height:280px"><canvas id="chart-devis-repartition"></canvas></div></div>
       </div>
     </div>
 
@@ -5886,7 +5874,7 @@ pages['dashboard-devis'] = async function() {
             <div style="font-size:1.5rem;font-weight:700;color:#922b21">${formatCurrency(caRefused)}</div>
           </div>
         </div>
-        <canvas id="chart-devis-ca" height="100"></canvas>
+        <div style="position:relative;height:260px"><canvas id="chart-devis-ca"></canvas></div>
       </div>
     </div>
 
