@@ -5957,6 +5957,10 @@ pages.planning = async function() {
     eventsByDate[key].push({ title: 'Livraison: ' + (cmd.objet || cmd.numero), displayTitle: 'Livraison: ' + (cmd.objet || cmd.numero), type: 'livraison', color: '#9b59b6', id: 'cmd-' + cmd.id });
   });
 
+  // Calcul du nombre de lignes (semaines) dans la vue
+  var totalDays = Math.round((rangeEnd - rangeStart) / 86400000) + 1;
+  var numRows = Math.ceil(totalDays / 7);
+
   // Build calendar cells for range
   var calendarHtml = '';
   var cursor = new Date(rangeStart);
@@ -6002,7 +6006,7 @@ pages.planning = async function() {
       </div>
     </div>
     <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;box-shadow:var(--shadow)">
-      <div class="cal-grid" style="height:calc(100vh - var(--topbar-h) - 180px);grid-template-rows: 44px repeat(auto-fill, 1fr)">
+      <div class="cal-grid" style="height:calc(100vh - var(--topbar-h) - 160px);grid-template-rows:44px repeat(${numRows}, 1fr)">
         <div class="cal-header">Lun</div><div class="cal-header">Mar</div><div class="cal-header">Mer</div>
         <div class="cal-header">Jeu</div><div class="cal-header">Ven</div><div class="cal-header">Sam</div><div class="cal-header">Dim</div>
         ${calendarHtml}
