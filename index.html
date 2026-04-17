@@ -2434,34 +2434,39 @@ pages.dashboard = async function() {
   const ga4Dates = Object.keys(ga4ByDate).sort().slice(-14);
 
   // === Tableau Évolution du CA (12 derniers mois) ===
-  const caMonths = [];
-  const _now = new Date();
-  for (let i = 11; i >= 0; i--) {
-    const dd = new Date(_now.getFullYear(), _now.getMonth() - i, 1);
-    caMonths.push({ key: dd.toISOString().slice(0, 7), label: dd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) });
-  }
-  const _val = d => parseFloat(d.value) || 0;
-  const _dealsWon = deals.filter(d => d.stage === 'gagne');
-  const _dealsPending = deals.filter(d => d.stage === 'attente_reponse');
-  const _dealsRefused = deals.filter(d => d.stage === 'perdu');
-  const signedContactIdsDash = new Set(contacts.filter(c => c.status === 'client').map(c => c.id));
-  const _countedIds = new Set([..._dealsPending, ..._dealsRefused, ..._dealsWon].map(d => d.id));
-  const _dealsSigned = [..._dealsWon, ...deals.filter(d => signedContactIdsDash.has(d.contact_id) && !_countedIds.has(d.id))];
-  const monthBucket = (arr, key) => arr.filter(d => (d.created_at || '').slice(0, 7) === key).reduce((s, d) => s + _val(d), 0);
+  let caRows = [], totalSigne = 0, totalAttente = 0, totalPerdu = 0;
+  try {
+    const caMonths = [];
+    const _now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const dd = new Date(_now.getFullYear(), _now.getMonth() - i, 1);
+      caMonths.push({ key: dd.toISOString().slice(0, 7), label: dd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) });
+    }
+    const _val = d => parseFloat(d && d.value) || 0;
+    const _deals = Array.isArray(deals) ? deals : [];
+    const _contacts = Array.isArray(contacts) ? contacts : [];
+    const _dealsWon = _deals.filter(d => d && d.stage === 'gagne');
+    const _dealsPending = _deals.filter(d => d && d.stage === 'attente_reponse');
+    const _dealsRefused = _deals.filter(d => d && d.stage === 'perdu');
+    const signedContactIdsDash = new Set(_contacts.filter(c => c && c.status === 'client').map(c => c.id));
+    const _countedIds = new Set([..._dealsPending, ..._dealsRefused, ..._dealsWon].map(d => d.id));
+    const _dealsSigned = [..._dealsWon, ..._deals.filter(d => d && signedContactIdsDash.has(d.contact_id) && !_countedIds.has(d.id))];
+    const monthBucket = (arr, key) => arr.filter(d => (d.created_at || '').slice(0, 7) === key).reduce((s, d) => s + _val(d), 0);
 
-  let cumul = 0;
-  const caRows = caMonths.map((m, i) => {
-    const signe = monthBucket(_dealsSigned, m.key);
-    const attente = monthBucket(_dealsPending, m.key);
-    const perdu = monthBucket(_dealsRefused, m.key);
-    cumul += signe;
-    const prevSigne = i > 0 ? monthBucket(_dealsSigned, caMonths[i - 1].key) : 0;
-    const evol = prevSigne > 0 ? ((signe - prevSigne) / prevSigne * 100) : (signe > 0 ? 100 : 0);
-    return { label: m.label, signe, attente, perdu, cumul, evol };
-  });
-  const totalSigne = caRows.reduce((s, r) => s + r.signe, 0);
-  const totalAttente = caRows.reduce((s, r) => s + r.attente, 0);
-  const totalPerdu = caRows.reduce((s, r) => s + r.perdu, 0);
+    let cumul = 0;
+    caRows = caMonths.map((m, i) => {
+      const signe = monthBucket(_dealsSigned, m.key);
+      const attente = monthBucket(_dealsPending, m.key);
+      const perdu = monthBucket(_dealsRefused, m.key);
+      cumul += signe;
+      const prevSigne = i > 0 ? monthBucket(_dealsSigned, caMonths[i - 1].key) : 0;
+      const evol = prevSigne > 0 ? ((signe - prevSigne) / prevSigne * 100) : (signe > 0 ? 100 : 0);
+      return { label: m.label, signe, attente, perdu, cumul, evol };
+    });
+    totalSigne = caRows.reduce((s, r) => s + r.signe, 0);
+    totalAttente = caRows.reduce((s, r) => s + r.attente, 0);
+    totalPerdu = caRows.reduce((s, r) => s + r.perdu, 0);
+  } catch (e) { console.error('CA evolution table:', e); }
 
   content.innerHTML = `
     <!-- CA Evolution Table -->
