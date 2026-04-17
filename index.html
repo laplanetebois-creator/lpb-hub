@@ -1647,6 +1647,47 @@ a.att-item { position: relative; display: block; }
     </div>
   </div>
 
+  <!-- EMAIL COMPOSE OVERLAY -->
+  <div class="modal-overlay" id="email-compose-overlay" style="display:none;z-index:9999">
+    <div class="modal" style="max-width:620px;width:95%">
+      <div class="modal-header">
+        <h3><i class="fas fa-paper-plane" style="color:var(--primary)"></i> Nouveau message</h3>
+        <button class="modal-close" onclick="document.getElementById('email-compose-overlay').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:20px">
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-user"></i> De</label>
+          <div style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-alt);font-size:0.9rem;color:var(--text-light)">laplanetebois.creator@gmail.com</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-envelope"></i> À</label>
+          <input id="ec-to" type="email" class="form-control" placeholder="destinataire@email.com">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-tag"></i> Objet</label>
+          <input id="ec-subject" type="text" class="form-control" placeholder="Objet du message...">
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-align-left"></i> Message</label>
+          <textarea id="ec-body" rows="8" class="form-control" placeholder="Votre message..." style="resize:vertical;font-family:inherit"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="ec-send-btn" class="btn btn-primary" style="flex:1;min-width:180px">
+            <i class="fas fa-paper-plane"></i> Ouvrir dans Gmail
+          </button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;color:var(--text-light)">
+            <input type="checkbox" id="ec-log-activity" checked style="cursor:pointer">
+            Enregistrer comme activité
+          </label>
+        </div>
+        <div style="margin-top:12px;padding:10px;background:var(--bg-alt);border-radius:6px;font-size:0.78rem;color:var(--text-light);display:flex;align-items:center;gap:8px">
+          <i class="fab fa-google" style="color:#EA4335"></i>
+          Gmail s'ouvrira dans un nouvel onglet avec le message pré-rempli. Connectez-vous avec <strong style="color:var(--text)">laplanetebois.creator@gmail.com</strong> si ce n'est pas déjà fait.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- LOGIN SCREEN -->
   <div class="login-overlay" id="login-overlay">
     <div class="login-box">
@@ -2289,6 +2330,67 @@ function autoSyncWindsor() {
     syncAllWindsor(true);
   }
 }
+
+// ============================================
+// EMAIL COMPOSE
+// ============================================
+window.emailCompose = function(to, contactName, dealId, contactId) {
+  var overlay = document.getElementById('email-compose-overlay');
+  if (!overlay) return;
+
+  // Pre-fill fields
+  var toInput = document.getElementById('ec-to');
+  var subjectInput = document.getElementById('ec-subject');
+  var bodyInput = document.getElementById('ec-body');
+  var sendBtn = document.getElementById('ec-send-btn');
+  var logCheck = document.getElementById('ec-log-activity');
+
+  if (toInput) toInput.value = to || '';
+  if (subjectInput) subjectInput.value = contactName ? 'La Planète Bois — ' + contactName : 'La Planète Bois';
+  if (bodyInput) bodyInput.value = (contactName ? 'Bonjour ' + contactName.split(' ')[0] + ',\n\n' : 'Bonjour,\n\n') + '\n\nCordialement,\nL\'équipe La Planète Bois\n+33 3 23 53 17 78\nwww.laplanetebois.fr';
+
+  overlay.style.display = 'flex';
+
+  // Remove old listeners
+  var newBtn = sendBtn.cloneNode(true);
+  sendBtn.parentNode.replaceChild(newBtn, sendBtn);
+
+  newBtn.addEventListener('click', async function() {
+    var toVal = document.getElementById('ec-to').value.trim();
+    var subject = document.getElementById('ec-subject').value.trim();
+    var body = document.getElementById('ec-body').value.trim();
+    var doLog = document.getElementById('ec-log-activity').checked;
+
+    if (!toVal) { toast('Veuillez saisir un destinataire', 'error'); return; }
+
+    // Open Gmail compose
+    var gmailUrl = 'https://mail.google.com/mail/?authuser=laplanetebois.creator%40gmail.com&view=cm&fs=1'
+      + '&to=' + encodeURIComponent(toVal)
+      + '&su=' + encodeURIComponent(subject)
+      + '&body=' + encodeURIComponent(body);
+    window.open(gmailUrl, '_blank');
+
+    // Log as activity
+    if (doLog && (dealId || contactId)) {
+      var note = '📧 Email envoyé à ' + toVal + '\nObjet : ' + subject;
+      await dbInsert('activities', {
+        deal_id: dealId || null,
+        contact_id: contactId || null,
+        type: 'email',
+        notes: note,
+        created_at: new Date().toISOString()
+      });
+      toast('Email ouvert dans Gmail + activité enregistrée', 'success');
+    } else {
+      toast('Gmail ouvert', 'success');
+    }
+
+    overlay.style.display = 'none';
+  });
+
+  // Close on overlay click
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.style.display = 'none'; };
+};
 
 // ============================================
 // ROUTER
@@ -3730,7 +3832,7 @@ window.prospectView = function(idx) {
             <i class="fas fa-briefcase"></i> Ajouter au PRM
           </button>
           ${l.telephone ? '<a href="tel:'+l.telephone.replace(/\s/g,'')+'" class="btn" style="width:100%;margin-bottom:8px;display:block;text-align:center"><i class="fas fa-phone"></i> Appeler</a>' : ''}
-          ${l.email ? '<a href="mailto:'+escHtml(l.email)+'" class="btn" style="width:100%;display:block;text-align:center"><i class="fas fa-envelope"></i> Envoyer un email</a>' : ''}
+          ${l.email ? '<button onclick="window.emailCompose(\''+l.email.replace(/'/g,"\\'")+'\',\''+(l.contact||l.entreprise||'').replace(/'/g,"\\'")+'\',null,null)" class="btn" style="width:100%;"><i class="fas fa-envelope"></i> Envoyer un email</button>' : ''}
         </div>
       </div>
     </div>
@@ -3981,7 +4083,7 @@ window.dealView = async function(id) {
       </div>
       <div class="deal-header-actions">
         ${phone ? '<a href="tel:' + phone.replace(/\s/g, '') + '" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> Appeler</a>' : ''}
-        ${email ? '<a href="mailto:' + email + '" class="btn btn-outline btn-sm"><i class="fas fa-envelope"></i> Email</a>' : ''}
+        ${email ? '<button class="btn btn-outline btn-sm" onclick="window.emailCompose(\'' + email + '\',\'' + contactName.replace(/'/g,"\\'") + '\',\'' + d.id + '\',\'' + (d.contact_id||'') + '\')"><i class="fas fa-envelope"></i> Email</button>' : ''}
         <button class="btn btn-primary btn-sm" onclick="dealEditFromView('${d.id}')"><i class="fas fa-pen"></i> Modifier</button>
       </div>
     </div>
@@ -4110,7 +4212,7 @@ window.dealView = async function(id) {
             ${contact ? `
               <div class="sc-row"><span class="sc-label">Nom</span><span class="sc-val">${escHtml(contact.first_name + ' ' + contact.last_name)}</span></div>
               ${contact.company ? '<div class="sc-row"><span class="sc-label">Societe</span><span class="sc-val">' + escHtml(contact.company) + '</span></div>' : ''}
-              ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:' + contact.email + '">' + escHtml(contact.email) + '</a></span></div>' : ''}
+              ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="javascript:void(0)" onclick="window.emailCompose(\''+contact.email.replace(/'/g,"\\'")+'\',\''+(contact.first_name+' '+contact.last_name).replace(/'/g,"\\'")+'\',\''+d.id+'\',\''+contact.id+'\')" style="color:var(--primary)">' + escHtml(contact.email) + ' <i class="fas fa-paper-plane" style="font-size:0.7rem"></i></a></span></div>' : ''}
               ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '" class="deal-phone-call" data-phone="' + escHtml(contact.phone) + '"><i class="fas fa-phone"></i> ' + escHtml(contact.phone) + '</a></span></div>' : ''}
               ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + (contact.postal_code ? ' <span style="color:var(--text-light);font-size:0.8em">(' + escHtml(contact.postal_code) + ')</span>' : '') + '</span></div>' : ''}
               ${contact.city ? '<div class="sc-row"><span class="sc-label">Distance</span><span class="sc-val"><a href="https://www.google.com/maps/dir/Soissons,02200/' + encodeURIComponent((contact.city || '') + (contact.postal_code ? ' ' + contact.postal_code : '')) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem" id="dist-maps-link"><i class="fas fa-route"></i> <span id="dist-info"><i class="fas fa-spinner fa-spin" style="font-size:0.7rem"></i> calcul...</span></a></span></div>' : ''}
@@ -6347,7 +6449,7 @@ window.suiviView = async function(contactId) {
       </div>
       <div class="deal-header-actions">
         ${c.phone ? '<a href="tel:' + c.phone.replace(/\s/g,'') + '" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> Appeler</a>' : ''}
-        ${c.email ? '<a href="mailto:' + c.email + '" class="btn btn-outline btn-sm"><i class="fas fa-envelope"></i> Email</a>' : ''}
+        ${c.email ? '<button class="btn btn-outline btn-sm" onclick="window.emailCompose(\'' + c.email + '\',\'' + (c.first_name+' '+c.last_name).replace(/'/g,"\\'") + '\',null,\'' + c.id + '\')"><i class="fas fa-envelope"></i> Email</button>' : ''}
       </div>
     </div>
 
@@ -6407,7 +6509,7 @@ window.suiviView = async function(contactId) {
           <div class="sc-header"><i class="fas fa-info-circle"></i> Contact</div>
           <div class="sc-body">
             ${c.phone ? '<div class="sc-row"><span class="sc-label">Téléphone</span><span class="sc-val"><a href="tel:'+c.phone.replace(/\s/g,'')+'">'+escHtml(c.phone)+'</a></span></div>' : ''}
-            ${c.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:'+c.email+'">'+escHtml(c.email)+'</a></span></div>' : ''}
+            ${c.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="javascript:void(0)" onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" style="color:var(--primary)">'+escHtml(c.email)+' <i class="fas fa-paper-plane" style="font-size:0.7rem"></i></a></span></div>' : ''}
             ${c.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">'+escHtml(c.city)+'</span></div>' : ''}
             ${c.source ? '<div class="sc-row"><span class="sc-label">Source</span><span class="sc-val">'+escHtml(c.source)+'</span></div>' : ''}
           </div>
@@ -7803,6 +7905,11 @@ window.prmView = async function(contactId) {
           '<textarea id="prm-notes-txt" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical">' + escHtml(c.notes||'') + '</textarea>' +
           '<button id="prm-save-notes" class="btn btn-primary" style="width:100%;margin-top:8px"><i class="fas fa-save"></i> Sauvegarder</button>' +
         '</div>' +
+
+        (c.email ?
+          '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+            '<button onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.company||c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" class="btn btn-primary" style="width:100%"><i class="fas fa-envelope"></i> Envoyer un email</button>' +
+          '</div>' : '') +
 
         '<div class="panel" style="padding:14px">' +
           '<button onclick="window._prmDelete(\'' + c.id + '\')" class="btn" style="width:100%;color:#e74c3c;border-color:#e74c3c"><i class="fas fa-trash"></i> Supprimer du PRM</button>' +
