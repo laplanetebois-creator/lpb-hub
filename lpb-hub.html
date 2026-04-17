@@ -888,14 +888,14 @@ a:hover { text-decoration: underline; }
    CALENDAR / PLANNING
    ============================================ */
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.cal-header { background: var(--sidebar-bg); color: #fff; padding: 10px; text-align: center; font-weight: 600; font-size: 0.82rem; }
-.cal-cell { background: var(--card); min-height: 120px; padding: 8px; cursor: pointer; transition: background 0.15s; }
+.cal-header { background: var(--sidebar-bg); color: #fff; padding: 12px 8px; text-align: center; font-weight: 600; font-size: 0.85rem; }
+.cal-cell { background: var(--card); min-height: 0; padding: 10px 8px; cursor: pointer; transition: background 0.15s; align-content: start; }
 .cal-cell:hover { background: var(--primary-light); }
 .cal-cell.cal-empty { background: var(--bg); cursor: default; }
 .cal-cell.cal-today { background: #eef6ff; }
 .cal-cell.cal-today .cal-day { background: var(--primary); color: #fff; }
-.cal-day { font-size: 0.78rem; font-weight: 700; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin-bottom: 4px; }
-.cal-event { font-size: 0.68rem; color: #fff; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-day { font-size: 0.82rem; font-weight: 700; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin-bottom: 6px; }
+.cal-event { font-size: 0.72rem; color: #fff; padding: 3px 7px; border-radius: 4px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ============================================
    RESPONSIVE
@@ -1080,17 +1080,72 @@ a:hover { text-decoration: underline; }
   /* Deal cards: touch-friendly */
   .deal-card { padding: 12px; }
   .deal-card h4 { font-size: 0.85rem; }
+
+  /* Force all inline stats-grid with 3 cols to 2 cols on mobile */
+  .stats-grid[style*="1fr 1fr 1fr"] { grid-template-columns: 1fr 1fr !important; }
+
+  /* Date bar: wrap properly on small screens */
+  .date-bar { flex-wrap: wrap; }
+  .date-bar label { font-size: 0.75rem; white-space: nowrap; }
+  .date-bar .date-range { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .date-bar input[type="date"] { max-width: 130px; }
+
+  /* Charts: ensure readable height */
+  .chart-container, [style*="height:300px"], [style*="height: 300px"] {
+    min-height: 200px !important;
+    max-height: 260px !important;
+  }
+
+  /* CRM table: hide email column on small mobile, show on tap */
+  .data-table td:nth-child(3), .data-table th:nth-child(3) {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Activity feed items: tighter */
+  .activity-item { padding: 10px 12px; }
+  .activity-item .activity-text { font-size: 0.82rem; line-height: 1.4; }
+
+  /* Panel improvements */
+  .panel { border-radius: 10px; margin-bottom: 14px; }
+  .panel-header { border-radius: 10px 10px 0 0; }
+
+  /* Tabs on mobile: scrollable */
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; gap: 0; }
+  .tabs a, .tabs button { white-space: nowrap; flex-shrink: 0; padding: 10px 14px; font-size: 0.8rem; }
+
+  /* Calendar: compact on mobile */
+  .cal-cell { min-height: 50px; padding: 4px; }
+  .cal-event { font-size: 0.6rem; padding: 1px 4px; }
+
+  /* Scrollable content area */
+  .main { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* ============================================
    VERY SMALL SCREENS — max 340px
    ============================================ */
 @media (max-width: 340px) {
-  .stats-grid { grid-template-columns: 1fr; }
+  .stats-grid, .stats-grid[style*="1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
   .stat-card { flex-direction: row; align-items: center; }
   .pipeline-col { min-width: 90vw; }
   .bottom-nav a { font-size: 0.58rem; }
   .bottom-nav a i { font-size: 1rem; }
+  .date-bar input[type="date"] { max-width: 110px; font-size: 0.75rem; }
+  .topbar-left h2 { font-size: 0.9rem; }
+  .filter-group button { font-size: 0.65rem; padding: 6px 4px; }
+}
+
+/* ============================================
+   MEDIUM PHONES — 341-480px
+   ============================================ */
+@media (min-width: 341px) and (max-width: 480px) {
+  .stats-grid { gap: 8px; }
+  .stat-card { padding: 12px 10px; }
+  .stat-info h3 { font-size: 1.1rem; }
+  .bottom-more-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
 }
 
 /* ============================================
@@ -1509,12 +1564,14 @@ a.att-item { position: relative; display: block; }
       <div class="section-label">Principal</div>
       <a data-page="dashboard" class="active"><i class="fas fa-chart-pie"></i> Tableau de bord</a>
       <a data-page="crm"><i class="fas fa-users"></i> CRM</a>
+      <a data-page="prm"><i class="fas fa-briefcase"></i> PRM Pro</a>
       <a data-page="google-ads"><i class="fab fa-google"></i> Google Ads</a>
       <a data-page="fb-ads"><i class="fab fa-facebook"></i> FB Ads</a>
       <a data-page="seo"><i class="fas fa-search"></i> SEO</a>
       <a data-page="analytics"><i class="fas fa-chart-line"></i> Analytics</a>
       <a data-page="gbp"><i class="fab fa-google"></i> Google Business</a>
       <a data-page="devis"><i class="fas fa-file-invoice-dollar"></i> Devis</a>
+      <a data-page="dashboard-devis"><i class="fas fa-chart-bar"></i> Dashboard Devis</a>
       <a data-page="suivi"><i class="fas fa-handshake"></i> Suivi client</a>
       <a data-page="commandes"><i class="fas fa-box"></i> Commandes</a>
       <a data-page="planning"><i class="fas fa-calendar-alt"></i> Planning</a>
@@ -1590,6 +1647,47 @@ a.att-item { position: relative; display: block; }
     </div>
   </div>
 
+  <!-- EMAIL COMPOSE OVERLAY -->
+  <div class="modal-overlay" id="email-compose-overlay" style="display:none;z-index:9999">
+    <div class="modal" style="max-width:620px;width:95%">
+      <div class="modal-header">
+        <h3><i class="fas fa-paper-plane" style="color:var(--primary)"></i> Nouveau message</h3>
+        <button class="modal-close" onclick="document.getElementById('email-compose-overlay').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:20px">
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-user"></i> De</label>
+          <div style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-alt);font-size:0.9rem;color:var(--text-light)">laplanetebois.creator@gmail.com</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-envelope"></i> À</label>
+          <input id="ec-to" type="email" class="form-control" placeholder="destinataire@email.com">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-tag"></i> Objet</label>
+          <input id="ec-subject" type="text" class="form-control" placeholder="Objet du message...">
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text-light)"><i class="fas fa-align-left"></i> Message</label>
+          <textarea id="ec-body" rows="8" class="form-control" placeholder="Votre message..." style="resize:vertical;font-family:inherit"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="ec-send-btn" class="btn btn-primary" style="flex:1;min-width:180px">
+            <i class="fas fa-paper-plane"></i> Ouvrir dans Gmail
+          </button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;color:var(--text-light)">
+            <input type="checkbox" id="ec-log-activity" checked style="cursor:pointer">
+            Enregistrer comme activité
+          </label>
+        </div>
+        <div style="margin-top:12px;padding:10px;background:var(--bg-alt);border-radius:6px;font-size:0.78rem;color:var(--text-light);display:flex;align-items:center;gap:8px">
+          <i class="fab fa-google" style="color:#EA4335"></i>
+          Gmail s'ouvrira dans un nouvel onglet avec le message pré-rempli. Connectez-vous avec <strong style="color:var(--text)">laplanetebois.creator@gmail.com</strong> si ce n'est pas déjà fait.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- LOGIN SCREEN -->
   <div class="login-overlay" id="login-overlay">
     <div class="login-box">
@@ -1626,6 +1724,7 @@ a.att-item { position: relative; display: block; }
       <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
       <a data-page="commandes"><i class="fas fa-box"></i>Commandes</a>
       <a data-page="suivi"><i class="fas fa-handshake"></i>Suivi client</a>
+      <a data-page="prm"><i class="fas fa-briefcase"></i>PRM Pro</a>
       <a data-page="rapport"><i class="fas fa-clipboard-list"></i>Rapports</a>
       <a data-page="presentation"><i class="fas fa-desktop"></i>Présentation</a>
       <a data-page="settings"><i class="fas fa-cog"></i>Paramètres</a>
@@ -1677,28 +1776,21 @@ function gcalInit() {
         if (response.access_token) {
           localStorage.setItem('gcal_access_token', response.access_token);
           localStorage.setItem('gcal_token_time', Date.now().toString());
-          toast('Google Agenda connecte ! Synchronisation en cours...');
-          // Auto-sync planning events not yet in GCal
-          dbSelect('planning').then(function(events) {
+          // Sync planning → GCal (nouveaux événements sans gcal_event_id)
+          dbSelect('planning').then(async function(events) {
             var unsynced = events.filter(function(e){ return !e.gcal_event_id; });
-            if (unsynced.length === 0) {
-              toast('Google Agenda connecte !');
-              if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
-              return;
-            }
             var calId = getGcalCalendarId();
-            var done = 0;
-            unsynced.forEach(function(ev) {
-              gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', planningToGcalEvent(ev))
-                .then(function(created) {
-                  if (created && created.id) dbUpdate('planning', ev.id, { gcal_event_id: created.id });
-                  done++;
-                  if (done === unsynced.length) {
-                    toast('Google Agenda connecte ! ' + unsynced.length + ' evenements synchronises 🔄');
-                    if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
-                  }
-                }).catch(function() { done++; });
-            });
+            var created_count = 0;
+            for (var i = 0; i < unsynced.length; i++) {
+              var ev = unsynced[i];
+              try {
+                var created = await gcalApi('POST', '/calendars/' + encodeURIComponent(calId) + '/events', planningToGcalEvent(ev));
+                if (created && created.id) { await dbUpdate('planning', ev.id, { gcal_event_id: created.id }); created_count++; }
+              } catch(e2) {}
+            }
+            var msg = created_count > 0 ? '📅 Planning sync : ' + created_count + ' événement(s) envoyé(s) dans Google Agenda ✓' : '📅 Google Agenda connecté — planning à jour';
+            toast(msg, 'success');
+            if (typeof pages !== 'undefined' && currentPage === 'planning') pages.planning();
           });
         } else if (response.error) {
           toast('Erreur Google: ' + response.error, 'error');
@@ -2240,6 +2332,67 @@ function autoSyncWindsor() {
 }
 
 // ============================================
+// EMAIL COMPOSE
+// ============================================
+window.emailCompose = function(to, contactName, dealId, contactId) {
+  var overlay = document.getElementById('email-compose-overlay');
+  if (!overlay) return;
+
+  // Pre-fill fields
+  var toInput = document.getElementById('ec-to');
+  var subjectInput = document.getElementById('ec-subject');
+  var bodyInput = document.getElementById('ec-body');
+  var sendBtn = document.getElementById('ec-send-btn');
+  var logCheck = document.getElementById('ec-log-activity');
+
+  if (toInput) toInput.value = to || '';
+  if (subjectInput) subjectInput.value = contactName ? 'La Planète Bois — ' + contactName : 'La Planète Bois';
+  if (bodyInput) bodyInput.value = (contactName ? 'Bonjour ' + contactName.split(' ')[0] + ',\n\n' : 'Bonjour,\n\n') + '\n\nCordialement,\nL\'équipe La Planète Bois\n+33 3 23 53 17 78\nwww.laplanetebois.fr';
+
+  overlay.style.display = 'flex';
+
+  // Remove old listeners
+  var newBtn = sendBtn.cloneNode(true);
+  sendBtn.parentNode.replaceChild(newBtn, sendBtn);
+
+  newBtn.addEventListener('click', async function() {
+    var toVal = document.getElementById('ec-to').value.trim();
+    var subject = document.getElementById('ec-subject').value.trim();
+    var body = document.getElementById('ec-body').value.trim();
+    var doLog = document.getElementById('ec-log-activity').checked;
+
+    if (!toVal) { toast('Veuillez saisir un destinataire', 'error'); return; }
+
+    // Open Gmail compose
+    var gmailUrl = 'https://mail.google.com/mail/?authuser=laplanetebois.creator%40gmail.com&view=cm&fs=1'
+      + '&to=' + encodeURIComponent(toVal)
+      + '&su=' + encodeURIComponent(subject)
+      + '&body=' + encodeURIComponent(body);
+    window.open(gmailUrl, '_blank');
+
+    // Log as activity
+    if (doLog && (dealId || contactId)) {
+      var note = '📧 Email envoyé à ' + toVal + '\nObjet : ' + subject;
+      await dbInsert('activities', {
+        deal_id: dealId || null,
+        contact_id: contactId || null,
+        type: 'email',
+        notes: note,
+        created_at: new Date().toISOString()
+      });
+      toast('Email ouvert dans Gmail + activité enregistrée', 'success');
+    } else {
+      toast('Gmail ouvert', 'success');
+    }
+
+    overlay.style.display = 'none';
+  });
+
+  // Close on overlay click
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.style.display = 'none'; };
+};
+
+// ============================================
 // ROUTER
 // ============================================
 var pages = {};
@@ -2325,7 +2478,7 @@ window.navigate = function navigate(page) {
   const titles = {
     dashboard: 'Tableau de bord', crm: 'CRM', 'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
-    devis: 'Devis', suivi: 'Suivi client',
+    devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client', prm: 'PRM Professionnels',
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
     rapport: 'Rapports'
   };
@@ -2384,7 +2537,55 @@ pages.dashboard = async function() {
   ga4.forEach(r => { ga4ByDate[r.date] = (ga4ByDate[r.date] || 0) + (r.sessions || 0); });
   const ga4Dates = Object.keys(ga4ByDate).sort().slice(-14);
 
+  // === Tableau Évolution du CA (12 derniers mois) ===
+  let caRows = [], totalSigne = 0, totalAttente = 0, totalPerdu = 0;
+  try {
+    const caMonths = [];
+    const _now = new Date();
+    const _monthKey = (y, mo) => y + '-' + String(mo + 1).padStart(2, '0');
+    let _y = 2026, _m = 3; // avril 2026
+    while (_y < _now.getFullYear() || (_y === _now.getFullYear() && _m <= _now.getMonth())) {
+      caMonths.push({ key: _monthKey(_y, _m), label: new Date(_y, _m, 15).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) });
+      _m++; if (_m > 11) { _m = 0; _y++; }
+    }
+    const _val = d => parseFloat(d && d.value) || 0;
+    const _deals = Array.isArray(deals) ? deals : [];
+    const _contacts = Array.isArray(contacts) ? contacts : [];
+    const _dealsWon = _deals.filter(d => d && d.stage === 'gagne');
+    const _dealsPending = _deals.filter(d => d && d.stage === 'attente_reponse');
+    const _dealsRefused = _deals.filter(d => d && d.stage === 'perdu');
+    const signedContactIdsDash = new Set(_contacts.filter(c => c && c.status === 'client').map(c => c.id));
+    const _countedIds = new Set([..._dealsPending, ..._dealsRefused, ..._dealsWon].map(d => d.id));
+    const _dealsSigned = [..._dealsWon, ..._deals.filter(d => d && signedContactIdsDash.has(d.contact_id) && !_countedIds.has(d.id))];
+    const monthBucket = (arr, key) => arr.filter(d => (d.created_at || '').slice(0, 7) === key).reduce((s, d) => s + _val(d), 0);
+
+    let cumul = 0;
+    caRows = caMonths.map((m, i) => {
+      const signe = monthBucket(_dealsSigned, m.key);
+      const attente = monthBucket(_dealsPending, m.key);
+      const perdu = monthBucket(_dealsRefused, m.key);
+      cumul += signe;
+      const prevSigne = i > 0 ? monthBucket(_dealsSigned, caMonths[i - 1].key) : 0;
+      const evol = prevSigne > 0 ? ((signe - prevSigne) / prevSigne * 100) : (signe > 0 ? 100 : 0);
+      return { label: m.label, signe, attente, perdu, cumul, evol };
+    });
+    totalSigne = caRows.reduce((s, r) => s + r.signe, 0);
+    totalAttente = caRows.reduce((s, r) => s + r.attente, 0);
+    totalPerdu = caRows.reduce((s, r) => s + r.perdu, 0);
+  } catch (e) { console.error('CA evolution table:', e); }
+
   content.innerHTML = `
+    <!-- CA Evolution Chart (lié au CA signé du Dashboard Devis) -->
+    <div class="panel" style="margin-bottom:20px;border-top:3px solid #27ae60;cursor:pointer" onclick="navigate('dashboard-devis')">
+      <div class="panel-header">
+        <h3><i class="fas fa-euro-sign"></i> Évolution du chiffre d'affaires</h3>
+        <span class="text-muted text-small">depuis avril 2026 · total signé <strong style="color:#27ae60">${formatCurrency(totalSigne)}</strong> · cliquez pour voir le Dashboard Devis</span>
+      </div>
+      <div class="panel-body">
+        <div style="position:relative;height:300px"><canvas id="chart-ca-evolution"></canvas></div>
+      </div>
+    </div>
+
     <!-- KPI Cards -->
     <div class="stats-grid">
       <div class="stat-card">
@@ -2477,6 +2678,27 @@ pages.dashboard = async function() {
     }).join('');
   }
 
+  // Chart CA evolution (courbe — lié au CA signé du Dashboard Devis)
+  const caEvoCanvas = document.getElementById('chart-ca-evolution');
+  if (caEvoCanvas && caRows.length) {
+    new Chart(caEvoCanvas, {
+      type: 'line',
+      data: {
+        labels: caRows.map(r => r.label),
+        datasets: [
+          { label: 'CA signé', data: caRows.map(r => r.signe), borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,.15)', tension: .4, fill: true, borderWidth: 3, pointRadius: 4, pointBackgroundColor: '#27ae60' },
+          { label: 'CA cumulé', data: caRows.map(r => r.cumul), borderColor: '#2d6a4f', borderDash: [6,4], tension: .4, fill: false, borderWidth: 2, pointRadius: 3 },
+          { label: 'CA en attente', data: caRows.map(r => r.attente), borderColor: '#3498db', tension: .4, fill: false, borderWidth: 2, pointRadius: 3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + formatCurrency(ctx.parsed.y) } } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+      }
+    });
+  }
+
   // Charts
   if (document.getElementById('chart-pipeline')) {
     new Chart($('#chart-pipeline'), {
@@ -2532,7 +2754,6 @@ pages.crm = async function(subTab) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   if (subTab === 'pipeline') { return renderPipeline(content); }
-  if (subTab === 'consolide') { return renderLeadsConsolides(content); }
 
   let contacts = await dbSelect('contacts', { order: ['created_at', false] });
   let filterStatus = 'all';
@@ -2560,7 +2781,6 @@ pages.crm = async function(subTab) {
       <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
         <button class="tab-btn active" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-users"></i> Contacts</button>
         <button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>
-        <button class="tab-btn" data-crm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
       </div>
     ` + `
       <div class="toolbar">
@@ -3025,6 +3245,7 @@ async function renderPipeline(content) {
 
   const stages = [
     { key: 'nouveaux_leads', label: 'Nouveaux leads', color: '#3498db' },
+    { key: 'foireux', label: 'Leads foireux', color: '#78909c' },
     { key: 'nrp', label: 'NRP', color: '#9b59b6' },
     { key: 'suivi', label: 'Suivi', color: '#1abc9c' },
     { key: 'rdv_sur_place', label: 'RDV sur place', color: '#2ecc71' },
@@ -3032,8 +3253,7 @@ async function renderPipeline(content) {
     { key: 'attente_reponse', label: 'Attente reponse devis', color: '#e67e22' },
     { key: 'r2', label: 'R2', color: '#8e44ad' },
     { key: 'gagne', label: 'Gagne', color: '#2d6a4f' },
-    { key: 'perdu', label: 'Perdu', color: '#e74c3c' },
-    { key: 'foireux', label: 'Leads foireux', color: '#78909c' }
+    { key: 'perdu', label: 'Perdu', color: '#e74c3c' }
   ];
 
   const now = new Date();
@@ -3042,7 +3262,6 @@ async function renderPipeline(content) {
     <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
       <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
       <button class="tab-btn active" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-stream"></i> Pipeline</button>
-      <button class="tab-btn" data-crm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
     </div>
     <div class="toolbar">
       <div class="toolbar-left">
@@ -3333,7 +3552,8 @@ window._deleteActivity = async function(actId, dealId) {
 // ============================================================
 // LEADS CONSOLIDÉS (leads_CONSOLIDE.xlsx → leads_consolide.json)
 // ============================================================
-async function renderLeadsConsolides(content) {
+async function renderLeadsConsolides(content, context) {
+  context = context || 'prm';
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   var allLeads;
@@ -3390,9 +3610,8 @@ async function renderLeadsConsolides(content) {
 
     content.innerHTML = `
       <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
-        <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
-        <button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>
-        <button class="tab-btn active" data-crm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
+        <button class="tab-btn" data-prm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline PRM</button>
+        <button class="tab-btn active" data-prm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-layer-group"></i> Leads consolidés</button>
       </div>
 
       <!-- Stats priorité -->
@@ -3455,7 +3674,8 @@ async function renderLeadsConsolides(content) {
               var prioCol = PRIO_COLORS[l.priorite] || '#888';
               var statutCol = STATUT_COLORS[l.statut] || '#78909c';
               var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
-              return '<tr>' +
+              var origIdx = allLeads.indexOf(l);
+              return '<tr style="cursor:pointer" onclick="window.prospectView('+origIdx+')" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'\'">' +
                 '<td><span style="background:'+prioCol+';color:#fff;font-size:0.75rem;font-weight:800;padding:2px 8px;border-radius:4px">'+(l.priorite||'—')+'</span></td>' +
                 '<td style="font-weight:700;color:var(--primary);text-align:center">'+(l.score||'—')+'</td>' +
                 '<td style="font-weight:600;max-width:180px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(l.entreprise||'')+'">'+escHtml(l.entreprise||'—')+'</div>'+(l.siret?'<div class="text-small text-muted">SIRET: '+escHtml(l.siret)+'</div>':'')+'</td>' +
@@ -3474,9 +3694,9 @@ async function renderLeadsConsolides(content) {
       </div></div>
     `;
 
-    // Tab navigation
-    content.querySelectorAll('[data-crm-tab]').forEach(function(btn){
-      btn.addEventListener('click', function(){ pages.crm(btn.dataset.crmTab); });
+    // Tab navigation (PRM)
+    content.querySelectorAll('[data-prm-tab]').forEach(function(btn){
+      btn.addEventListener('click', function(){ pages.prm(btn.dataset.prmTab); });
     });
 
     // Filters
@@ -3527,8 +3747,137 @@ async function renderLeadsConsolides(content) {
 
   window._lcPrioFilter = function(p) { filterPrio=p; render(); };
 
+  // Store leads globally for prospectView access
+  window._lcAllLeads = allLeads;
+
   render();
 }
+
+// ============================================
+// PROSPECT FICHE (Leads consolidés popup)
+// ============================================
+window.prospectView = function(idx) {
+  var l = (window._lcAllLeads || [])[idx];
+  if (!l) return;
+  var popup = $('#deal-popup-overlay');
+  var body = $('#deal-popup-body');
+  popup.style.display = 'flex';
+
+  var PRIO_COLORS = { A: '#e53935', B: '#fb8c00', C: '#43a047' };
+  var STATUT_COLORS = { Nouveau: '#3498db', Contacté: '#9b59b6', Qualifié: '#1abc9c', Converti: '#2d6a4f', Perdu: '#e74c3c' };
+  var prioCol = PRIO_COLORS[l.priorite] || '#888';
+  var statutCol = STATUT_COLORS[l.statut] || '#78909c';
+  var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
+
+  body.innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <!-- LEFT -->
+      <div style="flex:1;min-width:280px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div style="width:52px;height:52px;border-radius:50%;background:${prioCol}22;border:2px solid ${prioCol};display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:${prioCol}">
+            ${escHtml(l.priorite||'?')}
+          </div>
+          <div>
+            <div style="font-size:1.1rem;font-weight:700;line-height:1.2">${escHtml(l.entreprise||'—')}</div>
+            ${l.categorie ? '<div style="font-size:0.8rem;color:var(--text-light);margin-top:2px"><i class="fas fa-tag"></i> '+escHtml(l.categorie)+'</div>' : ''}
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+          <div class="panel" style="padding:12px;text-align:center">
+            <div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;font-weight:600">Score</div>
+            <div style="font-size:1.6rem;font-weight:800;color:var(--primary)">${escHtml(String(l.score||'—'))}</div>
+          </div>
+          <div class="panel" style="padding:12px;text-align:center">
+            <div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;font-weight:600">Priorité</div>
+            <span style="background:${prioCol};color:#fff;font-size:1rem;font-weight:800;padding:4px 14px;border-radius:6px;display:inline-block;margin-top:4px">${escHtml(l.priorite||'—')}</span>
+          </div>
+        </div>
+
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-address-book"></i> Coordonnées</div>
+          ${l.contact ? '<div style="margin-bottom:6px"><i class="fas fa-user" style="width:16px;color:var(--text-light)"></i> <strong>'+escHtml(l.contact)+'</strong></div>' : ''}
+          ${l.telephone ? '<div style="margin-bottom:6px"><a href="tel:'+l.telephone.replace(/\s/g,'')+'" style="color:var(--primary)"><i class="fas fa-phone" style="width:16px"></i> '+escHtml(l.telephone)+'</a></div>' : ''}
+          ${l.email ? '<div style="margin-bottom:6px"><a href="mailto:'+escHtml(l.email)+'" style="color:var(--primary)"><i class="fas fa-envelope" style="width:16px"></i> '+escHtml(l.email)+'</a></div>' : ''}
+          ${l.site ? '<div style="margin-bottom:6px"><a href="'+escHtml(l.site)+'" target="_blank" style="color:var(--primary)"><i class="fas fa-globe" style="width:16px"></i> '+escHtml(l.site)+'</a></div>' : ''}
+          ${l.siret ? '<div style="margin-bottom:6px;font-size:0.8rem;color:var(--text-light)"><i class="fas fa-id-card" style="width:16px"></i> SIRET : '+escHtml(l.siret)+'</div>' : ''}
+        </div>
+
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-map-marker-alt"></i> Localisation</div>
+          ${l.ville ? '<div style="margin-bottom:6px"><strong>'+escHtml(l.ville)+'</strong>'+(l.cp?' <span class="text-muted">'+escHtml(l.cp)+'</span>':'')+'</div>' : '<div class="text-muted">—</div>'}
+          ${mapsUrl ? '<a href="'+mapsUrl+'" target="_blank" class="btn btn-sm" style="margin-top:6px;font-size:0.8rem"><i class="fas fa-route"></i> Itinéraire depuis Soissons</a>' : ''}
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div style="flex:1;min-width:260px">
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-info-circle"></i> Statut & Source</div>
+          <div style="margin-bottom:8px">
+            <span style="background:${statutCol}22;color:${statutCol};font-size:0.8rem;font-weight:700;padding:4px 12px;border-radius:6px;border:1px solid ${statutCol}44">${escHtml(l.statut||'—')}</span>
+          </div>
+          ${l.source ? '<div style="font-size:0.82rem;color:var(--text-light)"><i class="fas fa-share-alt"></i> Source : '+escHtml(l.source)+'</div>' : ''}
+          ${l.date_ajout ? '<div style="font-size:0.8rem;color:var(--text-light);margin-top:6px"><i class="fas fa-calendar-plus"></i> Ajouté le : '+escHtml(l.date_ajout)+'</div>' : ''}
+        </div>
+
+        ${l.notes ? `<div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:8px"><i class="fas fa-sticky-note"></i> Notes</div>
+          <div style="font-size:0.85rem;white-space:pre-wrap;line-height:1.5">${escHtml(l.notes)}</div>
+        </div>` : ''}
+
+        <div class="panel" style="padding:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:12px"><i class="fas fa-rocket"></i> Actions</div>
+          <button onclick="window._prospectToPRM(${idx})" class="btn btn-primary" style="width:100%;margin-bottom:8px">
+            <i class="fas fa-briefcase"></i> Ajouter au PRM
+          </button>
+          ${l.telephone ? '<a href="tel:'+l.telephone.replace(/\s/g,'')+'" class="btn" style="width:100%;margin-bottom:8px;display:block;text-align:center"><i class="fas fa-phone"></i> Appeler</a>' : ''}
+          ${l.email ? '<button onclick="window.emailCompose(\''+l.email.replace(/'/g,"\\'")+'\',\''+(l.contact||l.entreprise||'').replace(/'/g,"\\'")+'\',null,null)" class="btn" style="width:100%;"><i class="fas fa-envelope"></i> Envoyer un email</button>' : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  popup.onclick = function(e) { if (e.target === popup) popup.style.display = 'none'; };
+};
+
+window._prospectToPRM = async function(idx) {
+  var l = (window._lcAllLeads || [])[idx];
+  if (!l) return;
+  try {
+    var nameParts = (l.contact || l.entreprise || 'Inconnu').split(' ');
+    var firstName = nameParts[0] || 'Inconnu';
+    var lastName = nameParts.slice(1).join(' ') || '';
+    var notes = 'prm_stage: a_contacter\nsource_prm: leads_consolide\n'
+      + (l.priorite ? 'priorite: '+l.priorite+'\n' : '')
+      + (l.score ? 'score: '+l.score+'\n' : '')
+      + (l.categorie ? 'categorie: '+l.categorie+'\n' : '')
+      + (l.siret ? 'siret: '+l.siret+'\n' : '')
+      + (l.site ? 'site_web: '+l.site+'\n' : '')
+      + (l.notes ? 'notes_prospects: '+l.notes : '');
+    var payload = {
+      first_name: firstName,
+      last_name: lastName,
+      company: l.entreprise || '',
+      phone: l.telephone || '',
+      email: l.email || '',
+      city: l.ville || '',
+      source: 'prm',
+      status: 'prospect',
+      notes: notes
+    };
+    var res = await dbInsert('contacts', payload);
+    if (res && res.id) {
+      toast('✅ ' + (l.entreprise || l.contact || 'Prospect') + ' ajouté au PRM !', 'success');
+      $('#deal-popup-overlay').style.display = 'none';
+      navigate('prm');
+    } else {
+      toast('Erreur lors de l\'ajout au PRM', 'error');
+    }
+  } catch(e) {
+    toast('Erreur : ' + e.message, 'error');
+  }
+};
 
 window.dealView = async function(id) {
   var popup = $('#deal-popup-overlay');
@@ -3734,7 +4083,7 @@ window.dealView = async function(id) {
       </div>
       <div class="deal-header-actions">
         ${phone ? '<a href="tel:' + phone.replace(/\s/g, '') + '" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> Appeler</a>' : ''}
-        ${email ? '<a href="mailto:' + email + '" class="btn btn-outline btn-sm"><i class="fas fa-envelope"></i> Email</a>' : ''}
+        ${email ? '<button class="btn btn-outline btn-sm" onclick="window.emailCompose(\'' + email + '\',\'' + contactName.replace(/'/g,"\\'") + '\',\'' + d.id + '\',\'' + (d.contact_id||'') + '\')"><i class="fas fa-envelope"></i> Email</button>' : ''}
         <button class="btn btn-primary btn-sm" onclick="dealEditFromView('${d.id}')"><i class="fas fa-pen"></i> Modifier</button>
       </div>
     </div>
@@ -3778,6 +4127,9 @@ window.dealView = async function(id) {
           <select id="f-deal-stage" style="width:100%;border:2px solid ${stageColor};border-radius:10px;padding:10px 14px;font-size:1.1rem;font-weight:700;background:${stageColor};color:#fff;cursor:pointer;text-align:center;appearance:auto">
             ${Object.entries(stageLabels).map(function(kv) { return '<option value="' + kv[0] + '"' + (d.stage === kv[0] ? ' selected' : '') + '>' + kv[1] + '</option>'; }).join('')}
           </select>
+          <button id="btn-to-client" style="margin-top:10px;width:100%;background:#27ae60;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 0.15s" onmouseover="this.style.background='#1e8449'" onmouseout="this.style.background='#27ae60'">
+            <i class="fas fa-handshake"></i> Convertir en Client
+          </button>
         </div>
 
         <div class="deal-sidebar-card">
@@ -3860,7 +4212,7 @@ window.dealView = async function(id) {
             ${contact ? `
               <div class="sc-row"><span class="sc-label">Nom</span><span class="sc-val">${escHtml(contact.first_name + ' ' + contact.last_name)}</span></div>
               ${contact.company ? '<div class="sc-row"><span class="sc-label">Societe</span><span class="sc-val">' + escHtml(contact.company) + '</span></div>' : ''}
-              ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="mailto:' + contact.email + '">' + escHtml(contact.email) + '</a></span></div>' : ''}
+              ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="javascript:void(0)" onclick="window.emailCompose(\''+contact.email.replace(/'/g,"\\'")+'\',\''+(contact.first_name+' '+contact.last_name).replace(/'/g,"\\'")+'\',\''+d.id+'\',\''+contact.id+'\')" style="color:var(--primary)">' + escHtml(contact.email) + ' <i class="fas fa-paper-plane" style="font-size:0.7rem"></i></a></span></div>' : ''}
               ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '" class="deal-phone-call" data-phone="' + escHtml(contact.phone) + '"><i class="fas fa-phone"></i> ' + escHtml(contact.phone) + '</a></span></div>' : ''}
               ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + (contact.postal_code ? ' <span style="color:var(--text-light);font-size:0.8em">(' + escHtml(contact.postal_code) + ')</span>' : '') + '</span></div>' : ''}
               ${contact.city ? '<div class="sc-row"><span class="sc-label">Distance</span><span class="sc-val"><a href="https://www.google.com/maps/dir/Soissons,02200/' + encodeURIComponent((contact.city || '') + (contact.postal_code ? ' ' + contact.postal_code : '')) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem" id="dist-maps-link"><i class="fas fa-route"></i> <span id="dist-info"><i class="fas fa-spinner fa-spin" style="font-size:0.7rem"></i> calcul...</span></a></span></div>' : ''}
@@ -4152,6 +4504,26 @@ window.dealView = async function(id) {
     });
   }
 
+  // Convertir en client → Suivi client / Nouveaux clients
+  var btnToClient = popupBody.querySelector('#btn-to-client');
+  if (btnToClient) {
+    btnToClient.addEventListener('click', async function() {
+      if (!contact) { toast('Aucun contact associé à ce lead', 'warning'); return; }
+      btnToClient.disabled = true;
+      btnToClient.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Transfert...';
+      // Marquer deal comme gagné
+      await dbUpdate('deals', d.id, { stage: 'gagne' });
+      // Ajouter suivi_stage dans les notes du contact
+      var currentNotes = contact.notes || '';
+      var newNotes = currentNotes.replace(/^suivi_stage:.*$/m, '').trim();
+      newNotes = 'suivi_stage: nouveaux_clients\n' + (newNotes || '');
+      await dbUpdate('contacts', contact.id, { notes: newNotes.trim(), status: 'client' });
+      toast('✅ ' + escHtml(contact.first_name + ' ' + contact.last_name) + ' converti en client — visible dans Suivi client', 'success');
+      closeDealPopup();
+      pages.suivi();
+    });
+  }
+
   // Change contact (interlocuteur)
   var btnChangeContact = popupBody.querySelector('#btn-change-contact');
   if (btnChangeContact) {
@@ -4430,17 +4802,7 @@ pages['google-ads'] = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  let [googleAds, jordanSuggestions, jordanThresholds] = await Promise.all([
-    dbSelect('google_ads_data', { order: ['date', false] }),
-    dbSelect('ads_suggestions_tracking', { order: ['created_at', false] }),
-    dbSelect('ads_thresholds_config', { order: ['id', true] })
-  ]);
-
-  window.jordanDecide = async function(id, decision) {
-    await db.from('ads_suggestions_tracking').update({ status: decision, yoann_decision: decision, decision_date: new Date().toISOString() }).eq('id', id);
-    jordanSuggestions = await dbSelect('ads_suggestions_tracking', { order: ['created_at', false] });
-    render();
-  };
+  let googleAds = await dbSelect('google_ads_data', { order: ['date', false] });
 
   function render() {
     const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
@@ -4511,62 +4873,6 @@ pages['google-ads'] = async function() {
             `}
           </div>
         </div>
-        ${(() => {
-          const thMap = {};
-          jordanThresholds.forEach(t => thMap[t.config_key] = t.config_value);
-          const pending = jordanSuggestions.filter(s => s.status === 'pending');
-          const approved = jordanSuggestions.filter(s => s.status === 'approved').length;
-          const jDays = Math.max(1, Math.round((Date.now() - new Date('2026-04-11').getTime()) / 86400000));
-          const cplBrut = gaTotalConv > 0 ? (gaTotalSpend / gaTotalConv).toFixed(0) : null;
-          const cplColor = !cplBrut ? '#6c757d' : cplBrut < thMap['cpl_target'] ? '#27ae60' : cplBrut < thMap['cpl_warning'] ? '#e67e22' : '#e74c3c';
-          return \`
-          <div class="panel" style="margin-top:20px;border-top:3px solid #1a1a2e">
-            <div class="panel-header" style="background:linear-gradient(135deg,#1a1a2e,#16213e)">
-              <h3 style="color:#fff;margin:0"><i class="fas fa-robot"></i> Jordan — Rapport du jour
-                <span style="font-size:0.72rem;opacity:0.65;margin-left:10px">Campagne J+\${jDays} · Phase démarrage</span>
-              </h3>
-              <span style="color:#adb5bd;font-size:0.78rem">\${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
-            </div>
-            <div class="panel-body">
-              <div class="stats-grid" style="margin-bottom:16px">
-                <div class="stat-card">
-                  <div class="stat-icon" style="background:\${cplColor}1a;color:\${cplColor}"><i class="fas fa-coins"></i></div>
-                  <div class="stat-info"><h3 style="color:\${cplColor}">\${cplBrut ? cplBrut+'€' : 'N/A'}</h3><p>CPL brut (cible \${thMap['cpl_target']||25}€)</p></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-icon blue"><i class="fas fa-euro-sign"></i></div>
-                  <div class="stat-info"><h3>\${formatCurrency(gaTotalSpend)}</h3><p>Dépensé · budget 150€/mois</p></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-icon \${pending.length > 0 ? 'gold' : 'green'}"><i class="fas fa-tasks"></i></div>
-                  <div class="stat-info"><h3>\${pending.length}</h3><p>Actions en attente · \${approved} validées</p></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-icon purple"><i class="fas fa-sliders-h"></i></div>
-                  <div class="stat-info"><h3>\${thMap['cpl_warning']||120}€</h3><p>Seuil alerte CPL (phase J+30)</p></div>
-                </div>
-              </div>
-              \${pending.length > 0 ? \`
-              <div style="margin-bottom:8px"><strong style="font-size:0.85rem;color:#495057"><i class="fas fa-exclamation-triangle" style="color:#e67e22"></i> Actions en attente (\${pending.length})</strong></div>
-              \${pending.map(s => \`
-                <div style="border:1px solid #fce4b5;background:#fffbf0;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-                  <div style="flex:1">
-                    <span style="background:#e67e22;color:#fff;font-size:0.7rem;padding:2px 7px;border-radius:4px;margin-right:6px">\${s.priority||'P1'}</span>
-                    <strong style="font-size:0.85rem">\${s.title}</strong>
-                    <div style="font-size:0.8rem;color:#666;margin-top:4px">\${s.action_description||''}</div>
-                    <div style="font-size:0.78rem;color:#999;margin-top:3px">⏱ \${s.effort_level||'?'} · \${s.estimated_impact||''}</div>
-                  </div>
-                  <div style="display:flex;gap:6px;flex-shrink:0">
-                    <button onclick="jordanDecide(\${s.id},'approved')" style="background:#27ae60;color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:0.78rem;cursor:pointer;font-weight:600">✓ OK</button>
-                    <button onclick="jordanDecide(\${s.id},'rejected')" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:0.78rem;cursor:pointer">✗ Non</button>
-                  </div>
-                </div>
-              \`).join('')}
-              \` : '<div style="color:#27ae60;font-size:0.85rem;padding:4px 0"><i class="fas fa-check-circle"></i> Aucune action en attente — campagne sous contrôle</div>'}
-            </div>
-          </div>
-          \`;
-        })()}
         <div class="text-small text-muted mt-16" style="text-align:right">
           <i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google Ads — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}
         </div>
@@ -5538,6 +5844,227 @@ window.actDelete = async function(id) {
 };
 
 // ============================================
+// DASHBOARD DEVIS MODULE (style Toolcie)
+// ============================================
+pages['dashboard-devis'] = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  const [deals, contacts] = await Promise.all([
+    dbSelect('deals', { order: ['created_at', false] }),
+    dbSelect('contacts')
+  ]);
+  const contactMap = {};
+  contacts.forEach(c => { contactMap[c.id] = c; });
+
+  const statusColors = { envoye: '#f39c12', refuse: '#e74c3c', accepte: '#27ae60', attente: '#3498db', autres: '#95a5a6' };
+  const statusLabels = { envoye: 'Envoyé (devis)', refuse: 'Refusé', accepte: 'Signé (client)', attente: 'En attente', autres: 'Autres étapes' };
+
+  // Règles métier (mapping pipeline -> "devis")
+  const val = d => parseFloat(d.value) || 0;
+  const sumVal = arr => arr.reduce((s, d) => s + val(d), 0);
+
+  const dealsPending = deals.filter(d => d.stage === 'attente_reponse'); // envoyés en attente
+  const dealsRefused = deals.filter(d => d.stage === 'perdu');           // refusés (colonne "Perdu")
+  const dealsWon     = deals.filter(d => d.stage === 'gagne');           // gagnés (colonne "Gagné")
+  const signedContacts = contacts.filter(c => c.status === 'client');
+  const signedContactIds = new Set(signedContacts.map(c => c.id));
+  // deals de clients signés, mais pas encore comptés dans pending/refused/won
+  const countedIds = new Set([...dealsPending, ...dealsRefused, ...dealsWon].map(d => d.id));
+  const dealsSignedExtra = deals.filter(d => signedContactIds.has(d.contact_id) && !countedIds.has(d.id));
+  const dealsSigned = [...dealsWon, ...dealsSignedExtra];
+
+  // Envoyés = leads passés par "attente_reponse" → en attente + signés + refusés (sans doublon)
+  const sentCount = dealsPending.length + dealsSigned.length + dealsRefused.length;
+  const signedCount = signedContacts.length;
+  const refusedCount = dealsRefused.length;
+  const totalDevis = sentCount;
+
+  const caSigned = sumVal(dealsSigned);   // Valeur du contrat des clients
+  const caPending = sumVal(dealsPending); // opportunités en attente
+  const caRefused = sumVal(dealsRefused);
+  const signRate = sentCount > 0 ? (signedCount / sentCount * 100) : 0;
+  const avgSigned = signedCount > 0 ? caSigned / signedCount : 0;
+
+  // Evolution par mois (12 derniers mois) par statut
+  const months = [];
+  const now = new Date();
+  const mKey = (y, mo) => y + '-' + String(mo + 1).padStart(2, '0');
+  let yy = 2026, mm = 3; // avril 2026
+  while (yy < now.getFullYear() || (yy === now.getFullYear() && mm <= now.getMonth())) {
+    months.push({ key: mKey(yy, mm), label: new Date(yy, mm, 15).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }) });
+    mm++; if (mm > 11) { mm = 0; yy++; }
+  }
+  const bucketMonth = (dateStr) => (dateStr || '').slice(0, 7);
+  const seriesByStatus = { envoye: [], refuse: [], accepte: [] };
+  const monthSum = (arr, m) => arr.filter(d => bucketMonth(d.created_at) === m.key).reduce((s, d) => s + val(d), 0);
+  months.forEach(m => {
+    seriesByStatus.envoye.push(monthSum(dealsPending, m));
+    seriesByStatus.refuse.push(monthSum(dealsRefused, m));
+    seriesByStatus.accepte.push(monthSum(dealsSigned, m));
+  });
+  const totalByStatus = { envoye: caPending, refuse: caRefused, accepte: caSigned };
+
+  // Répartition (count par catégorie "devis")
+  const statusKeys = ['envoye', 'accepte', 'refuse'];
+  const countByStatus = [dealsPending.length, signedCount, refusedCount];
+
+  // Suivi client — prix des devis signés (par client signé)
+  const clientRows = signedContacts.map(c => {
+    const dls = deals.filter(d => d.contact_id === c.id);
+    return { contact: c, total: dls.reduce((s, d) => s + val(d), 0), count: dls.length, devis: dls };
+  }).filter(r => r.count > 0).sort((a, b) => b.total - a.total);
+
+  const kpiCard = (bg, icon, value, label) =>
+    '<div class="stat-card" style="background:' + bg + ';color:#fff;border:none">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between">' +
+        '<i class="fas ' + icon + '" style="font-size:2.2rem;opacity:.85"></i>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:1.7rem;font-weight:700;line-height:1.1">' + value + '</div>' +
+          '<div style="opacity:.9;font-size:.85rem">' + label + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  content.innerHTML = `
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+      ${kpiCard('#e67e22', 'fa-file-invoice-dollar', totalDevis, 'Devis total')}
+      ${kpiCard('#f39c12', 'fa-paper-plane', dealsPending.length, 'Envoyés')}
+      ${kpiCard('#27ae60', 'fa-file-signature', signedCount, 'Signés')}
+      ${kpiCard('#e74c3c', 'fa-times-circle', refusedCount, 'Refusés')}
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+      ${kpiCard('#16a085', 'fa-euro-sign', formatCurrency(caSigned), 'CA signé')}
+      ${kpiCard('#3498db', 'fa-hourglass-half', formatCurrency(caPending), 'CA en attente')}
+      ${kpiCard('#5b6ebf', 'fa-percentage', signRate.toFixed(1) + ' %', 'Taux de signature')}
+      ${kpiCard('#9b59b6', 'fa-shopping-cart', formatCurrency(avgSigned), 'Panier moyen signé')}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="panel">
+        <div class="panel-header"><h3>Évolution des devis</h3><span class="text-muted text-small">depuis avril 2026</span></div>
+        <div class="panel-body"><div style="position:relative;height:280px"><canvas id="chart-devis-evolution"></canvas></div>
+          <div style="display:flex;gap:24px;margin-top:14px;flex-wrap:wrap">
+            <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f39c12;margin-right:6px"></span><strong>Envoyé</strong> · ${formatCurrency(totalByStatus.envoye)}</div>
+            <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e74c3c;margin-right:6px"></span><strong>Refusé</strong> · ${formatCurrency(totalByStatus.refuse)}</div>
+            <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#27ae60;margin-right:6px"></span><strong>Accepté</strong> · ${formatCurrency(totalByStatus.accepte)}</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3>Répartition des devis</h3></div>
+        <div class="panel-body"><div style="position:relative;height:280px"><canvas id="chart-devis-repartition"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:20px">
+      <div class="panel-header">
+        <h3><i class="fas fa-euro-sign"></i> Chiffre d'affaires</h3>
+        <span class="text-muted text-small">CA signé vs en attente — depuis avril 2026</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px">
+          <div style="padding:14px;border-radius:8px;background:#e8f8f0;border-left:4px solid #27ae60">
+            <div style="color:#7f8c8d;font-size:.8rem">CA signé (réalisé)</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#1b4332">${formatCurrency(caSigned)}</div>
+          </div>
+          <div style="padding:14px;border-radius:8px;background:#ebf5fb;border-left:4px solid #3498db">
+            <div style="color:#7f8c8d;font-size:.8rem">CA en attente</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#1a4971">${formatCurrency(caPending)}</div>
+          </div>
+          <div style="padding:14px;border-radius:8px;background:#fdecea;border-left:4px solid #e74c3c">
+            <div style="color:#7f8c8d;font-size:.8rem">CA perdu (refusé)</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#922b21">${formatCurrency(caRefused)}</div>
+          </div>
+        </div>
+        <div style="position:relative;height:260px"><canvas id="chart-devis-ca"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3><i class="fas fa-handshake"></i> Suivi client — prix des devis signés</h3>
+        <span class="text-muted text-small">${clientRows.length} client(s)</span>
+      </div>
+      <div class="panel-body" style="padding:0">
+        ${clientRows.length === 0 ? '<div class="empty-state"><i class="fas fa-file-signature"></i><h4>Aucun devis signé</h4></div>' : `
+          <table class="data-table">
+            <thead><tr>
+              <th>Client</th><th>Société</th><th class="text-right">Nb devis signés</th><th class="text-right">Montant total</th><th>Devis</th>
+            </tr></thead>
+            <tbody>
+              ${clientRows.map(r => {
+                const c = r.contact;
+                const name = c ? (c.first_name + ' ' + c.last_name) : '— Client inconnu —';
+                const comp = c && c.company ? c.company : '—';
+                const devisTags = r.devis.map(d => '<span style="background:#e8f5ee;color:#1b4332;padding:2px 8px;border-radius:10px;font-size:.75rem;margin-right:4px">' + (d.title || d.stage || 'deal') + ' · ' + formatCurrency(val(d)) + '</span>').join('');
+                return '<tr>' +
+                  '<td><strong>' + name + '</strong></td>' +
+                  '<td class="text-muted">' + comp + '</td>' +
+                  '<td class="text-right">' + r.count + '</td>' +
+                  '<td class="text-right"><strong style="color:#27ae60">' + formatCurrency(r.total) + '</strong></td>' +
+                  '<td>' + devisTags + '</td>' +
+                '</tr>';
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  // Charts
+  const evoCtx = document.getElementById('chart-devis-evolution');
+  if (evoCtx) {
+    new Chart(evoCtx, {
+      type: 'line',
+      data: {
+        labels: months.map(m => m.label),
+        datasets: [
+          { label: 'Envoyé', data: seriesByStatus.envoye, borderColor: '#f39c12', backgroundColor: 'rgba(243,156,18,.1)', tension: .4, fill: false },
+          { label: 'Refusé', data: seriesByStatus.refuse, borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,.1)', tension: .4, fill: false },
+          { label: 'Accepté', data: seriesByStatus.accepte, borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,.1)', tension: .4, fill: false }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+      }
+    });
+  }
+  const caCtx = document.getElementById('chart-devis-ca');
+  if (caCtx) {
+    new Chart(caCtx, {
+      type: 'bar',
+      data: {
+        labels: months.map(m => m.label),
+        datasets: [
+          { label: 'CA signé', data: seriesByStatus.accepte, backgroundColor: '#27ae60', borderRadius: 4 },
+          { label: 'CA en attente', data: seriesByStatus.envoye, backgroundColor: '#3498db', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+      }
+    });
+  }
+  const repCtx = document.getElementById('chart-devis-repartition');
+  if (repCtx) {
+    new Chart(repCtx, {
+      type: 'doughnut',
+      data: {
+        labels: statusKeys.map(k => statusLabels[k]),
+        datasets: [{ data: countByStatus, backgroundColor: statusKeys.map(k => statusColors[k]), borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+};
+
+// ============================================
 // DEVIS MODULE
 // ============================================
 pages.devis = async function() {
@@ -5702,64 +6229,395 @@ pages.suivi = async function() {
   var content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  var [contacts, activities, deals] = await Promise.all([
-    dbSelect('contacts', { order: ['last_name', true] }),
-    dbSelect('activities', { order: ['scheduled_at', false] }),
-    dbSelect('deals')
+  var [contacts, deals] = await Promise.all([
+    dbSelect('contacts', { order: ['created_at', false] }),
+    dbSelect('deals', { order: ['created_at', false] })
   ]);
 
-  var clients = contacts.filter(function(c) { return c.status === 'client' || c.status === 'prospect'; });
+  var SUIVI_STAGES = [
+    { key: 'nouveaux_clients',  label: 'Nouveaux clients',    color: '#3498db', icon: 'fa-user-plus' },
+    { key: 'devis_signe',       label: 'Devis signé',         color: '#2ecc71', icon: 'fa-file-signature' },
+    { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030', icon: 'fa-euro-sign' },
+    { key: 'date_installation', label: "Date d'installation", color: '#9b59b6', icon: 'fa-calendar-check' },
+    { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c', icon: 'fa-box-open' },
+    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f', icon: 'fa-hard-hat' },
+    { key: 'termine_paye',      label: 'Terminé / Payé',      color: '#00897b', icon: 'fa-check-double' },
+    { key: 'avis_google',       label: 'Avis Google validé',  color: '#f4a400', icon: 'fa-star' }
+  ];
 
-  content.innerHTML = `
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <span class="text-muted"><i class="fas fa-handshake"></i> ${clients.length} client(s) / prospect(s) a suivre</span>
+  // Helper: get/set suivi_stage from contact notes
+  function getSuiviStage(c) {
+    var m = (c.notes || '').match(/^suivi_stage:\s*(\S+)/m);
+    return m ? m[1] : 'nouveaux_clients';
+  }
+
+  // Deals par contact
+  var dealsByContact = {};
+  deals.forEach(function(d) {
+    if (!d.contact_id) return;
+    if (!dealsByContact[d.contact_id]) dealsByContact[d.contact_id] = [];
+    dealsByContact[d.contact_id].push(d);
+  });
+
+  // Clients = contacts avec suivi_stage OU deal gagné OU status client
+  var clients = contacts.filter(function(c) {
+    var hasStage = /^suivi_stage:/m.test(c.notes || '');
+    var hasWon = (dealsByContact[c.id] || []).some(function(d){ return d.stage === 'gagne'; });
+    return hasStage || hasWon || c.status === 'client';
+  });
+
+  // Source colors
+  var SRC_COLORS = { 'travaux.com':'#2e7d32','helloartisan':'#1976d2','website':'#c62828','facebook':'#e65100' };
+
+  function renderKanban() {
+    var byStage = {};
+    SUIVI_STAGES.forEach(function(s){ byStage[s.key] = []; });
+    clients.forEach(function(c){
+      var st = getSuiviStage(c);
+      if (!byStage[st]) st = 'nouveaux_clients';
+      byStage[st].push(c);
+    });
+
+    content.innerHTML = `
+      <div class="toolbar" style="margin-bottom:12px">
+        <div class="toolbar-left">
+          <span class="text-muted"><i class="fas fa-handshake"></i> <strong>${clients.length}</strong> client(s) en suivi</span>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-primary" id="btn-add-suivi-client"><i class="fas fa-plus"></i> Ajouter un client</button>
+        </div>
       </div>
-      <div class="toolbar-right">
-        <button class="btn btn-primary" id="btn-add-suivi"><i class="fas fa-plus"></i> Nouvelle activite</button>
-      </div>
-    </div>
-    <div class="grid-1">
-      ${clients.length === 0 ? '<div class="empty-state"><i class="fas fa-handshake"></i><h4>Aucun client/prospect</h4><p>Ajoutez des contacts avec le statut client ou prospect dans le CRM.</p></div>' :
-        clients.map(function(c) {
-          var cActivities = activities.filter(function(a) { return a.contact_id === c.id; });
-          var cDeals = deals.filter(function(d) { return d.contact_id === c.id; });
-          var lastActivity = cActivities[0];
-          var pendingCount = cActivities.filter(function(a) { return !a.completed; }).length;
-          return '<div class="panel mb-16">' +
-            '<div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">' +
-              '<h3 style="display:flex;align-items:center;gap:10px"><div class="avatar-sm">' + avatarHtml(c) + '</div> ' + c.first_name + ' ' + c.last_name + (c.company ? ' <span class="text-muted text-small">(' + c.company + ')</span>' : '') + '</h3>' +
-              '<div style="display:flex;gap:8px">' +
-                '<span class="badge-status ' + c.status + '">' + c.status + '</span>' +
-                (pendingCount > 0 ? '<span style="background:var(--warning-light);color:var(--warning);padding:2px 10px;border-radius:12px;font-size:0.75rem">' + pendingCount + ' en attente</span>' : '<span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:0.75rem">A jour</span>') +
-              '</div>' +
+      <div class="pipeline" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;align-items:flex-start">
+        ${SUIVI_STAGES.map(function(st) {
+          var cards = byStage[st.key] || [];
+          return '<div class="pipeline-col" style="min-width:220px;flex:0 0 220px">' +
+            '<div class="pipeline-col-header" style="background:'+st.color+';color:#fff;padding:10px 14px;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px">' +
+              '<i class="fas '+st.icon+'"></i>' +
+              '<span style="font-weight:700;font-size:0.85rem;flex:1">'+escHtml(st.label)+'</span>' +
+              '<span style="background:rgba(255,255,255,0.25);border-radius:12px;padding:1px 8px;font-size:0.75rem;font-weight:700">'+cards.length+'</span>' +
             '</div>' +
-            '<div class="panel-body">' +
-              '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px">' +
-                '<div class="text-small"><i class="fas fa-phone"></i> ' + (c.phone || '—') + '</div>' +
-                '<div class="text-small"><i class="fas fa-envelope"></i> ' + (c.email || '—') + '</div>' +
-                '<div class="text-small"><i class="fas fa-handshake"></i> ' + cDeals.length + ' deal(s)</div>' +
-                '<div class="text-small"><i class="fas fa-clock"></i> Derniere activite: ' + (lastActivity ? formatDate(lastActivity.created_at) : 'Aucune') + '</div>' +
-              '</div>' +
-              (cActivities.length > 0 ? '<div style="border-top:1px solid var(--border);padding-top:10px"><strong class="text-small">Historique recent:</strong>' +
-                cActivities.slice(0, 5).map(function(a) {
-                  var icon = a.type === 'appel' ? 'phone' : a.type === 'email' ? 'envelope' : a.type === 'reunion' ? 'users' : a.type === 'relance' ? 'redo' : 'sticky-note';
-                  return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.82rem' + (a.completed ? ';opacity:0.5;text-decoration:line-through' : '') + '">' +
-                    '<i class="fas fa-' + icon + '" style="width:16px;color:var(--text-light)"></i> ' +
-                    '<span>' + (a.description || a.type) + '</span>' +
-                    '<span class="text-muted text-small" style="margin-left:auto">' + formatDate(a.scheduled_at || a.created_at) + '</span>' +
-                  '</div>';
-                }).join('') +
-              '</div>' : '') +
+            '<div class="suivi-col-body" data-suivi-stage="'+st.key+'" style="background:var(--bg);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:10px;min-height:200px;display:flex;flex-direction:column;gap:8px">' +
+              cards.map(function(c) {
+                var cDeals = dealsByContact[c.id] || [];
+                var bestDeal = cDeals.sort(function(a,b){ return (parseFloat(b.value)||0)-(parseFloat(a.value)||0); })[0];
+                var srcCol = SRC_COLORS[c.source] || '#78909c';
+                return '<div class="suivi-card" draggable="true" data-contact-id="'+c.id+'" onclick="window.suiviView(\''+c.id+'\')" style="background:var(--card);border-radius:8px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,0.07);cursor:pointer;border-left:3px solid '+srcCol+';transition:box-shadow 0.15s" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.12)\'" onmouseout="this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.07)\'">' +
+                  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+                    '<div class="avatar-sm" style="width:30px;height:30px;font-size:0.65rem;flex-shrink:0">'+avatarHtml(c)+'</div>' +
+                    '<div style="min-width:0">' +
+                      '<div style="font-weight:700;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(c.first_name+' '+c.last_name)+'</div>' +
+                      (c.company ? '<div style="font-size:0.72rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(c.company)+'</div>' : '') +
+                    '</div>' +
+                  '</div>' +
+                  (c.phone ? '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:3px"><i class="fas fa-phone" style="width:12px"></i> '+escHtml(c.phone)+'</div>' : '') +
+                  (c.city ? '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:3px"><i class="fas fa-map-marker-alt" style="width:12px"></i> '+escHtml(c.city)+'</div>' : '') +
+                  (bestDeal && bestDeal.value > 0 ? '<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-top:4px">'+formatCurrency(bestDeal.value)+'</div>' : '') +
+                  '<div style="display:flex;justify-content:flex-end;margin-top:6px;gap:4px" onclick="event.stopPropagation()">' +
+                    SUIVI_STAGES.filter(function(s){ return s.key !== st.key; }).map(function(s2) {
+                      return '<button title="→ '+s2.label+'" onclick="window._suiviMove(\''+c.id+'\',\''+s2.key+'\')" style="background:'+s2.color+'22;border:1px solid '+s2.color+'44;color:'+s2.color+';border-radius:4px;padding:1px 5px;font-size:0.6rem;cursor:pointer;white-space:nowrap">'+s2.label.split(' ')[0]+'→</button>';
+                    }).join('') +
+                  '</div>' +
+                '</div>';
+              }).join('') +
             '</div>' +
           '</div>';
-        }).join('')
-      }
+        }).join('')}
+      </div>
+    `;
+
+    // Drag & drop
+    content.querySelectorAll('.suivi-card').forEach(function(card) {
+      card.addEventListener('dragstart', function(e) {
+        e.dataTransfer.setData('text/plain', card.dataset.contactId);
+        card.style.opacity = '0.4';
+      });
+      card.addEventListener('dragend', function() { card.style.opacity = '1'; });
+    });
+    content.querySelectorAll('.suivi-col-body').forEach(function(col) {
+      col.addEventListener('dragover', function(e) { e.preventDefault(); col.style.background = 'var(--primary-light)'; });
+      col.addEventListener('dragleave', function() { col.style.background = 'var(--bg)'; });
+      col.addEventListener('drop', async function(e) {
+        e.preventDefault();
+        col.style.background = 'var(--bg)';
+        var cid = e.dataTransfer.getData('text/plain');
+        await window._suiviMove(cid, col.dataset.suiviStage);
+      });
+    });
+
+    // Ajouter client
+    content.querySelector('#btn-add-suivi-client')?.addEventListener('click', function() {
+      var available = contacts.filter(function(c){ return !clients.find(function(cl){ return cl.id===c.id; }); });
+      openModal('Ajouter un client au suivi', `
+        <div class="form-group">
+          <label>Client</label>
+          <select id="f-suivi-contact" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+            <option value="">— Choisir —</option>
+            ${contacts.map(function(c){ return '<option value="'+c.id+'">'+escHtml(c.first_name+' '+c.last_name+(c.company?' ('+c.company+')':''))+'</option>'; }).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Étape initiale</label>
+          <select id="f-suivi-stage" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+            ${SUIVI_STAGES.map(function(s){ return '<option value="'+s.key+'">'+s.label+'</option>'; }).join('')}
+          </select>
+        </div>
+      `, `
+        <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" id="btn-confirm-suivi">Ajouter</button>
+      `);
+      $('#btn-confirm-suivi').addEventListener('click', async function() {
+        var cid = $('#f-suivi-contact').value;
+        var stage = $('#f-suivi-stage').value;
+        if (!cid) { toast('Choisissez un client', 'warning'); return; }
+        var c = contacts.find(function(x){ return x.id===cid; });
+        if (!c) return;
+        var newNotes = (c.notes || '').replace(/^suivi_stage:.*$/m, '').trim();
+        newNotes = 'suivi_stage: '+stage+'\n'+(newNotes||'');
+        await dbUpdate('contacts', cid, { notes: newNotes.trim(), status: 'client' });
+        c.notes = newNotes.trim(); c.status = 'client';
+        if (!clients.find(function(x){ return x.id===cid; })) clients.push(c);
+        closeModal();
+        renderKanban();
+        toast(escHtml(c.first_name+' '+c.last_name)+' ajouté au suivi ✓');
+      });
+    });
+  }
+
+  window._suiviMove = async function(contactId, newStage) {
+    var c = clients.find(function(x){ return x.id===contactId; });
+    if (!c) return;
+    var newNotes = (c.notes || '').replace(/^suivi_stage:.*$/m, '').trim();
+    newNotes = 'suivi_stage: '+newStage+'\n'+(newNotes||'');
+    await dbUpdate('contacts', contactId, { notes: newNotes.trim() });
+    c.notes = newNotes.trim();
+    renderKanban();
+    var stageName = (SUIVI_STAGES.find(function(s){ return s.key===newStage; })||{}).label||newStage;
+    toast('Déplacé vers "'+stageName+'" ✓');
+  };
+
+  renderKanban();
+};
+
+// ============================================
+// SUIVI CLIENT — FICHE CLIENT (popup)
+// ============================================
+window.suiviView = async function(contactId) {
+  var popup = $('#deal-popup-overlay');
+  var popupBody = $('#deal-popup-body');
+  var popupTitle = $('#deal-popup-title');
+  popup.style.display = 'flex';
+  popupBody.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var SUIVI_STAGES = [
+    { key: 'nouveaux_clients',  label: 'Nouveaux clients',    color: '#3498db' },
+    { key: 'devis_signe',       label: 'Devis signé',         color: '#2ecc71' },
+    { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030' },
+    { key: 'date_installation', label: "Date d'installation", color: '#9b59b6' },
+    { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c' },
+    { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f' },
+    { key: 'termine_paye',      label: 'Terminé / Payé',      color: '#00897b' },
+    { key: 'avis_google',       label: 'Avis Google validé',  color: '#f4a400' }
+  ];
+
+  var [contacts, deals, activities] = await Promise.all([
+    dbSelect('contacts', { eq: [['id', contactId]] }),
+    dbSelect('deals', { order: ['created_at', false] }),
+    dbSelect('activities', { order: ['created_at', false] })
+  ]);
+
+  var c = contacts[0];
+  if (!c) { popupBody.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Client introuvable</h4></div>'; return; }
+
+  var cDeals = deals.filter(function(d){ return d.contact_id === c.id; });
+  var cActivities = activities.filter(function(a){ return a.contact_id === c.id || cDeals.some(function(d){ return d.id === a.deal_id; }); });
+  var bestDeal = cDeals.sort(function(a,b){ return (parseFloat(b.value)||0)-(parseFloat(a.value)||0); })[0];
+
+  function getSuiviStage() {
+    var m = (c.notes || '').match(/^suivi_stage:\s*(\S+)/m);
+    return m ? m[1] : 'nouveaux_clients';
+  }
+  var currentStage = getSuiviStage();
+  var stageConf = SUIVI_STAGES.find(function(s){ return s.key === currentStage; }) || SUIVI_STAGES[0];
+
+  popupTitle.textContent = c.first_name + ' ' + c.last_name;
+
+  popupBody.innerHTML = `
+    <div class="deal-header" style="padding:0 0 12px 0;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <div class="deal-header-left">
+        <div class="deal-avatar" style="background:${stageConf.color}">${avatarHtml(c)}</div>
+        <div>
+          <h2 style="font-size:1.2rem;margin:0">${escHtml(c.first_name + ' ' + c.last_name)}</h2>
+          ${c.company ? '<div style="font-size:0.85rem;color:var(--text-light)">' + escHtml(c.company) + '</div>' : ''}
+          ${c.city ? '<div style="font-size:0.82rem;color:var(--text-light)"><i class="fas fa-map-marker-alt"></i> ' + escHtml(c.city) + '</div>' : ''}
+        </div>
+      </div>
+      <div class="deal-header-actions">
+        ${c.phone ? '<a href="tel:' + c.phone.replace(/\s/g,'') + '" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> Appeler</a>' : ''}
+        ${c.email ? '<button class="btn btn-outline btn-sm" onclick="window.emailCompose(\'' + c.email + '\',\'' + (c.first_name+' '+c.last_name).replace(/'/g,"\\'") + '\',null,\'' + c.id + '\')"><i class="fas fa-envelope"></i> Email</button>' : ''}
+      </div>
+    </div>
+
+    <div class="deal-detail">
+      <div class="deal-detail-main">
+        <!-- Timeline activités -->
+        ${cActivities.length > 0 ? `
+        <div class="deal-timeline">
+          <div class="tl-header"><i class="fas fa-history"></i> Historique (${cActivities.length})</div>
+          <div class="tl-list">
+            ${cActivities.slice(0, 10).map(function(a) {
+              var typeLabel = a.type === 'comment' ? 'Note' : a.type === 'call' ? 'Appel' : a.type === 'email' ? 'Email' : a.type === 'meeting' ? 'RDV' : 'Note';
+              return '<div class="tl-item">' +
+                '<div class="tl-avatar">YC</div>' +
+                '<div class="tl-content">' +
+                  '<div class="tl-meta"><span class="tl-author">Yoann Contal</span><span class="tl-date">' + formatDateTime(a.created_at) + '</span><span class="tl-type activity">' + typeLabel + '</span></div>' +
+                  '<div class="tl-text">' + escHtml(a.notes || a.description || '') + '</div>' +
+                '</div>' +
+              '</div>';
+            }).join('')}
+          </div>
+        </div>` : '<div class="empty-state" style="padding:20px"><i class="fas fa-history"></i><p>Aucune activité</p></div>'}
+
+        <!-- Note rapide -->
+        <div class="quick-note-box" style="margin-top:12px">
+          <div class="qn-header"><i class="fas fa-pen"></i> Ajouter une note</div>
+          <textarea id="suivi-quick-note" placeholder="Note, appel, info..."></textarea>
+          <div class="qn-actions">
+            <select id="suivi-note-type" style="font-size:0.8rem;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--bg);color:var(--text)">
+              <option value="comment">Note</option>
+              <option value="call">Appel</option>
+              <option value="email">Email</option>
+              <option value="meeting">RDV</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="btn-suivi-save-note"><i class="fas fa-check"></i> Enregistrer</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="deal-detail-sidebar">
+        <!-- Étape du client -->
+        <div class="deal-sidebar-card" style="text-align:center;padding:16px">
+          <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-light);margin-bottom:8px;font-weight:600"><i class="fas fa-handshake"></i> Étape du client</div>
+          <select id="f-suivi-stage-select" style="width:100%;border:2px solid ${stageConf.color};border-radius:10px;padding:10px 14px;font-size:1rem;font-weight:700;background:${stageConf.color};color:#fff;cursor:pointer;text-align:center;appearance:auto">
+            ${SUIVI_STAGES.map(function(s){ return '<option value="'+s.key+'"'+(currentStage===s.key?' selected':'')+'>'+s.label+'</option>'; }).join('')}
+          </select>
+        </div>
+
+        <!-- Valeur deal -->
+        ${bestDeal && bestDeal.value > 0 ? `
+        <div class="deal-sidebar-card">
+          <div class="deal-value-big">${formatCurrency(bestDeal.value)}<small>Valeur du contrat</small></div>
+        </div>` : ''}
+
+        <!-- Infos contact -->
+        <div class="deal-sidebar-card">
+          <div class="sc-header"><i class="fas fa-info-circle"></i> Contact</div>
+          <div class="sc-body">
+            ${c.phone ? '<div class="sc-row"><span class="sc-label">Téléphone</span><span class="sc-val"><a href="tel:'+c.phone.replace(/\s/g,'')+'">'+escHtml(c.phone)+'</a></span></div>' : ''}
+            ${c.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="javascript:void(0)" onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" style="color:var(--primary)">'+escHtml(c.email)+' <i class="fas fa-paper-plane" style="font-size:0.7rem"></i></a></span></div>' : ''}
+            ${c.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">'+escHtml(c.city)+'</span></div>' : ''}
+            ${c.source ? '<div class="sc-row"><span class="sc-label">Source</span><span class="sc-val">'+escHtml(c.source)+'</span></div>' : ''}
+          </div>
+        </div>
+
+        <!-- Date de chantier -->
+        <div class="deal-sidebar-card">
+          <div class="sc-header"><i class="fas fa-hard-hat"></i> Date de chantier</div>
+          <div class="sc-body" style="padding:12px 16px">
+            <input type="date" id="f-chantier-date" value="${(function(){ var m=(c.notes||'').match(/^chantier_date:\s*(\S+)/m); return m?m[1]:''; })()}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.9rem;background:var(--bg);color:var(--text);cursor:pointer">
+            <div id="chantier-date-display" style="margin-top:8px;font-size:0.8rem;color:var(--text-light);text-align:center"></div>
+          </div>
+        </div>
+
+        <!-- Lien vers fiche CRM -->
+        ${bestDeal ? `<div class="deal-sidebar-card" style="text-align:center;padding:12px">
+          <button onclick="closeDealPopup();dealView('${bestDeal.id}')" class="btn btn-outline btn-sm" style="width:100%"><i class="fas fa-external-link-alt"></i> Voir fiche CRM</button>
+        </div>` : ''}
+      </div>
     </div>
   `;
 
-  content.querySelector('#btn-add-suivi')?.addEventListener('click', function() {
-    activityForm(contacts);
+  // Changement d'étape
+  var stageSelect = popupBody.querySelector('#f-suivi-stage-select');
+  stageSelect.addEventListener('change', async function() {
+    var newStage = stageSelect.value;
+    var sc = SUIVI_STAGES.find(function(s){ return s.key===newStage; }) || SUIVI_STAGES[0];
+    stageSelect.style.background = sc.color;
+    stageSelect.style.borderColor = sc.color;
+    var newNotes = (c.notes || '').replace(/^suivi_stage:.*$/m, '').trim();
+    newNotes = 'suivi_stage: '+newStage+'\n'+(newNotes||'');
+    await dbUpdate('contacts', c.id, { notes: newNotes.trim() });
+    c.notes = newNotes.trim();
+    toast('Étape client → ' + sc.label + ' ✓');
+  });
+
+  // Date de chantier — save + sync planning
+  var chantierInput = popupBody.querySelector('#f-chantier-date');
+  var chantierDisplay = popupBody.querySelector('#chantier-date-display');
+
+  function updateChantierDisplay(val) {
+    if (!val) { chantierDisplay.textContent = ''; return; }
+    var d = new Date(val + 'T00:00:00');
+    var diff = Math.round((d - new Date()) / 86400000);
+    var label = d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    var diffStr = diff === 0 ? "Aujourd'hui" : diff > 0 ? 'Dans ' + diff + ' jour' + (diff>1?'s':'') : Math.abs(diff) + ' jour' + (Math.abs(diff)>1?'s':'') + ' passé' + (Math.abs(diff)>1?'s':'');
+    chantierDisplay.innerHTML = '<i class="fas fa-calendar-day"></i> ' + label + '<br><span style="color:' + (diff < 0 ? '#e74c3c' : diff <= 7 ? '#e0a030' : 'var(--primary)') + ';font-weight:700">' + diffStr + '</span>';
+  }
+  updateChantierDisplay(chantierInput.value);
+
+  chantierInput.addEventListener('change', async function() {
+    var val = chantierInput.value;
+    // Sauvegarder dans notes contact
+    var newNotes = (c.notes || '').replace(/^chantier_date:.*$/m, '').trim();
+    newNotes = (newNotes || '') + '\nchantier_date: ' + (val || '');
+    await dbUpdate('contacts', c.id, { notes: newNotes.trim() });
+    c.notes = newNotes.trim();
+    updateChantierDisplay(val);
+
+    if (!val) { toast('Date de chantier effacée'); return; }
+
+    // Créer/MAJ événement dans le planning
+    var existingEvents = await dbSelect('planning', { eq: [['contact_id', c.id]] });
+    var chantierEv = existingEvents.find(function(e){ return e.type === 'chantier'; });
+    var evData = {
+      title: 'Chantier — ' + c.first_name + ' ' + c.last_name,
+      type: 'chantier',
+      start_date: val,
+      color: '#2d6a4f',
+      contact_id: c.id,
+      status: 'planifie',
+      notes: (c.city ? c.city + ' ' : '') + (c.postal_code || '')
+    };
+    if (chantierEv) {
+      await dbUpdate('planning', chantierEv.id, evData);
+      // Sync GCal si connecté
+      if (gcalIsConnected()) {
+        var gcalEv = planningToGcalEvent(Object.assign({}, evData, { id: chantierEv.id, gcal_event_id: chantierEv.gcal_event_id }), c);
+        var calId = getGcalCalendarId();
+        if (chantierEv.gcal_event_id) await gcalApi('PUT', '/calendars/'+encodeURIComponent(calId)+'/events/'+chantierEv.gcal_event_id, gcalEv);
+        else { var cr = await gcalApi('POST', '/calendars/'+encodeURIComponent(calId)+'/events', gcalEv); if(cr&&cr.id) await dbUpdate('planning', chantierEv.id, {gcal_event_id:cr.id}); }
+      }
+      toast('📅 Date de chantier mise à jour dans le planning ✓');
+    } else {
+      var inserted = await dbInsert('planning', evData);
+      if (gcalIsConnected() && inserted) {
+        var gcalEv2 = planningToGcalEvent(inserted, c);
+        var calId2 = getGcalCalendarId();
+        var cr2 = await gcalApi('POST', '/calendars/'+encodeURIComponent(calId2)+'/events', gcalEv2);
+        if (cr2 && cr2.id) await dbUpdate('planning', inserted.id, { gcal_event_id: cr2.id });
+      }
+      toast('📅 Chantier ajouté au planning' + (gcalIsConnected() ? ' + Google Agenda ✓' : ' ✓'));
+    }
+  });
+
+  // Note rapide
+  var btnSaveNote = popupBody.querySelector('#btn-suivi-save-note');
+  btnSaveNote.addEventListener('click', async function() {
+    var text = popupBody.querySelector('#suivi-quick-note').value.trim();
+    var type = popupBody.querySelector('#suivi-note-type').value;
+    if (!text) return;
+    await dbInsert('activities', { contact_id: c.id, deal_id: bestDeal ? bestDeal.id : null, type: type, notes: text });
+    toast('Note enregistrée ✓');
+    window.suiviView(c.id);
   });
 };
 
@@ -5975,6 +6833,10 @@ pages.planning = async function() {
     eventsByDate[key].push({ title: 'Livraison: ' + (cmd.objet || cmd.numero), displayTitle: 'Livraison: ' + (cmd.objet || cmd.numero), type: 'livraison', color: '#9b59b6', id: 'cmd-' + cmd.id });
   });
 
+  // Calcul du nombre de lignes (semaines) dans la vue
+  var totalDays = Math.round((rangeEnd - rangeStart) / 86400000) + 1;
+  var numRows = Math.ceil(totalDays / 7);
+
   // Build calendar cells for range
   var calendarHtml = '';
   var cursor = new Date(rangeStart);
@@ -6019,13 +6881,11 @@ pages.planning = async function() {
         <button class="btn btn-primary" id="btn-add-event"><i class="fas fa-plus"></i> Nouvel evenement</button>
       </div>
     </div>
-    <div class="panel">
-      <div class="panel-body">
-        <div class="cal-grid">
-          <div class="cal-header">Lun</div><div class="cal-header">Mar</div><div class="cal-header">Mer</div>
-          <div class="cal-header">Jeu</div><div class="cal-header">Ven</div><div class="cal-header">Sam</div><div class="cal-header">Dim</div>
-          ${calendarHtml}
-        </div>
+    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;box-shadow:var(--shadow)">
+      <div class="cal-grid" style="height:calc(100vh - var(--topbar-h) - 160px);grid-template-rows:44px repeat(${numRows}, 1fr)">
+        <div class="cal-header">Lun</div><div class="cal-header">Mar</div><div class="cal-header">Mer</div>
+        <div class="cal-header">Jeu</div><div class="cal-header">Ven</div><div class="cal-header">Sam</div><div class="cal-header">Dim</div>
+        ${calendarHtml}
       </div>
     </div>
     <div class="panel mt-24">
@@ -6841,6 +7701,305 @@ pages.presentation = function() {
 };
 
 // ============================================
+// PRM MODULE (Professionnels B2B)
+// ============================================
+pages.prm = async function(subTab) {
+  subTab = subTab || 'pipeline';
+  var content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  if (subTab === 'consolide') { return renderLeadsConsolides(content, 'prm'); }
+
+  var contacts = await dbSelect('contacts', { order: ['created_at', false] });
+  var prmContacts = contacts.filter(function(c){ return c.source === 'prm'; });
+
+  var PRM_STAGES = [
+    { key: 'a_contacter',   label: 'À contacter',   color: '#3498db', icon: 'fa-user-clock' },
+    { key: 'contacte',      label: 'Contacté',       color: '#9b59b6', icon: 'fa-phone-volume' },
+    { key: 'en_discussion', label: 'En discussion',  color: '#e0a030', icon: 'fa-comments' },
+    { key: 'devis_envoye',  label: 'Devis envoyé',   color: '#2ecc71', icon: 'fa-file-invoice' },
+    { key: 'partenaire',    label: 'Partenaire',     color: '#2d6a4f', icon: 'fa-handshake' },
+    { key: 'perdu_prm',     label: 'Perdu',          color: '#e74c3c', icon: 'fa-times-circle' }
+  ];
+
+  function getPrmStage(c) {
+    var m = (c.notes||'').match(/^prm_stage:\s*(\S+)/m);
+    return m ? m[1] : 'a_contacter';
+  }
+
+  function getPrmField(c, key) {
+    var m = (c.notes||'').match(new RegExp('^'+key+':\\s*(.+)$', 'm'));
+    return m ? m[1].trim() : '';
+  }
+
+  function renderPRM() {
+    var stageMap = {};
+    PRM_STAGES.forEach(function(s){ stageMap[s.key] = []; });
+    prmContacts.forEach(function(c){
+      var st = getPrmStage(c);
+      if (!stageMap[st]) st = 'a_contacter';
+      stageMap[st].push(c);
+    });
+
+    content.innerHTML =
+      '<div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">' +
+        '<button class="tab-btn active" data-prm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-stream"></i> Pipeline PRM</button>' +
+        '<button class="tab-btn" data-prm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-layer-group"></i> Leads consolidés</button>' +
+      '</div>' +
+      '<div class="toolbar" style="margin-bottom:16px">' +
+        '<div class="toolbar-left"><span class="text-muted"><i class="fas fa-briefcase"></i> <strong>' + prmContacts.length + '</strong> prospect(s) pro</span></div>' +
+        '<div class="toolbar-right"><button class="btn btn-primary" id="btn-add-prm"><i class="fas fa-plus"></i> Nouveau prospect pro</button></div>' +
+      '</div>' +
+      '<div class="pipeline">' +
+        PRM_STAGES.map(function(st){
+          var cards = stageMap[st.key] || [];
+          return '<div class="pipeline-col">' +
+            '<div class="pipeline-col-header" style="border-bottom-color:' + st.color + '">' +
+              '<span><i class="fas ' + st.icon + '" style="color:' + st.color + ';margin-right:6px"></i>' + st.label + '</span>' +
+              '<span class="count">' + cards.length + '</span>' +
+            '</div>' +
+            '<div class="pipeline-col-body" data-prm-stage="' + st.key + '">' +
+              (cards.length === 0 ? '<div class="text-center text-muted text-small" style="padding:20px">—</div>' : '') +
+              cards.map(function(c){
+                var prio = getPrmField(c, 'priorite');
+                var score = getPrmField(c, 'score');
+                var cat = getPrmField(c, 'categorie');
+                var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
+                return '<div class="deal-card" draggable="true" data-prm-id="' + c.id + '" onclick="window.prmView(\'' + c.id + '\')" style="position:relative;cursor:pointer">' +
+                  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+                    '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + avatarHtml(c) + '</div>' +
+                    '<div style="flex:1;min-width:0">' +
+                      '<strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml((c.company || (c.first_name+' '+c.last_name)).trim()) + '</strong>' +
+                      (c.city ? '<span style="display:block;font-size:0.7rem;color:var(--text-light)"><i class="fas fa-map-marker-alt" style="font-size:0.6rem"></i> ' + escHtml(c.city) + '</span>' : '') +
+                    '</div>' +
+                    (prio ? '<span style="background:' + prioCol + ';color:#fff;font-size:0.65rem;font-weight:800;padding:1px 6px;border-radius:3px">' + escHtml(prio) + '</span>' : '') +
+                  '</div>' +
+                  (cat ? '<div style="font-size:0.72rem;color:var(--text-light);margin-top:3px"><i class="fas fa-tag"></i> ' + escHtml(cat) + '</div>' : '') +
+                  (score ? '<div style="font-size:0.78rem;font-weight:700;color:var(--primary);margin-top:4px">Score : ' + escHtml(score) + '</div>' : '') +
+                  '<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--text-light);margin-top:6px">' +
+                    (c.phone ? '<a href="tel:' + c.phone.replace(/\s/g,'') + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-phone"></i></a>' : '<span></span>') +
+                    (c.email ? '<a href="mailto:' + escHtml(c.email) + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-envelope"></i></a>' : '<span></span>') +
+                  '</div>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+            '<div class="text-center text-small text-muted" style="padding:6px;border-top:1px solid var(--border)">' + cards.length + ' prospect(s)</div>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+
+    content.querySelector('#btn-add-prm')?.addEventListener('click', function(){ window.prmForm(); });
+
+    // Tab navigation
+    content.querySelectorAll('[data-prm-tab]').forEach(function(btn){
+      btn.addEventListener('click', function(){ pages.prm(btn.dataset.prmTab); });
+    });
+
+    // Drag & Drop
+    content.querySelectorAll('[data-prm-id]').forEach(function(card){
+      card.addEventListener('dragstart', function(e){ e.dataTransfer.setData('text/plain', card.dataset.prmId); card.classList.add('dragging'); });
+      card.addEventListener('dragend', function(){ card.classList.remove('dragging'); content.querySelectorAll('.pipeline-col-body').forEach(function(col){ col.classList.remove('drag-over'); }); });
+    });
+    content.querySelectorAll('[data-prm-stage]').forEach(function(col){
+      col.addEventListener('dragover', function(e){ e.preventDefault(); });
+      col.addEventListener('dragenter', function(e){ e.preventDefault(); col.classList.add('drag-over'); });
+      col.addEventListener('dragleave', function(e){ if(!col.contains(e.relatedTarget)) col.classList.remove('drag-over'); });
+      col.addEventListener('drop', async function(e){
+        e.preventDefault(); col.classList.remove('drag-over');
+        var cId = e.dataTransfer.getData('text/plain');
+        var newStage = col.dataset.prmStage;
+        if (!cId || !newStage) return;
+        var c = prmContacts.find(function(x){ return x.id === cId; });
+        if (!c) return;
+        var newNotes = (c.notes||'').replace(/^prm_stage:\s*\S+/m, 'prm_stage: '+newStage);
+        if (!(c.notes||'').match(/^prm_stage:/m)) newNotes = 'prm_stage: '+newStage+'\n'+(c.notes||'');
+        await dbUpdate('contacts', cId, { notes: newNotes });
+        c.notes = newNotes;
+        toast('Déplacé vers ' + newStage.replace(/_/g,' '));
+        renderPRM();
+      });
+    });
+  }
+
+  renderPRM();
+};
+
+window.prmView = async function(contactId) {
+  var popup = $('#deal-popup-overlay');
+  var body = $('#deal-popup-body');
+  popup.style.display = 'flex';
+  body.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var contacts = await dbSelect('contacts', { eq: [['id', contactId]] });
+  var c = contacts[0];
+  if (!c) { body.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Introuvable</h4></div>'; return; }
+
+  var PRM_STAGES = [
+    { key: 'a_contacter',   label: 'À contacter' },
+    { key: 'contacte',      label: 'Contacté' },
+    { key: 'en_discussion', label: 'En discussion' },
+    { key: 'devis_envoye',  label: 'Devis envoyé' },
+    { key: 'partenaire',    label: 'Partenaire' },
+    { key: 'perdu_prm',     label: 'Perdu' }
+  ];
+
+  function getPF(key) {
+    var m = (c.notes||'').match(new RegExp('^'+key+':\\s*(.+)$', 'm'));
+    return m ? m[1].trim() : '';
+  }
+
+  var currentStage = getPF('prm_stage') || 'a_contacter';
+  var prio = getPF('priorite');
+  var score = getPF('score');
+  var cat = getPF('categorie');
+  var siret = getPF('siret');
+  var siteWeb = getPF('site_web');
+  var notesProspect = getPF('notes_prospects');
+  var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
+
+  body.innerHTML =
+    '<div style="display:flex;gap:20px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:260px">' +
+        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">' +
+          '<div style="width:52px;height:52px;border-radius:50%;background:var(--primary)22;border:2px solid var(--primary);display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;color:var(--primary)">' +
+            initials(c.first_name, c.last_name) +
+          '</div>' +
+          '<div>' +
+            '<div style="font-size:1.1rem;font-weight:700">' + escHtml((c.company || (c.first_name+' '+c.last_name)).trim()) + '</div>' +
+            (c.company ? '<div style="font-size:0.85rem;color:var(--text-light)">' + escHtml(c.first_name) + ' ' + escHtml(c.last_name) + '</div>' : '') +
+            (cat ? '<div style="font-size:0.78rem;color:var(--text-light)"><i class="fas fa-tag"></i> ' + escHtml(cat) + '</div>' : '') +
+          '</div>' +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-sitemap"></i> Étape PRM</div>' +
+          '<select id="prm-stage-sel" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.9rem;background:var(--bg);color:var(--text)">' +
+            PRM_STAGES.map(function(s){ return '<option value="'+s.key+'"'+(currentStage===s.key?' selected':'')+'>'+s.label+'</option>'; }).join('') +
+          '</select>' +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-address-book"></i> Coordonnées</div>' +
+          (c.phone ? '<div style="margin-bottom:6px"><a href="tel:'+c.phone.replace(/\s/g,'')+'" style="color:var(--primary)"><i class="fas fa-phone" style="width:16px"></i> '+escHtml(c.phone)+'</a></div>' : '') +
+          (c.email ? '<div style="margin-bottom:6px"><a href="mailto:'+escHtml(c.email)+'" style="color:var(--primary)"><i class="fas fa-envelope" style="width:16px"></i> '+escHtml(c.email)+'</a></div>' : '') +
+          (c.city ? '<div style="margin-bottom:6px;font-size:0.82rem"><i class="fas fa-map-marker-alt" style="width:16px;color:var(--text-light)"></i> '+escHtml(c.city)+'</div>' : '') +
+          (siret ? '<div style="font-size:0.8rem;color:var(--text-light)"><i class="fas fa-id-card" style="width:16px"></i> SIRET : '+escHtml(siret)+'</div>' : '') +
+          (siteWeb ? '<div style="margin-top:6px"><a href="'+escHtml(siteWeb)+'" target="_blank" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-globe" style="width:16px"></i> '+escHtml(siteWeb)+'</a></div>' : '') +
+        '</div>' +
+      '</div>' +
+
+      '<div style="flex:1;min-width:240px">' +
+        ((prio||score) ?
+          '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-chart-bar"></i> Qualité du prospect</div>' +
+            '<div style="display:flex;gap:10px">' +
+              (prio ? '<div style="text-align:center;flex:1"><div style="font-size:0.7rem;color:var(--text-light)">Priorité</div><span style="background:'+prioCol+';color:#fff;font-size:1.1rem;font-weight:800;padding:4px 14px;border-radius:6px;display:inline-block;margin-top:4px">'+escHtml(prio)+'</span></div>' : '') +
+              (score ? '<div style="text-align:center;flex:1"><div style="font-size:0.7rem;color:var(--text-light)">Score</div><div style="font-size:1.4rem;font-weight:800;color:var(--primary);margin-top:4px">'+escHtml(score)+'</div></div>' : '') +
+            '</div>' +
+          '</div>' : '') +
+
+        (notesProspect ?
+          '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:8px"><i class="fas fa-sticky-note"></i> Notes prospects</div>' +
+            '<div style="font-size:0.82rem;color:var(--text-light);white-space:pre-wrap">' + escHtml(notesProspect) + '</div>' +
+          '</div>' : '') +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes internes</div>' +
+          '<textarea id="prm-notes-txt" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical">' + escHtml(c.notes||'') + '</textarea>' +
+          '<button id="prm-save-notes" class="btn btn-primary" style="width:100%;margin-top:8px"><i class="fas fa-save"></i> Sauvegarder</button>' +
+        '</div>' +
+
+        (c.email ?
+          '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+            '<button onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.company||c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" class="btn btn-primary" style="width:100%"><i class="fas fa-envelope"></i> Envoyer un email</button>' +
+          '</div>' : '') +
+
+        '<div class="panel" style="padding:14px">' +
+          '<button onclick="window._prmDelete(\'' + c.id + '\')" class="btn" style="width:100%;color:#e74c3c;border-color:#e74c3c"><i class="fas fa-trash"></i> Supprimer du PRM</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  var stageSel = body.querySelector('#prm-stage-sel');
+  var notesTxt = body.querySelector('#prm-notes-txt');
+  var saveBtn = body.querySelector('#prm-save-notes');
+
+  async function savePRM() {
+    var newStage = stageSel.value;
+    var rawNotes = notesTxt.value;
+    var updatedNotes;
+    if (rawNotes.match(/^prm_stage:/m)) {
+      updatedNotes = rawNotes.replace(/^prm_stage:\s*\S+/m, 'prm_stage: '+newStage);
+    } else {
+      updatedNotes = 'prm_stage: '+newStage+'\n'+rawNotes;
+    }
+    await dbUpdate('contacts', c.id, { notes: updatedNotes });
+    c.notes = updatedNotes;
+    toast('PRM mis à jour', 'success');
+    popup.style.display = 'none';
+    pages.prm();
+  }
+
+  saveBtn?.addEventListener('click', savePRM);
+  stageSel?.addEventListener('change', savePRM);
+  popup.onclick = function(e){ if(e.target===popup) popup.style.display='none'; };
+};
+
+window.prmForm = function() {
+  var popup = $('#deal-popup-overlay');
+  var body = $('#deal-popup-body');
+  popup.style.display = 'flex';
+
+  body.innerHTML =
+    '<h3 style="margin:0 0 20px"><i class="fas fa-briefcase" style="color:var(--primary)"></i> Nouveau prospect pro</h3>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Entreprise</label><input id="pf-company" class="form-control" placeholder="Nom de l\'entreprise"></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Contact</label><input id="pf-name" class="form-control" placeholder="Prénom Nom"></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Téléphone</label><input id="pf-phone" class="form-control" placeholder="+33 6 ..."></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Email</label><input id="pf-email" class="form-control" placeholder="contact@..."></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Ville</label><input id="pf-city" class="form-control" placeholder="Ville"></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Catégorie</label><input id="pf-cat" class="form-control" placeholder="Architecte, Bureau d\'études..."></div>' +
+    '</div>' +
+    '<div style="margin-top:12px"><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Notes</label><textarea id="pf-notes" rows="3" class="form-control" placeholder="Notes..."></textarea></div>' +
+    '<button id="pf-save" class="btn btn-primary" style="width:100%;margin-top:16px"><i class="fas fa-save"></i> Créer le prospect</button>';
+
+  body.querySelector('#pf-save')?.addEventListener('click', async function(){
+    var nameParts = (body.querySelector('#pf-name').value||'Inconnu').trim().split(' ');
+    var cat = body.querySelector('#pf-cat').value.trim();
+    var notes = 'prm_stage: a_contacter\n'+(cat?'categorie: '+cat+'\n':'')+(body.querySelector('#pf-notes').value||'');
+    var payload = {
+      first_name: nameParts[0]||'Inconnu',
+      last_name: nameParts.slice(1).join(' ')||'',
+      company: body.querySelector('#pf-company').value.trim(),
+      phone: body.querySelector('#pf-phone').value.trim(),
+      email: body.querySelector('#pf-email').value.trim(),
+      city: body.querySelector('#pf-city').value.trim(),
+      source: 'prm',
+      status: 'prospect',
+      notes: notes
+    };
+    var res = await dbInsert('contacts', payload);
+    if (res && res.id) {
+      toast('Prospect pro créé !', 'success');
+      popup.style.display = 'none';
+      pages.prm();
+    } else {
+      toast('Erreur lors de la création', 'error');
+    }
+  });
+  popup.onclick = function(e){ if(e.target===popup) popup.style.display='none'; };
+};
+
+window._prmDelete = async function(contactId) {
+  if (!confirm('Supprimer ce prospect du PRM ?')) return;
+  await dbDelete('contacts', contactId);
+  toast('Prospect supprimé', 'success');
+  $('#deal-popup-overlay').style.display = 'none';
+  pages.prm();
+};
+
+// ============================================
 // RAPPORT MODULE
 // ============================================
 pages.rapport = async function() {
@@ -6909,53 +8068,6 @@ pages.rapport = async function() {
     return;
   }
 
-  // Jordan Ads — charger suggestions + seuils
-  var [jordanSuggestions, jordanThresholds] = await Promise.all([
-    dbSelect('ads_suggestions_tracking', { order: ['created_at', false] }),
-    dbSelect('ads_thresholds_config', { order: ['id', true] })
-  ]);
-
-  var pendingSuggestions = jordanSuggestions.filter(function(s) { return s.status === 'pending'; });
-  var thresholdMap = {};
-  jordanThresholds.forEach(function(t) { thresholdMap[t.config_key] = t.config_value; });
-
-  var jordanHtml = '<div class="panel" style="margin-bottom:20px">' +
-    '<div class="panel-header" style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff">' +
-    '<h3 style="color:#fff"><i class="fas fa-chart-line"></i> Jordan — Agent Google Ads <span style="font-size:0.75rem;opacity:0.7;margin-left:8px">Campagne J-' + Math.max(1, Math.round((Date.now() - new Date('2026-04-11').getTime()) / 86400000)) + '</span></h3>' +
-    '</div><div class="panel-body">' +
-    // Stats ads 7j
-    '<div class="stats-grid" style="margin-bottom:16px">' +
-    '<div class="stat-card"><div class="stat-icon green"><i class="fas fa-eye"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(r.impressions||0);},0) + '</h3><p>Impressions 7j</p></div></div>' +
-    '<div class="stat-card"><div class="stat-icon blue"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(r.clicks||0);},0) + '</h3><p>Clics 7j</p></div></div>' +
-    '<div class="stat-card"><div class="stat-icon gold"><i class="fas fa-euro-sign"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(parseFloat(r.spend)||0);},0).toFixed(2) + '€</h3><p>Dépensé 7j</p></div></div>' +
-    '<div class="stat-card"><div class="stat-icon ' + (adsData.reduce(function(s,r){return s+(r.conversions||0);},0) > 0 ? 'green' : 'gray') + '"><i class="fas fa-phone"></i></div><div class="stat-info"><h3>' + adsData.reduce(function(s,r){return s+(r.conversions||0);},0) + '</h3><p>Conversions</p></div></div>' +
-    '</div>' +
-    // Seuils phase démarrage
-    '<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.84rem">' +
-    '<strong style="display:block;margin-bottom:8px;color:#495057"><i class="fas fa-sliders-h"></i> Seuils pilotage — Phase démarrage J+30</strong>' +
-    '<div style="display:flex;gap:24px;flex-wrap:wrap">' +
-    '<span>CPL cible : <strong>' + (thresholdMap['cpl_target'] || 25) + '€</strong></span>' +
-    '<span>CPL attention : <strong style="color:#e67e22">' + (thresholdMap['cpl_warning'] || 120) + '€</strong></span>' +
-    '<span>CPL critique : <strong style="color:#e74c3c">' + (thresholdMap['cpl_critical'] || 180) + '€</strong></span>' +
-    '<span>Volume mini : <strong>' + (thresholdMap['volume_min_monthly'] || 3) + ' leads/mois</strong></span>' +
-    '</div></div>' +
-    // Suggestions P0
-    (pendingSuggestions.length > 0 ?
-      '<div style="margin-bottom:8px"><strong style="font-size:0.85rem"><i class="fas fa-exclamation-triangle" style="color:#e67e22"></i> Actions en attente (' + pendingSuggestions.length + ')</strong></div>' +
-      pendingSuggestions.map(function(s) {
-        return '<div style="border:1px solid #fce4b5;background:#fffbf0;border-radius:8px;padding:12px 16px;margin-bottom:8px">' +
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
-          '<div><span class="badge" style="background:#e67e22;color:#fff;font-size:0.7rem;margin-right:6px">' + (s.priority || 'P1') + '</span><strong style="font-size:0.85rem">' + s.title + '</strong>' +
-          '<div style="font-size:0.8rem;color:#666;margin-top:4px">' + (s.action_description || '') + '</div>' +
-          '<div style="font-size:0.78rem;color:#888;margin-top:4px">Effort : ' + (s.effort_level || '?') + ' · Impact : ' + (s.estimated_impact || '?') + '</div></div>' +
-          '<div style="display:flex;gap:6px;flex-shrink:0">' +
-          '<button onclick="jordanDecide(' + s.id + ',\'approved\')" style="background:#27ae60;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:0.75rem;cursor:pointer">✓ OK</button>' +
-          '<button onclick="jordanDecide(' + s.id + ',\'rejected\')" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:0.75rem;cursor:pointer">✗ Non</button>' +
-          '</div></div></div>';
-      }).join('')
-      : '<div style="color:#27ae60;font-size:0.85rem"><i class="fas fa-check-circle"></i> Aucune action en attente</div>') +
-    '</div></div>';
-
   // Summary KPIs for full period
   var totalNewLeads = contacts.filter(function(c) { return c.status === 'lead' || c.status === 'prospect'; }).length;
   var totalRdv = planning.length;
@@ -6982,20 +8094,11 @@ pages.rapport = async function() {
       </div>
     </div>
 
-    <div id="jordan-rapport-block"></div>
     <div class="panel">
       <div class="panel-header"><h3><i class="fas fa-clipboard-list"></i> Rapports quotidiens</h3></div>
       <div class="panel-body" id="rapport-days" style="max-height:calc(100vh - 340px);overflow-y:auto"></div>
     </div>
   `;
-
-  $('#jordan-rapport-block').innerHTML = jordanHtml;
-
-  // Jordan decide helper
-  window.jordanDecide = async function(id, decision) {
-    await db.from('ads_suggestions_tracking').update({ status: decision, yoann_decision: decision, decision_date: new Date().toISOString() }).eq('id', id);
-    pages.rapport();
-  };
 
   var rapportContainer = $('#rapport-days');
   rapportContainer.innerHTML = sortedDays.map(function(day) {
@@ -7116,19 +8219,37 @@ function showApp() {
   document.querySelector('.main').style.display = '';
   navigate('dashboard');
 
-  // Auto-sync Google Calendar at login if connected
-  if (gcalIsConnected()) {
-    setTimeout(async function() {
+  // Auto-sync Google Calendar at login
+  // Tente un token silencieux si Client ID configuré, sinon utilise le token existant
+  setTimeout(async function() {
+    var clientId = getGcalClientId();
+    if (!clientId) return; // GCal pas configuré
+
+    async function doSync() {
       try {
-        var imported = await gcalImportToPlanning();
         var synced = await gcalSyncAll();
         var msg = [];
-        if (imported > 0) msg.push(imported + ' importe(s)');
-        if (synced && (synced.created > 0 || synced.updated > 0)) msg.push(synced.created + ' crees, ' + synced.updated + ' mis a jour');
-        if (msg.length > 0) toast('Sync Google Agenda : ' + msg.join(' / '), 'success');
+        if (synced && synced.created > 0) msg.push(synced.created + ' sync(s) vers GCal');
+        if (synced && synced.updated > 0) msg.push(synced.updated + ' mis à jour');
+        if (msg.length > 0) toast('📅 Planning synchronisé : ' + msg.join(', '), 'success');
       } catch(e) { console.error('Auto GCal sync error', e); }
-    }, 1500);
-  }
+    }
+
+    if (gcalIsConnected()) {
+      // Token encore valide → sync direct
+      await doSync();
+    } else {
+      // Token expiré ou absent → demande silencieuse (sans popup)
+      if (!gcalTokenClient) gcalInit();
+      if (gcalTokenClient) {
+        try {
+          gcalTokenClient.requestAccessToken({ prompt: '' });
+          // Le callback dans gcalInit stocke le token et lance le sync auto
+          // On n'a rien d'autre à faire ici
+        } catch(e) { /* ignore si l'utilisateur n'a pas encore autorisé */ }
+      }
+    }
+  }, 1500);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
