@@ -2440,9 +2440,10 @@ pages.dashboard = async function() {
   try {
     const caMonths = [];
     const _now = new Date();
-    for (let i = 11; i >= 0; i--) {
-      const dd = new Date(_now.getFullYear(), _now.getMonth() - i, 1);
-      caMonths.push({ key: dd.toISOString().slice(0, 7), label: dd.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) });
+    const _start = new Date(2026, 3, 1); // avril 2026 — début des données
+    for (let dd = new Date(_start); dd <= _now; dd.setMonth(dd.getMonth() + 1)) {
+      const d2 = new Date(dd);
+      caMonths.push({ key: d2.toISOString().slice(0, 7), label: d2.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) });
     }
     const _val = d => parseFloat(d && d.value) || 0;
     const _deals = Array.isArray(deals) ? deals : [];
@@ -2475,7 +2476,7 @@ pages.dashboard = async function() {
     <div class="panel" style="margin-bottom:20px;border-top:3px solid #27ae60;cursor:pointer" onclick="navigate('dashboard-devis')">
       <div class="panel-header">
         <h3><i class="fas fa-euro-sign"></i> Évolution du chiffre d'affaires</h3>
-        <span class="text-muted text-small">12 derniers mois · total signé <strong style="color:#27ae60">${formatCurrency(totalSigne)}</strong> · cliquez pour voir le Dashboard Devis</span>
+        <span class="text-muted text-small">depuis avril 2026 · total signé <strong style="color:#27ae60">${formatCurrency(totalSigne)}</strong> · cliquez pour voir le Dashboard Devis</span>
       </div>
       <div class="panel-body">
         <div style="position:relative;height:300px"><canvas id="chart-ca-evolution"></canvas></div>
@@ -5788,9 +5789,10 @@ pages['dashboard-devis'] = async function() {
   // Evolution par mois (12 derniers mois) par statut
   const months = [];
   const now = new Date();
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ key: d.toISOString().slice(0, 7), label: d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }) });
+  const start = new Date(2026, 3, 1); // avril 2026 — début des données
+  for (let d = new Date(start); d <= now; d.setMonth(d.getMonth() + 1)) {
+    const d2 = new Date(d);
+    months.push({ key: d2.toISOString().slice(0, 7), label: d2.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }) });
   }
   const bucketMonth = (dateStr) => (dateStr || '').slice(0, 7);
   const seriesByStatus = { envoye: [], refuse: [], accepte: [] };
@@ -5839,7 +5841,7 @@ pages['dashboard-devis'] = async function() {
 
     <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:20px">
       <div class="panel">
-        <div class="panel-header"><h3>Évolution des devis</h3><span class="text-muted text-small">12 derniers mois</span></div>
+        <div class="panel-header"><h3>Évolution des devis</h3><span class="text-muted text-small">depuis avril 2026</span></div>
         <div class="panel-body"><div style="position:relative;height:280px"><canvas id="chart-devis-evolution"></canvas></div>
           <div style="display:flex;gap:24px;margin-top:14px;flex-wrap:wrap">
             <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f39c12;margin-right:6px"></span><strong>Envoyé</strong> · ${formatCurrency(totalByStatus.envoye)}</div>
@@ -5857,7 +5859,7 @@ pages['dashboard-devis'] = async function() {
     <div class="panel" style="margin-bottom:20px">
       <div class="panel-header">
         <h3><i class="fas fa-euro-sign"></i> Chiffre d'affaires</h3>
-        <span class="text-muted text-small">CA signé vs en attente — 12 derniers mois</span>
+        <span class="text-muted text-small">CA signé vs en attente — depuis avril 2026</span>
       </div>
       <div class="panel-body">
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px">
