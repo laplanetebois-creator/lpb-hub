@@ -5561,10 +5561,16 @@ pages['dashboard-devis'] = async function() {
   const statusLabels = { envoye: 'Envoyé', refuse: 'Refusé', accepte: 'Accepté (signé)', brouillon: 'Brouillon', expire: 'Expiré' };
 
   const totalDevis = devisList.length;
+  const sent = devisList.filter(d => d.status === 'envoye');
   const signed = devisList.filter(d => d.status === 'accepte');
+  const refused = devisList.filter(d => d.status === 'refuse');
   const signedCount = signed.length;
-  const uniqueClients = new Set(devisList.map(d => d.contact_id).filter(Boolean)).size;
-  const caSigned = signed.reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
+  const sumTotal = arr => arr.reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
+  const caSigned = sumTotal(signed);
+  const caPending = sumTotal(sent);
+  const caRefused = sumTotal(refused);
+  const signRate = totalDevis > 0 ? (signedCount / totalDevis * 100) : 0;
+  const avgSigned = signedCount > 0 ? caSigned / signedCount : 0;
 
   // Evolution par mois (12 derniers mois) par statut
   const months = [];
@@ -5603,44 +5609,29 @@ pages['dashboard-devis'] = async function() {
   });
   const clientRows = Object.values(byClient).sort((a, b) => b.total - a.total);
 
+  const kpiCard = (bg, icon, value, label) =>
+    '<div class="stat-card" style="background:' + bg + ';color:#fff;border:none">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between">' +
+        '<i class="fas ' + icon + '" style="font-size:2.2rem;opacity:.85"></i>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:1.7rem;font-weight:700;line-height:1.1">' + value + '</div>' +
+          '<div style="opacity:.9;font-size:.85rem">' + label + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
   content.innerHTML = `
-    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">
-      <div class="stat-card" style="background:#e67e22;color:#fff;border:none">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <i class="fas fa-file-invoice-dollar" style="font-size:2.5rem;opacity:.85"></i>
-          <div style="text-align:right">
-            <div style="font-size:2.2rem;font-weight:700;line-height:1">${totalDevis}</div>
-            <div style="opacity:.9">Devis</div>
-          </div>
-        </div>
-      </div>
-      <div class="stat-card" style="background:#1abc9c;color:#fff;border:none">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <i class="fas fa-file-signature" style="font-size:2.5rem;opacity:.85"></i>
-          <div style="text-align:right">
-            <div style="font-size:2.2rem;font-weight:700;line-height:1">${signedCount}</div>
-            <div style="opacity:.9">Devis signés</div>
-          </div>
-        </div>
-      </div>
-      <div class="stat-card" style="background:#5b6ebf;color:#fff;border:none">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <i class="fas fa-users" style="font-size:2.5rem;opacity:.85"></i>
-          <div style="text-align:right">
-            <div style="font-size:2.2rem;font-weight:700;line-height:1">${uniqueClients}</div>
-            <div style="opacity:.9">Contacts</div>
-          </div>
-        </div>
-      </div>
-      <div class="stat-card" style="background:#16a085;color:#fff;border:none">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <i class="fas fa-euro-sign" style="font-size:2.5rem;opacity:.85"></i>
-          <div style="text-align:right">
-            <div style="font-size:1.6rem;font-weight:700;line-height:1.1">${formatCurrency(caSigned)}</div>
-            <div style="opacity:.9">CA signé</div>
-          </div>
-        </div>
-      </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+      ${kpiCard('#e67e22', 'fa-file-invoice-dollar', totalDevis, 'Devis total')}
+      ${kpiCard('#f39c12', 'fa-paper-plane', sent.length, 'Envoyés')}
+      ${kpiCard('#27ae60', 'fa-file-signature', signedCount, 'Signés')}
+      ${kpiCard('#e74c3c', 'fa-times-circle', refused.length, 'Refusés')}
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+      ${kpiCard('#16a085', 'fa-euro-sign', formatCurrency(caSigned), 'CA signé')}
+      ${kpiCard('#3498db', 'fa-hourglass-half', formatCurrency(caPending), 'CA en attente')}
+      ${kpiCard('#5b6ebf', 'fa-percentage', signRate.toFixed(1) + ' %', 'Taux de signature')}
+      ${kpiCard('#9b59b6', 'fa-shopping-cart', formatCurrency(avgSigned), 'Panier moyen signé')}
     </div>
 
     <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:20px">
@@ -5657,6 +5648,30 @@ pages['dashboard-devis'] = async function() {
       <div class="panel">
         <div class="panel-header"><h3>Répartition des devis</h3></div>
         <div class="panel-body"><canvas id="chart-devis-repartition" height="180"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:20px">
+      <div class="panel-header">
+        <h3><i class="fas fa-euro-sign"></i> Chiffre d'affaires</h3>
+        <span class="text-muted text-small">CA signé vs en attente — 12 derniers mois</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px">
+          <div style="padding:14px;border-radius:8px;background:#e8f8f0;border-left:4px solid #27ae60">
+            <div style="color:#7f8c8d;font-size:.8rem">CA signé (réalisé)</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#1b4332">${formatCurrency(caSigned)}</div>
+          </div>
+          <div style="padding:14px;border-radius:8px;background:#ebf5fb;border-left:4px solid #3498db">
+            <div style="color:#7f8c8d;font-size:.8rem">CA en attente</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#1a4971">${formatCurrency(caPending)}</div>
+          </div>
+          <div style="padding:14px;border-radius:8px;background:#fdecea;border-left:4px solid #e74c3c">
+            <div style="color:#7f8c8d;font-size:.8rem">CA perdu (refusé)</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#922b21">${formatCurrency(caRefused)}</div>
+          </div>
+        </div>
+        <canvas id="chart-devis-ca" height="100"></canvas>
       </div>
     </div>
 
@@ -5708,6 +5723,24 @@ pages['dashboard-devis'] = async function() {
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+      }
+    });
+  }
+  const caCtx = document.getElementById('chart-devis-ca');
+  if (caCtx) {
+    new Chart(caCtx, {
+      type: 'bar',
+      data: {
+        labels: months.map(m => m.label),
+        datasets: [
+          { label: 'CA signé', data: seriesByStatus.accepte, backgroundColor: '#27ae60', borderRadius: 4 },
+          { label: 'CA en attente', data: seriesByStatus.envoye, backgroundColor: '#3498db', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } },
         scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
       }
     });
