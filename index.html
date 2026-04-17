@@ -1570,6 +1570,7 @@ a.att-item { position: relative; display: block; }
       <a data-page="analytics"><i class="fas fa-chart-line"></i> Analytics</a>
       <a data-page="gbp"><i class="fab fa-google"></i> Google Business</a>
       <a data-page="devis"><i class="fas fa-file-invoice-dollar"></i> Devis</a>
+      <a data-page="dashboard-devis"><i class="fas fa-chart-bar"></i> Dashboard Devis</a>
       <a data-page="suivi"><i class="fas fa-handshake"></i> Suivi client</a>
       <a data-page="commandes"><i class="fas fa-box"></i> Commandes</a>
       <a data-page="planning"><i class="fas fa-calendar-alt"></i> Planning</a>
@@ -2373,7 +2374,7 @@ window.navigate = function navigate(page) {
   const titles = {
     dashboard: 'Tableau de bord', crm: 'CRM', 'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
-    devis: 'Devis', suivi: 'Suivi client',
+    devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client',
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
     rapport: 'Rapports'
   };
@@ -5540,6 +5541,188 @@ window.actDelete = async function(id) {
   await dbDelete('activities', id);
   toast('Activite supprimee');
   pages.activities();
+};
+
+// ============================================
+// DASHBOARD DEVIS MODULE (style Toolcie)
+// ============================================
+pages['dashboard-devis'] = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  const [devisList, contacts] = await Promise.all([
+    dbSelect('devis', { order: ['created_at', false] }),
+    dbSelect('contacts')
+  ]);
+  const contactMap = {};
+  contacts.forEach(c => { contactMap[c.id] = c; });
+
+  const statusColors = { envoye: '#f39c12', refuse: '#e74c3c', accepte: '#27ae60', brouillon: '#95a5a6', expire: '#7f8c8d' };
+  const statusLabels = { envoye: 'Envoyé', refuse: 'Refusé', accepte: 'Accepté (signé)', brouillon: 'Brouillon', expire: 'Expiré' };
+
+  const totalDevis = devisList.length;
+  const signed = devisList.filter(d => d.status === 'accepte');
+  const signedCount = signed.length;
+  const uniqueClients = new Set(devisList.map(d => d.contact_id).filter(Boolean)).size;
+  const caSigned = signed.reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
+
+  // Evolution par mois (12 derniers mois) par statut
+  const months = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ key: d.toISOString().slice(0, 7), label: d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }) });
+  }
+  const seriesByStatus = { envoye: [], refuse: [], accepte: [] };
+  months.forEach(m => {
+    Object.keys(seriesByStatus).forEach(st => {
+      const sum = devisList
+        .filter(d => d.status === st && (d.created_at || '').slice(0, 7) === m.key)
+        .reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
+      seriesByStatus[st].push(sum);
+    });
+  });
+  const totalByStatus = {
+    envoye: seriesByStatus.envoye.reduce((a, b) => a + b, 0),
+    refuse: seriesByStatus.refuse.reduce((a, b) => a + b, 0),
+    accepte: seriesByStatus.accepte.reduce((a, b) => a + b, 0)
+  };
+
+  // Répartition (count par statut)
+  const statusKeys = ['envoye', 'refuse', 'accepte', 'brouillon', 'expire'];
+  const countByStatus = statusKeys.map(k => devisList.filter(d => d.status === k).length);
+
+  // Devis signés groupés par client (pour "suivi client")
+  const byClient = {};
+  signed.forEach(d => {
+    const key = d.contact_id || 'unknown';
+    if (!byClient[key]) byClient[key] = { contact: contactMap[d.contact_id], total: 0, count: 0, devis: [] };
+    byClient[key].total += parseFloat(d.total) || 0;
+    byClient[key].count++;
+    byClient[key].devis.push(d);
+  });
+  const clientRows = Object.values(byClient).sort((a, b) => b.total - a.total);
+
+  content.innerHTML = `
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">
+      <div class="stat-card" style="background:#e67e22;color:#fff;border:none">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <i class="fas fa-file-invoice-dollar" style="font-size:2.5rem;opacity:.85"></i>
+          <div style="text-align:right">
+            <div style="font-size:2.2rem;font-weight:700;line-height:1">${totalDevis}</div>
+            <div style="opacity:.9">Devis</div>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card" style="background:#1abc9c;color:#fff;border:none">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <i class="fas fa-file-signature" style="font-size:2.5rem;opacity:.85"></i>
+          <div style="text-align:right">
+            <div style="font-size:2.2rem;font-weight:700;line-height:1">${signedCount}</div>
+            <div style="opacity:.9">Devis signés</div>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card" style="background:#5b6ebf;color:#fff;border:none">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <i class="fas fa-users" style="font-size:2.5rem;opacity:.85"></i>
+          <div style="text-align:right">
+            <div style="font-size:2.2rem;font-weight:700;line-height:1">${uniqueClients}</div>
+            <div style="opacity:.9">Contacts</div>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card" style="background:#16a085;color:#fff;border:none">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <i class="fas fa-euro-sign" style="font-size:2.5rem;opacity:.85"></i>
+          <div style="text-align:right">
+            <div style="font-size:1.6rem;font-weight:700;line-height:1.1">${formatCurrency(caSigned)}</div>
+            <div style="opacity:.9">CA signé</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="panel">
+        <div class="panel-header"><h3>Évolution des devis</h3><span class="text-muted text-small">12 derniers mois</span></div>
+        <div class="panel-body"><canvas id="chart-devis-evolution" height="110"></canvas>
+          <div style="display:flex;gap:24px;margin-top:14px;flex-wrap:wrap">
+            <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f39c12;margin-right:6px"></span><strong>Envoyé</strong> · ${formatCurrency(totalByStatus.envoye)}</div>
+            <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e74c3c;margin-right:6px"></span><strong>Refusé</strong> · ${formatCurrency(totalByStatus.refuse)}</div>
+            <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#27ae60;margin-right:6px"></span><strong>Accepté</strong> · ${formatCurrency(totalByStatus.accepte)}</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3>Répartition des devis</h3></div>
+        <div class="panel-body"><canvas id="chart-devis-repartition" height="180"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3><i class="fas fa-handshake"></i> Suivi client — prix des devis signés</h3>
+        <span class="text-muted text-small">${clientRows.length} client(s)</span>
+      </div>
+      <div class="panel-body" style="padding:0">
+        ${clientRows.length === 0 ? '<div class="empty-state"><i class="fas fa-file-signature"></i><h4>Aucun devis signé</h4></div>' : `
+          <table class="data-table">
+            <thead><tr>
+              <th>Client</th><th>Société</th><th class="text-right">Nb devis signés</th><th class="text-right">Montant total</th><th>Devis</th>
+            </tr></thead>
+            <tbody>
+              ${clientRows.map(r => {
+                const c = r.contact;
+                const name = c ? (c.first_name + ' ' + c.last_name) : '— Client inconnu —';
+                const comp = c && c.company ? c.company : '—';
+                const devisTags = r.devis.map(d => '<span style="background:#e8f5ee;color:#1b4332;padding:2px 8px;border-radius:10px;font-size:.75rem;margin-right:4px">' + d.numero + ' · ' + formatCurrency(d.total) + '</span>').join('');
+                return '<tr>' +
+                  '<td><strong>' + name + '</strong></td>' +
+                  '<td class="text-muted">' + comp + '</td>' +
+                  '<td class="text-right">' + r.count + '</td>' +
+                  '<td class="text-right"><strong style="color:#27ae60">' + formatCurrency(r.total) + '</strong></td>' +
+                  '<td>' + devisTags + '</td>' +
+                '</tr>';
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  // Charts
+  const evoCtx = document.getElementById('chart-devis-evolution');
+  if (evoCtx) {
+    new Chart(evoCtx, {
+      type: 'line',
+      data: {
+        labels: months.map(m => m.label),
+        datasets: [
+          { label: 'Envoyé', data: seriesByStatus.envoye, borderColor: '#f39c12', backgroundColor: 'rgba(243,156,18,.1)', tension: .4, fill: false },
+          { label: 'Refusé', data: seriesByStatus.refuse, borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,.1)', tension: .4, fill: false },
+          { label: 'Accepté', data: seriesByStatus.accepte, borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,.1)', tension: .4, fill: false }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+      }
+    });
+  }
+  const repCtx = document.getElementById('chart-devis-repartition');
+  if (repCtx) {
+    new Chart(repCtx, {
+      type: 'doughnut',
+      data: {
+        labels: statusKeys.map(k => statusLabels[k]),
+        datasets: [{ data: countByStatus, backgroundColor: statusKeys.map(k => statusColors[k]), borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
 };
 
 // ============================================
