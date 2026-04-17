@@ -7606,6 +7606,288 @@ pages.presentation = function() {
 };
 
 // ============================================
+// PRM MODULE (Professionnels B2B)
+// ============================================
+pages.prm = async function() {
+  var content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var contacts = await dbSelect('contacts', { order: ['created_at', false] });
+  var prmContacts = contacts.filter(function(c){ return c.source === 'prm'; });
+
+  var PRM_STAGES = [
+    { key: 'a_contacter',   label: 'À contacter',   color: '#3498db', icon: 'fa-user-clock' },
+    { key: 'contacte',      label: 'Contacté',       color: '#9b59b6', icon: 'fa-phone-volume' },
+    { key: 'en_discussion', label: 'En discussion',  color: '#e0a030', icon: 'fa-comments' },
+    { key: 'devis_envoye',  label: 'Devis envoyé',   color: '#2ecc71', icon: 'fa-file-invoice' },
+    { key: 'partenaire',    label: 'Partenaire',     color: '#2d6a4f', icon: 'fa-handshake' },
+    { key: 'perdu_prm',     label: 'Perdu',          color: '#e74c3c', icon: 'fa-times-circle' }
+  ];
+
+  function getPrmStage(c) {
+    var m = (c.notes||'').match(/^prm_stage:\s*(\S+)/m);
+    return m ? m[1] : 'a_contacter';
+  }
+
+  function getPrmField(c, key) {
+    var m = (c.notes||'').match(new RegExp('^'+key+':\\s*(.+)$', 'm'));
+    return m ? m[1].trim() : '';
+  }
+
+  function renderPRM() {
+    var stageMap = {};
+    PRM_STAGES.forEach(function(s){ stageMap[s.key] = []; });
+    prmContacts.forEach(function(c){
+      var st = getPrmStage(c);
+      if (!stageMap[st]) st = 'a_contacter';
+      stageMap[st].push(c);
+    });
+
+    content.innerHTML =
+      '<div class="toolbar" style="margin-bottom:16px">' +
+        '<div class="toolbar-left"><span class="text-muted"><i class="fas fa-briefcase"></i> <strong>' + prmContacts.length + '</strong> prospect(s) pro</span></div>' +
+        '<div class="toolbar-right"><button class="btn btn-primary" id="btn-add-prm"><i class="fas fa-plus"></i> Nouveau prospect pro</button></div>' +
+      '</div>' +
+      '<div class="pipeline">' +
+        PRM_STAGES.map(function(st){
+          var cards = stageMap[st.key] || [];
+          return '<div class="pipeline-col">' +
+            '<div class="pipeline-col-header" style="border-bottom-color:' + st.color + '">' +
+              '<span><i class="fas ' + st.icon + '" style="color:' + st.color + ';margin-right:6px"></i>' + st.label + '</span>' +
+              '<span class="count">' + cards.length + '</span>' +
+            '</div>' +
+            '<div class="pipeline-col-body" data-prm-stage="' + st.key + '">' +
+              (cards.length === 0 ? '<div class="text-center text-muted text-small" style="padding:20px">—</div>' : '') +
+              cards.map(function(c){
+                var prio = getPrmField(c, 'priorite');
+                var score = getPrmField(c, 'score');
+                var cat = getPrmField(c, 'categorie');
+                var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
+                return '<div class="deal-card" draggable="true" data-prm-id="' + c.id + '" onclick="window.prmView(\'' + c.id + '\')" style="position:relative;cursor:pointer">' +
+                  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+                    '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + avatarHtml(c) + '</div>' +
+                    '<div style="flex:1;min-width:0">' +
+                      '<strong style="font-size:0.85rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml((c.company || (c.first_name+' '+c.last_name)).trim()) + '</strong>' +
+                      (c.city ? '<span style="display:block;font-size:0.7rem;color:var(--text-light)"><i class="fas fa-map-marker-alt" style="font-size:0.6rem"></i> ' + escHtml(c.city) + '</span>' : '') +
+                    '</div>' +
+                    (prio ? '<span style="background:' + prioCol + ';color:#fff;font-size:0.65rem;font-weight:800;padding:1px 6px;border-radius:3px">' + escHtml(prio) + '</span>' : '') +
+                  '</div>' +
+                  (cat ? '<div style="font-size:0.72rem;color:var(--text-light);margin-top:3px"><i class="fas fa-tag"></i> ' + escHtml(cat) + '</div>' : '') +
+                  (score ? '<div style="font-size:0.78rem;font-weight:700;color:var(--primary);margin-top:4px">Score : ' + escHtml(score) + '</div>' : '') +
+                  '<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--text-light);margin-top:6px">' +
+                    (c.phone ? '<a href="tel:' + c.phone.replace(/\s/g,'') + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-phone"></i></a>' : '<span></span>') +
+                    (c.email ? '<a href="mailto:' + escHtml(c.email) + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-envelope"></i></a>' : '<span></span>') +
+                  '</div>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+            '<div class="text-center text-small text-muted" style="padding:6px;border-top:1px solid var(--border)">' + cards.length + ' prospect(s)</div>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+
+    content.querySelector('#btn-add-prm')?.addEventListener('click', function(){ window.prmForm(); });
+
+    // Drag & Drop
+    content.querySelectorAll('[data-prm-id]').forEach(function(card){
+      card.addEventListener('dragstart', function(e){ e.dataTransfer.setData('text/plain', card.dataset.prmId); card.classList.add('dragging'); });
+      card.addEventListener('dragend', function(){ card.classList.remove('dragging'); content.querySelectorAll('.pipeline-col-body').forEach(function(col){ col.classList.remove('drag-over'); }); });
+    });
+    content.querySelectorAll('[data-prm-stage]').forEach(function(col){
+      col.addEventListener('dragover', function(e){ e.preventDefault(); });
+      col.addEventListener('dragenter', function(e){ e.preventDefault(); col.classList.add('drag-over'); });
+      col.addEventListener('dragleave', function(e){ if(!col.contains(e.relatedTarget)) col.classList.remove('drag-over'); });
+      col.addEventListener('drop', async function(e){
+        e.preventDefault(); col.classList.remove('drag-over');
+        var cId = e.dataTransfer.getData('text/plain');
+        var newStage = col.dataset.prmStage;
+        if (!cId || !newStage) return;
+        var c = prmContacts.find(function(x){ return x.id === cId; });
+        if (!c) return;
+        var newNotes = (c.notes||'').replace(/^prm_stage:\s*\S+/m, 'prm_stage: '+newStage);
+        if (!(c.notes||'').match(/^prm_stage:/m)) newNotes = 'prm_stage: '+newStage+'\n'+(c.notes||'');
+        await dbUpdate('contacts', cId, { notes: newNotes });
+        c.notes = newNotes;
+        toast('Déplacé vers ' + newStage.replace(/_/g,' '));
+        renderPRM();
+      });
+    });
+  }
+
+  renderPRM();
+};
+
+window.prmView = async function(contactId) {
+  var popup = $('#deal-popup-overlay');
+  var body = $('#deal-popup-body');
+  popup.style.display = 'flex';
+  body.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var contacts = await dbSelect('contacts', { eq: [['id', contactId]] });
+  var c = contacts[0];
+  if (!c) { body.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Introuvable</h4></div>'; return; }
+
+  var PRM_STAGES = [
+    { key: 'a_contacter',   label: 'À contacter' },
+    { key: 'contacte',      label: 'Contacté' },
+    { key: 'en_discussion', label: 'En discussion' },
+    { key: 'devis_envoye',  label: 'Devis envoyé' },
+    { key: 'partenaire',    label: 'Partenaire' },
+    { key: 'perdu_prm',     label: 'Perdu' }
+  ];
+
+  function getPF(key) {
+    var m = (c.notes||'').match(new RegExp('^'+key+':\\s*(.+)$', 'm'));
+    return m ? m[1].trim() : '';
+  }
+
+  var currentStage = getPF('prm_stage') || 'a_contacter';
+  var prio = getPF('priorite');
+  var score = getPF('score');
+  var cat = getPF('categorie');
+  var siret = getPF('siret');
+  var siteWeb = getPF('site_web');
+  var notesProspect = getPF('notes_prospects');
+  var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
+
+  body.innerHTML =
+    '<div style="display:flex;gap:20px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:260px">' +
+        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">' +
+          '<div style="width:52px;height:52px;border-radius:50%;background:var(--primary)22;border:2px solid var(--primary);display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;color:var(--primary)">' +
+            initials(c.first_name, c.last_name) +
+          '</div>' +
+          '<div>' +
+            '<div style="font-size:1.1rem;font-weight:700">' + escHtml((c.company || (c.first_name+' '+c.last_name)).trim()) + '</div>' +
+            (c.company ? '<div style="font-size:0.85rem;color:var(--text-light)">' + escHtml(c.first_name) + ' ' + escHtml(c.last_name) + '</div>' : '') +
+            (cat ? '<div style="font-size:0.78rem;color:var(--text-light)"><i class="fas fa-tag"></i> ' + escHtml(cat) + '</div>' : '') +
+          '</div>' +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-sitemap"></i> Étape PRM</div>' +
+          '<select id="prm-stage-sel" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.9rem;background:var(--bg);color:var(--text)">' +
+            PRM_STAGES.map(function(s){ return '<option value="'+s.key+'"'+(currentStage===s.key?' selected':'')+'>'+s.label+'</option>'; }).join('') +
+          '</select>' +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-address-book"></i> Coordonnées</div>' +
+          (c.phone ? '<div style="margin-bottom:6px"><a href="tel:'+c.phone.replace(/\s/g,'')+'" style="color:var(--primary)"><i class="fas fa-phone" style="width:16px"></i> '+escHtml(c.phone)+'</a></div>' : '') +
+          (c.email ? '<div style="margin-bottom:6px"><a href="mailto:'+escHtml(c.email)+'" style="color:var(--primary)"><i class="fas fa-envelope" style="width:16px"></i> '+escHtml(c.email)+'</a></div>' : '') +
+          (c.city ? '<div style="margin-bottom:6px;font-size:0.82rem"><i class="fas fa-map-marker-alt" style="width:16px;color:var(--text-light)"></i> '+escHtml(c.city)+'</div>' : '') +
+          (siret ? '<div style="font-size:0.8rem;color:var(--text-light)"><i class="fas fa-id-card" style="width:16px"></i> SIRET : '+escHtml(siret)+'</div>' : '') +
+          (siteWeb ? '<div style="margin-top:6px"><a href="'+escHtml(siteWeb)+'" target="_blank" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-globe" style="width:16px"></i> '+escHtml(siteWeb)+'</a></div>' : '') +
+        '</div>' +
+      '</div>' +
+
+      '<div style="flex:1;min-width:240px">' +
+        ((prio||score) ?
+          '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-chart-bar"></i> Qualité du prospect</div>' +
+            '<div style="display:flex;gap:10px">' +
+              (prio ? '<div style="text-align:center;flex:1"><div style="font-size:0.7rem;color:var(--text-light)">Priorité</div><span style="background:'+prioCol+';color:#fff;font-size:1.1rem;font-weight:800;padding:4px 14px;border-radius:6px;display:inline-block;margin-top:4px">'+escHtml(prio)+'</span></div>' : '') +
+              (score ? '<div style="text-align:center;flex:1"><div style="font-size:0.7rem;color:var(--text-light)">Score</div><div style="font-size:1.4rem;font-weight:800;color:var(--primary);margin-top:4px">'+escHtml(score)+'</div></div>' : '') +
+            '</div>' +
+          '</div>' : '') +
+
+        (notesProspect ?
+          '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:8px"><i class="fas fa-sticky-note"></i> Notes prospects</div>' +
+            '<div style="font-size:0.82rem;color:var(--text-light);white-space:pre-wrap">' + escHtml(notesProspect) + '</div>' +
+          '</div>' : '') +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes internes</div>' +
+          '<textarea id="prm-notes-txt" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical">' + escHtml(c.notes||'') + '</textarea>' +
+          '<button id="prm-save-notes" class="btn btn-primary" style="width:100%;margin-top:8px"><i class="fas fa-save"></i> Sauvegarder</button>' +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px">' +
+          '<button onclick="window._prmDelete(\'' + c.id + '\')" class="btn" style="width:100%;color:#e74c3c;border-color:#e74c3c"><i class="fas fa-trash"></i> Supprimer du PRM</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  var stageSel = body.querySelector('#prm-stage-sel');
+  var notesTxt = body.querySelector('#prm-notes-txt');
+  var saveBtn = body.querySelector('#prm-save-notes');
+
+  async function savePRM() {
+    var newStage = stageSel.value;
+    var rawNotes = notesTxt.value;
+    var updatedNotes;
+    if (rawNotes.match(/^prm_stage:/m)) {
+      updatedNotes = rawNotes.replace(/^prm_stage:\s*\S+/m, 'prm_stage: '+newStage);
+    } else {
+      updatedNotes = 'prm_stage: '+newStage+'\n'+rawNotes;
+    }
+    await dbUpdate('contacts', c.id, { notes: updatedNotes });
+    c.notes = updatedNotes;
+    toast('PRM mis à jour', 'success');
+    popup.style.display = 'none';
+    pages.prm();
+  }
+
+  saveBtn?.addEventListener('click', savePRM);
+  stageSel?.addEventListener('change', savePRM);
+  popup.onclick = function(e){ if(e.target===popup) popup.style.display='none'; };
+};
+
+window.prmForm = function() {
+  var popup = $('#deal-popup-overlay');
+  var body = $('#deal-popup-body');
+  popup.style.display = 'flex';
+
+  body.innerHTML =
+    '<h3 style="margin:0 0 20px"><i class="fas fa-briefcase" style="color:var(--primary)"></i> Nouveau prospect pro</h3>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Entreprise</label><input id="pf-company" class="form-control" placeholder="Nom de l\'entreprise"></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Contact</label><input id="pf-name" class="form-control" placeholder="Prénom Nom"></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Téléphone</label><input id="pf-phone" class="form-control" placeholder="+33 6 ..."></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Email</label><input id="pf-email" class="form-control" placeholder="contact@..."></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Ville</label><input id="pf-city" class="form-control" placeholder="Ville"></div>' +
+      '<div><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Catégorie</label><input id="pf-cat" class="form-control" placeholder="Architecte, Bureau d\'études..."></div>' +
+    '</div>' +
+    '<div style="margin-top:12px"><label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Notes</label><textarea id="pf-notes" rows="3" class="form-control" placeholder="Notes..."></textarea></div>' +
+    '<button id="pf-save" class="btn btn-primary" style="width:100%;margin-top:16px"><i class="fas fa-save"></i> Créer le prospect</button>';
+
+  body.querySelector('#pf-save')?.addEventListener('click', async function(){
+    var nameParts = (body.querySelector('#pf-name').value||'Inconnu').trim().split(' ');
+    var cat = body.querySelector('#pf-cat').value.trim();
+    var notes = 'prm_stage: a_contacter\n'+(cat?'categorie: '+cat+'\n':'')+(body.querySelector('#pf-notes').value||'');
+    var payload = {
+      first_name: nameParts[0]||'Inconnu',
+      last_name: nameParts.slice(1).join(' ')||'',
+      company: body.querySelector('#pf-company').value.trim(),
+      phone: body.querySelector('#pf-phone').value.trim(),
+      email: body.querySelector('#pf-email').value.trim(),
+      city: body.querySelector('#pf-city').value.trim(),
+      source: 'prm',
+      status: 'prospect',
+      notes: notes
+    };
+    var res = await dbInsert('contacts', payload);
+    if (res && res[0] && res[0].id) {
+      toast('Prospect pro créé !', 'success');
+      popup.style.display = 'none';
+      pages.prm();
+    } else {
+      toast('Erreur lors de la création', 'error');
+    }
+  });
+  popup.onclick = function(e){ if(e.target===popup) popup.style.display='none'; };
+};
+
+window._prmDelete = async function(contactId) {
+  if (!confirm('Supprimer ce prospect du PRM ?')) return;
+  await dbDelete('contacts', contactId);
+  toast('Prospect supprimé', 'success');
+  $('#deal-popup-overlay').style.display = 'none';
+  pages.prm();
+};
+
+// ============================================
 // RAPPORT MODULE
 // ============================================
 pages.rapport = async function() {
