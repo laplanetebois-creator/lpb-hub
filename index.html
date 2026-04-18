@@ -6857,7 +6857,45 @@ pages.planning = async function() {
 
   var typeLabels = { tache: 'Tache', rdv: 'RDV', chantier: 'Chantier', livraison: 'Livraison', autre: 'Autre' };
 
+  // Rappels du jour
+  var todayKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  var todayEvents = events.filter(function(ev){ return ev.start_date && ev.start_date.substring(0,10) === todayKey && ev.status !== 'termine' && ev.status !== 'annule'; });
+  todayEvents.sort(function(a,b){ return (a.start_time||'').localeCompare(b.start_time||''); });
+
+  var typeIcons = { tache: 'fa-check-square', rdv: 'fa-handshake', chantier: 'fa-hard-hat', livraison: 'fa-truck', rappel: 'fa-bell', autre: 'fa-calendar-day' };
+  var typeColors = { tache: '#3498db', rdv: '#2ecc71', chantier: '#2d6a4f', livraison: '#9b59b6', rappel: '#e67e22', autre: '#78909c' };
+
+  var rappelsDuJourHtml = todayEvents.length === 0
+    ? ''
+    : '<div style="background:linear-gradient(135deg,#fff8e1,#fff3cd);border:1.5px solid #f4a400;border-radius:10px;padding:14px 18px;margin-bottom:16px;box-shadow:0 2px 8px #f4a40022">' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">' +
+          '<i class="fas fa-bell" style="color:#f4a400;font-size:1.1rem"></i>' +
+          '<strong style="font-size:1rem;color:#7a5c00">Rappels du jour</strong>' +
+          '<span style="background:#f4a400;color:#fff;font-size:0.72rem;font-weight:800;padding:2px 9px;border-radius:10px">'+todayEvents.length+'</span>' +
+          '<span style="font-size:0.8rem;color:#a07c00;margin-left:4px">'+new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})+'</span>' +
+        '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+          todayEvents.map(function(ev){
+            var c = contactMap[ev.contact_id];
+            var displayTitle = c ? c.first_name + ' ' + c.last_name : ev.title;
+            var icon = typeIcons[ev.type] || 'fa-calendar-day';
+            var col = ev.color || typeColors[ev.type] || '#78909c';
+            var timeStr = ev.start_time ? ev.start_time.substring(0,5) : '';
+            return '<div style="background:#fff;border:1.5px solid '+col+';border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;min-width:200px;flex:1;max-width:320px;box-shadow:0 1px 4px rgba(0,0,0,0.06)" onclick="planEdit(\''+ev.id+'\')">' +
+              '<i class="fas '+icon+'" style="color:'+col+';font-size:1rem;flex-shrink:0"></i>' +
+              '<div style="flex:1;min-width:0">' +
+                '<div style="font-weight:700;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(displayTitle)+'</div>' +
+                (timeStr ? '<div style="font-size:0.75rem;color:#666">⏰ '+timeStr+(ev.end_time?' → '+ev.end_time.substring(0,5):'')+'</div>' : '') +
+                (c && c.phone ? '<div style="font-size:0.72rem;color:var(--primary);margin-top:2px"><i class="fas fa-phone" style="font-size:0.65rem"></i> '+escHtml(c.phone)+'</div>' : '') +
+              '</div>' +
+              '<button onclick="event.stopPropagation();planDone(\''+ev.id+'\')" title="Marquer terminé" style="background:#27ae60;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:0.72rem;cursor:pointer;flex-shrink:0"><i class="fas fa-check"></i></button>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+
   content.innerHTML = `
+    ${rappelsDuJourHtml}
     <div class="toolbar" style="flex-wrap:wrap;gap:8px">
       <div class="toolbar-left" style="display:flex;align-items:center;gap:10px">
         <button class="btn btn-outline btn-sm" id="btn-plan-prev"><i class="fas fa-chevron-left"></i></button>
@@ -7119,6 +7157,12 @@ function planForm(ev, contacts) {
     });
   }
 }
+
+window.planDone = async function(id) {
+  await dbUpdate('planning', id, { status: 'termine' });
+  toast('✅ Rappel marqué comme terminé', 'success');
+  pages.planning();
+};
 
 window.planEdit = async function(id) {
   var [events, contacts] = await Promise.all([dbSelect('planning'), dbSelect('contacts')]);
