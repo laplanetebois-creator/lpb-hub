@@ -6783,6 +6783,11 @@ pages.planning = async function() {
   var contactMap = {};
   contacts.forEach(function(c) { contactMap[c.id] = c; });
 
+  // Cache global pour planningClientView (bannière rappels du jour)
+  window._planContactMapCache = contactMap;
+  window._planEvCache = {};
+  events.forEach(function(ev){ window._planEvCache[ev.id] = ev; });
+
   // Compute date range based on view
   var now = new Date();
   var rangeStart, rangeEnd, headerLabel;
@@ -6876,7 +6881,7 @@ pages.planning = async function() {
             var icon = typeIcons[ev.type] || 'fa-calendar-day';
             var col = ev.color || typeColors[ev.type] || '#78909c';
             var timeStr = ev.start_time ? ev.start_time.substring(0,5) : '';
-            var clickAction = ev.contact_id ? 'window.suiviView(\''+ev.contact_id+'\')' : 'planEdit(\''+ev.id+'\')';
+            var clickAction = ev.contact_id ? 'window.planningClientView(window._planEvCache && window._planEvCache["'+ev.id+'"],window._planContactMapCache)' : 'planEdit(\''+ev.id+'\')';
             return '<div style="background:#fff;border:1.5px solid '+col+';border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;min-width:200px;flex:1;max-width:320px;box-shadow:0 1px 4px rgba(0,0,0,0.06)" onclick="'+clickAction+'">' +
               '<i class="fas '+icon+'" style="color:'+col+';font-size:1rem;flex-shrink:0"></i>' +
               '<div style="flex:1;min-width:0">' +
@@ -6985,9 +6990,9 @@ pages.planning = async function() {
       if (!evId || evId.startsWith('cmd-')) return;
       var ev = events.find(function(x) { return x.id === evId; });
       if (!ev) return;
-      // Si contact lié → ouvrir la fiche client complète
+      // Si contact lié → ouvrir vue tâche + fiche client
       if (ev.contact_id) {
-        window.suiviView(ev.contact_id);
+        window.planningClientView(ev, contactMap);
       } else {
         planEdit(ev.id);
       }
