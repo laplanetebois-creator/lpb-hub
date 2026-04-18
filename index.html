@@ -6985,23 +6985,12 @@ pages.planning = async function() {
       if (!evId || evId.startsWith('cmd-')) return;
       var ev = events.find(function(x) { return x.id === evId; });
       if (!ev) return;
-      var c = contactMap[ev.contact_id];
-      var cName = c ? c.first_name + ' ' + c.last_name : '—';
-      var typeLabel = typeLabels[ev.type] || ev.type || '—';
-      openModal(c ? cName : ev.title, `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div><strong style="color:var(--text-light);font-size:.78rem">Type</strong><div>${typeLabel}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Statut</strong><div><span style="background:${ev.status === 'termine' ? 'var(--success)' : ev.status === 'annule' ? 'var(--danger)' : 'var(--info)'};color:#fff;padding:2px 10px;border-radius:12px;font-size:0.8rem">${ev.status || 'planifie'}</span></div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Date</strong><div>${formatDate(ev.start_date)}${ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : ''}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Horaire</strong><div>${ev.start_time ? ev.start_time.substring(0,5) : '—'}${ev.end_time ? ' — ' + ev.end_time.substring(0,5) : ''}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Client</strong><div>${escHtml(cName)}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Titre evenement</strong><div>${escHtml(ev.title)}</div></div>
-        </div>
-        ${ev.notes ? '<div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:8px"><strong style="color:var(--text-light);font-size:.78rem">Notes</strong><div style="margin-top:4px;white-space:pre-wrap">' + escHtml(ev.notes) + '</div></div>' : ''}
-      `, `
-        <button class="btn btn-outline" onclick="closeModal()">Fermer</button>
-        <button class="btn btn-primary" onclick="closeModal();planEdit('${ev.id}')"><i class="fas fa-pen"></i> Modifier</button>
-      `);
+      // Si contact lié → ouvrir la fiche client complète
+      if (ev.contact_id) {
+        window.suiviView(ev.contact_id);
+      } else {
+        planEdit(ev.id);
+      }
     });
   });
 
