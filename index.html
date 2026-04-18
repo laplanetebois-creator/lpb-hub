@@ -6842,11 +6842,10 @@ pages.planning = async function() {
     var isToday = cursor.getDate() === now.getDate() && cursor.getMonth() === now.getMonth() && cursor.getFullYear() === now.getFullYear();
     calendarHtml += '<div class="cal-cell' + (isToday ? ' cal-today' : '') + '" data-date="' + dateKey + '">' +
       '<div class="cal-day">' + cursor.getDate() + '</div>' +
-      dayEvents.slice(0, 3).map(function(ev) {
+      dayEvents.map(function(ev) {
         var timeStr = ev.start_time ? '<span style="font-weight:600">' + ev.start_time.substring(0,5) + '</span> ' : '';
         return '<div class="cal-event" data-evid="' + (ev.id || '') + '" style="background:' + (ev.color || '#2d6a4f') + ';cursor:pointer">' + timeStr + escHtml(ev.displayTitle) + '</div>';
       }).join('') +
-      (dayEvents.length > 3 ? '<div class="text-muted text-small">+' + (dayEvents.length - 3) + '</div>' : '') +
     '</div>';
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -6877,13 +6876,15 @@ pages.planning = async function() {
             var icon = typeIcons[ev.type] || 'fa-calendar-day';
             var col = ev.color || typeColors[ev.type] || '#78909c';
             var timeStr = ev.start_time ? ev.start_time.substring(0,5) : '';
-            return '<div style="background:#fff;border:1.5px solid '+col+';border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;min-width:200px;flex:1;max-width:320px;box-shadow:0 1px 4px rgba(0,0,0,0.06)" onclick="planEdit(\''+ev.id+'\')">' +
+            var clickAction = ev.contact_id ? 'window.suiviView(\''+ev.contact_id+'\')' : 'planEdit(\''+ev.id+'\')';
+            return '<div style="background:#fff;border:1.5px solid '+col+';border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;min-width:200px;flex:1;max-width:320px;box-shadow:0 1px 4px rgba(0,0,0,0.06)" onclick="'+clickAction+'">' +
               '<i class="fas '+icon+'" style="color:'+col+';font-size:1rem;flex-shrink:0"></i>' +
               '<div style="flex:1;min-width:0">' +
                 '<div style="font-weight:700;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(displayTitle)+'</div>' +
                 (timeStr ? '<div style="font-size:0.75rem;color:#666">⏰ '+timeStr+(ev.end_time?' → '+ev.end_time.substring(0,5):'')+'</div>' : '') +
                 (c && c.phone ? '<div style="font-size:0.72rem;color:var(--primary);margin-top:2px"><i class="fas fa-phone" style="font-size:0.65rem"></i> '+escHtml(c.phone)+'</div>' : '') +
               '</div>' +
+              (ev.contact_id ? '<span title="Fiche client" style="font-size:0.68rem;color:var(--primary);margin-right:2px"><i class="fas fa-user-circle"></i></span>' : '') +
               '<button onclick="event.stopPropagation();planDone(\''+ev.id+'\')" title="Marquer terminé" style="background:#27ae60;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:0.72rem;cursor:pointer;flex-shrink:0"><i class="fas fa-check"></i></button>' +
             '</div>';
           }).join('') +
