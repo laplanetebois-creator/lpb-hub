@@ -55,6 +55,32 @@ function gcalConnect() {
   gcalTokenClient.requestAccessToken();
 }
 
+// Renouvellement silencieux du token (sans popup si session Google active dans le navigateur)
+function gcalRefreshSilent() {
+  return new Promise(function(resolve) {
+    var clientId = getGcalClientId();
+    if (!clientId || typeof google === 'undefined' || !google.accounts) { resolve(false); return; }
+    try {
+      var tc = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: GCAL_SCOPES,
+        prompt: '',
+        callback: function(response) {
+          if (response && response.access_token) {
+            localStorage.setItem('gcal_access_token', response.access_token);
+            localStorage.setItem('gcal_token_time', Date.now().toString());
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        },
+        error_callback: function() { resolve(false); }
+      });
+      tc.requestAccessToken({ prompt: '' });
+    } catch(e) { resolve(false); }
+  });
+}
+
 function gcalDisconnect() {
   const token = getGcalToken();
   if (token && typeof google !== 'undefined' && google.accounts) {
@@ -67,18 +93,36 @@ function gcalDisconnect() {
 
 async function gcalApi(method, path, body) {
   var token = getGcalToken();
-  if (!token) return null;
-  var opts = {
-    method: method,
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-  };
-  if (body) opts.body = JSON.stringify(body);
+  // Si pas de token, tenter refresh silencieux d'abord
+  if (!token) {
+    var refreshed = await gcalRefreshSilent();
+    if (!refreshed) return null;
+    token = getGcalToken();
+    if (!token) return null;
+  }
   var url = path.startsWith('http') ? path : GCAL_API + path;
-  var resp = await fetch(url, opts);
+  var makeRequest = function(t) {
+    var opts = { method: method, headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(url, opts);
+  };
+  var resp = await makeRequest(token);
   if (resp.status === 401) {
-    localStorage.removeItem('gcal_access_token');
-    toast('Session Google expiree — reconnectez-vous', 'warning');
-    return null;
+    // Token expire → refresh silencieux puis retry
+    var refreshed = await gcalRefreshSilent();
+    if (refreshed) {
+      token = getGcalToken();
+      resp = await makeRequest(token);
+      if (resp.status === 401) {
+        localStorage.removeItem('gcal_access_token');
+        toast('Session Google expiree — reconnectez-vous', 'warning');
+        return null;
+      }
+    } else {
+      localStorage.removeItem('gcal_access_token');
+      toast('Session Google expiree — reconnectez-vous', 'warning');
+      return null;
+    }
   }
   if (resp.status === 204 || resp.status === 200 && method === 'DELETE') return {};
   if (!resp.ok) { console.error('GCal API error', resp.status, await resp.text()); return null; }
@@ -203,6 +247,11 @@ async function gcalImportToPlanning() {
 
 // Init GCal on page load
 window.addEventListener('load', function() { setTimeout(gcalInit, 1000); });
+
+// Renouvellement automatique du token GCal toutes les 45 minutes
+setInterval(function() {
+  if (getGcalClientId()) gcalRefreshSilent();
+}, 45 * 60 * 1000);
 
 // ============================================
 // UTILITIES
@@ -3459,6 +3508,20 @@ window.cmdDelete = async function(id) {
 pages.planning = async function() {
   var content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  // Auto-refresh token GCal si vieux (>50 min) ou absent
+  var tokenTime = parseInt(localStorage.getItem('gcal_token_time') || '0');
+  var tokenAge = (Date.now() - tokenTime) / 60000;
+  if (getGcalClientId() && (!gcalIsConnected() || tokenAge > 50)) {
+    await gcalRefreshSilent();
+  }
+
+  // Auto-import depuis Google Agenda en arriere-plan
+  if (gcalIsConnected()) {
+    gcalImportToPlanning().then(function(imported) {
+      if (imported > 0) pages.planning();
+    }).catch(function() {});
+  }
 
   var [events, contacts, commandes] = await Promise.all([
     dbSelect('planning', { order: ['start_date', true] }),
