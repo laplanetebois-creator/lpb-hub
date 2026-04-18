@@ -4555,6 +4555,15 @@ function showApp() {
   document.querySelector('.sidebar').style.display = '';
   document.querySelector('.main').style.display = '';
   navigate('dashboard');
+  // Auto-connexion GCal silencieuse a chaque login
+  setTimeout(async function() {
+    if (getGcalClientId() && typeof google !== 'undefined' && google.accounts) {
+      var refreshed = await gcalRefreshSilent();
+      if (!refreshed && !gcalIsConnected()) {
+        toast('Google Agenda non connecte — allez dans Parametres > Connecter', 'warning');
+      }
+    }
+  }, 2500);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
