@@ -6238,8 +6238,6 @@ pages.suivi = async function() {
     { key: 'nouveaux_clients',  label: 'Nouveaux clients',    color: '#3498db', icon: 'fa-user-plus' },
     { key: 'devis_signe',       label: 'Devis signé',         color: '#2ecc71', icon: 'fa-file-signature' },
     { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030', icon: 'fa-euro-sign' },
-    { key: 'date_installation', label: "Date d'installation", color: '#9b59b6', icon: 'fa-calendar-check' },
-    { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c', icon: 'fa-box-open' },
     { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f', icon: 'fa-hard-hat' },
     { key: 'termine_paye',      label: 'Terminé / Payé',      color: '#00897b', icon: 'fa-check-double' },
     { key: 'avis_google',       label: 'Avis Google validé',  color: '#f4a400', icon: 'fa-star' }
@@ -6412,8 +6410,6 @@ window.suiviView = async function(contactId) {
     { key: 'nouveaux_clients',  label: 'Nouveaux clients',    color: '#3498db' },
     { key: 'devis_signe',       label: 'Devis signé',         color: '#2ecc71' },
     { key: 'accompte_valide',   label: 'Acompte validé',      color: '#e0a030' },
-    { key: 'date_installation', label: "Date d'installation", color: '#9b59b6' },
-    { key: 'commande_validee',  label: 'Commande validée',    color: '#1abc9c' },
     { key: 'chantier',          label: 'Chantier',            color: '#2d6a4f' },
     { key: 'termine_paye',      label: 'Terminé / Payé',      color: '#00897b' },
     { key: 'avis_google',       label: 'Avis Google validé',  color: '#f4a400' }
@@ -6787,6 +6783,11 @@ pages.planning = async function() {
   var contactMap = {};
   contacts.forEach(function(c) { contactMap[c.id] = c; });
 
+  // Cache global pour planningClientView (bannière rappels du jour)
+  window._planContactMapCache = contactMap;
+  window._planEvCache = {};
+  events.forEach(function(ev){ window._planEvCache[ev.id] = ev; });
+
   // Compute date range based on view
   var now = new Date();
   var rangeStart, rangeEnd, headerLabel;
@@ -6846,18 +6847,57 @@ pages.planning = async function() {
     var isToday = cursor.getDate() === now.getDate() && cursor.getMonth() === now.getMonth() && cursor.getFullYear() === now.getFullYear();
     calendarHtml += '<div class="cal-cell' + (isToday ? ' cal-today' : '') + '" data-date="' + dateKey + '">' +
       '<div class="cal-day">' + cursor.getDate() + '</div>' +
-      dayEvents.slice(0, 3).map(function(ev) {
+      dayEvents.map(function(ev) {
         var timeStr = ev.start_time ? '<span style="font-weight:600">' + ev.start_time.substring(0,5) + '</span> ' : '';
         return '<div class="cal-event" data-evid="' + (ev.id || '') + '" style="background:' + (ev.color || '#2d6a4f') + ';cursor:pointer">' + timeStr + escHtml(ev.displayTitle) + '</div>';
       }).join('') +
-      (dayEvents.length > 3 ? '<div class="text-muted text-small">+' + (dayEvents.length - 3) + '</div>' : '') +
     '</div>';
     cursor.setDate(cursor.getDate() + 1);
   }
 
   var typeLabels = { tache: 'Tache', rdv: 'RDV', chantier: 'Chantier', livraison: 'Livraison', autre: 'Autre' };
 
+  // Rappels du jour
+  var todayKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  var todayEvents = events.filter(function(ev){ return ev.start_date && ev.start_date.substring(0,10) === todayKey && ev.status !== 'termine' && ev.status !== 'annule'; });
+  todayEvents.sort(function(a,b){ return (a.start_time||'').localeCompare(b.start_time||''); });
+
+  var typeIcons = { tache: 'fa-check-square', rdv: 'fa-handshake', chantier: 'fa-hard-hat', livraison: 'fa-truck', rappel: 'fa-bell', autre: 'fa-calendar-day' };
+  var typeColors = { tache: '#3498db', rdv: '#2ecc71', chantier: '#2d6a4f', livraison: '#9b59b6', rappel: '#e67e22', autre: '#78909c' };
+
+  var rappelsDuJourHtml = todayEvents.length === 0
+    ? ''
+    : '<div style="background:linear-gradient(135deg,#fff8e1,#fff3cd);border:1.5px solid #f4a400;border-radius:10px;padding:14px 18px;margin-bottom:16px;box-shadow:0 2px 8px #f4a40022">' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">' +
+          '<i class="fas fa-bell" style="color:#f4a400;font-size:1.1rem"></i>' +
+          '<strong style="font-size:1rem;color:#7a5c00">Rappels du jour</strong>' +
+          '<span style="background:#f4a400;color:#fff;font-size:0.72rem;font-weight:800;padding:2px 9px;border-radius:10px">'+todayEvents.length+'</span>' +
+          '<span style="font-size:0.8rem;color:#a07c00;margin-left:4px">'+new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})+'</span>' +
+        '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+          todayEvents.map(function(ev){
+            var c = contactMap[ev.contact_id];
+            var displayTitle = c ? c.first_name + ' ' + c.last_name : ev.title;
+            var icon = typeIcons[ev.type] || 'fa-calendar-day';
+            var col = ev.color || typeColors[ev.type] || '#78909c';
+            var timeStr = ev.start_time ? ev.start_time.substring(0,5) : '';
+            var clickAction = ev.contact_id ? 'window.planningClientView(window._planEvCache && window._planEvCache["'+ev.id+'"],window._planContactMapCache)' : 'planEdit(\''+ev.id+'\')';
+            return '<div style="background:#fff;border:1.5px solid '+col+';border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;min-width:200px;flex:1;max-width:320px;box-shadow:0 1px 4px rgba(0,0,0,0.06)" onclick="'+clickAction+'">' +
+              '<i class="fas '+icon+'" style="color:'+col+';font-size:1rem;flex-shrink:0"></i>' +
+              '<div style="flex:1;min-width:0">' +
+                '<div style="font-weight:700;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(displayTitle)+'</div>' +
+                (timeStr ? '<div style="font-size:0.75rem;color:#666">⏰ '+timeStr+(ev.end_time?' → '+ev.end_time.substring(0,5):'')+'</div>' : '') +
+                (c && c.phone ? '<div style="font-size:0.72rem;color:var(--primary);margin-top:2px"><i class="fas fa-phone" style="font-size:0.65rem"></i> '+escHtml(c.phone)+'</div>' : '') +
+              '</div>' +
+              (ev.contact_id ? '<span title="Fiche client" style="font-size:0.68rem;color:var(--primary);margin-right:2px"><i class="fas fa-user-circle"></i></span>' : '') +
+              '<button onclick="event.stopPropagation();planDone(\''+ev.id+'\')" title="Marquer terminé" style="background:#27ae60;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:0.72rem;cursor:pointer;flex-shrink:0"><i class="fas fa-check"></i></button>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+
   content.innerHTML = `
+    ${rappelsDuJourHtml}
     <div class="toolbar" style="flex-wrap:wrap;gap:8px">
       <div class="toolbar-left" style="display:flex;align-items:center;gap:10px">
         <button class="btn btn-outline btn-sm" id="btn-plan-prev"><i class="fas fa-chevron-left"></i></button>
@@ -6950,23 +6990,12 @@ pages.planning = async function() {
       if (!evId || evId.startsWith('cmd-')) return;
       var ev = events.find(function(x) { return x.id === evId; });
       if (!ev) return;
-      var c = contactMap[ev.contact_id];
-      var cName = c ? c.first_name + ' ' + c.last_name : '—';
-      var typeLabel = typeLabels[ev.type] || ev.type || '—';
-      openModal(c ? cName : ev.title, `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div><strong style="color:var(--text-light);font-size:.78rem">Type</strong><div>${typeLabel}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Statut</strong><div><span style="background:${ev.status === 'termine' ? 'var(--success)' : ev.status === 'annule' ? 'var(--danger)' : 'var(--info)'};color:#fff;padding:2px 10px;border-radius:12px;font-size:0.8rem">${ev.status || 'planifie'}</span></div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Date</strong><div>${formatDate(ev.start_date)}${ev.end_date && ev.end_date !== ev.start_date ? ' → ' + formatDate(ev.end_date) : ''}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Horaire</strong><div>${ev.start_time ? ev.start_time.substring(0,5) : '—'}${ev.end_time ? ' — ' + ev.end_time.substring(0,5) : ''}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Client</strong><div>${escHtml(cName)}</div></div>
-          <div><strong style="color:var(--text-light);font-size:.78rem">Titre evenement</strong><div>${escHtml(ev.title)}</div></div>
-        </div>
-        ${ev.notes ? '<div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:8px"><strong style="color:var(--text-light);font-size:.78rem">Notes</strong><div style="margin-top:4px;white-space:pre-wrap">' + escHtml(ev.notes) + '</div></div>' : ''}
-      `, `
-        <button class="btn btn-outline" onclick="closeModal()">Fermer</button>
-        <button class="btn btn-primary" onclick="closeModal();planEdit('${ev.id}')"><i class="fas fa-pen"></i> Modifier</button>
-      `);
+      // Si contact lié → ouvrir vue tâche + fiche client
+      if (ev.contact_id) {
+        window.planningClientView(ev, contactMap);
+      } else {
+        planEdit(ev.id);
+      }
     });
   });
 
@@ -7119,6 +7148,60 @@ function planForm(ev, contacts) {
     });
   }
 }
+
+window.planningClientView = async function(ev, contactMapArg) {
+  if (!ev) return;
+
+  var TYPE_ICONS  = { tache:'fa-check-square', rdv:'fa-handshake', chantier:'fa-hard-hat', livraison:'fa-truck', rappel:'fa-bell', autre:'fa-calendar-day' };
+  var TYPE_COLORS = { tache:'#3498db', rdv:'#2ecc71', chantier:'#2d6a4f', livraison:'#9b59b6', rappel:'#e67e22', autre:'#78909c' };
+  var TYPE_LABELS = { tache:'Tâche', rdv:'RDV', chantier:'Chantier', livraison:'Livraison', rappel:'Rappel', autre:'Autre' };
+
+  var evColor   = ev.color || TYPE_COLORS[ev.type] || '#3498db';
+  var evIcon    = TYPE_ICONS[ev.type]  || 'fa-calendar-day';
+  var evLabel   = TYPE_LABELS[ev.type] || ev.type || 'Événement';
+  var dateStr   = ev.start_date ? new Date(ev.start_date).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : '—';
+  var timeStr   = ev.start_time ? ev.start_time.substring(0,5) + (ev.end_time ? ' → ' + ev.end_time.substring(0,5) : '') : '';
+  var statusColor = ev.status === 'termine' ? '#27ae60' : ev.status === 'annule' ? '#e74c3c' : evColor;
+  var statusLabel = ev.status === 'termine' ? 'Terminé' : ev.status === 'annule' ? 'Annulé' : 'Planifié';
+
+  var taskBlock =
+    '<div style="background:linear-gradient(135deg,'+evColor+'18,'+evColor+'06);border:2px solid '+evColor+';border-radius:14px;padding:18px 20px;margin-bottom:20px">' +
+      '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">' +
+        '<div style="width:50px;height:50px;background:'+evColor+';border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
+          '<i class="fas '+evIcon+'" style="color:#fff;font-size:1.4rem"></i>' +
+        '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:'+evColor+';letter-spacing:.06em">'+evLabel+'</div>' +
+          '<div style="font-size:1.25rem;font-weight:800;line-height:1.2;color:var(--text)">' + escHtml(ev.title || '—') + '</div>' +
+        '</div>' +
+        '<span style="background:'+statusColor+';color:#fff;font-size:0.75rem;font-weight:700;padding:4px 12px;border-radius:20px;flex-shrink:0">'+statusLabel+'</span>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:'+(ev.notes?'10px':'0')+'">' +
+        '<div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.8);border-radius:8px;padding:8px 14px;font-size:0.88rem">' +
+          '<i class="fas fa-calendar-alt" style="color:'+evColor+'"></i> <strong>'+dateStr+'</strong>' +
+        '</div>' +
+        (timeStr ? '<div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.8);border-radius:8px;padding:8px 14px;font-size:0.88rem">' +
+          '<i class="fas fa-clock" style="color:'+evColor+'"></i> <strong>'+timeStr+'</strong>' +
+        '</div>' : '') +
+      '</div>' +
+      (ev.notes ? '<div style="background:rgba(255,255,255,0.85);border-radius:8px;padding:10px 14px;font-size:0.88rem;line-height:1.6;white-space:pre-wrap;border-left:3px solid '+evColor+';margin-bottom:10px">'+escHtml(ev.notes)+'</div>' : '') +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button onclick="planDone(\''+ev.id+'\')" class="btn btn-primary" style="background:#27ae60;border-color:#27ae60;font-size:0.85rem"><i class="fas fa-check"></i> Marquer terminé</button>' +
+        '<button onclick="planEdit(\''+ev.id+'\')" class="btn btn-outline" style="font-size:0.85rem"><i class="fas fa-pen"></i> Modifier la tâche</button>' +
+      '</div>' +
+    '</div>';
+
+  // Rendre la fiche client complète puis insérer la tâche en haut
+  await window.suiviView(ev.contact_id);
+  var body = $('#deal-popup-body');
+  if (body) body.insertAdjacentHTML('afterbegin', taskBlock);
+};
+
+window.planDone = async function(id) {
+  await dbUpdate('planning', id, { status: 'termine' });
+  toast('✅ Rappel marqué comme terminé', 'success');
+  pages.planning();
+};
 
 window.planEdit = async function(id) {
   var [events, contacts] = await Promise.all([dbSelect('planning'), dbSelect('contacts')]);
