@@ -7191,8 +7191,15 @@ window.planningClientView = async function(ev, contactMapArg) {
       '</div>' +
     '</div>';
 
-  // Rendre la fiche client complète puis insérer la tâche en haut
-  await window.suiviView(ev.contact_id);
+  // Chercher un deal lié au contact → ouvrir dealView (fiche CRM), sinon suiviView
+  var deals = await dbSelect('deals');
+  var cDeals = deals.filter(function(d){ return d.contact_id === ev.contact_id; });
+  cDeals.sort(function(a,b){ return new Date(b.created_at||0)-new Date(a.created_at||0); });
+  if (cDeals.length > 0) {
+    await window.dealView(cDeals[0].id);
+  } else {
+    await window.suiviView(ev.contact_id);
+  }
   var body = $('#deal-popup-body');
   if (body) body.insertAdjacentHTML('afterbegin', taskBlock);
 };

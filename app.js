@@ -2201,119 +2201,230 @@ pages['google-ads'] = async function() {
 };
 
 // ============================================
-// FB ADS (manual campaigns)
+// FB ADS (Meta Marketing API — Agent Marc)
 // ============================================
 pages['fb-ads'] = async function() {
-  const content = $('#content');
-  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+  const content = document.getElementById('content');
+  content.textContent = '';
+  const loader = document.createElement('div');
+  loader.className = 'text-center text-muted';
+  loader.style.padding = '60px';
+  const spinIcon = document.createElement('i');
+  spinIcon.className = 'fas fa-spinner fa-spin fa-2x';
+  loader.appendChild(spinIcon);
+  content.appendChild(loader);
 
-  let campaigns = await dbSelect('ad_campaigns', { order: ['created_at', false] });
-  let filterPlatform = 'all';
+  const CPL_TARGET = 17;
+  let rows = [];
+  try {
+    rows = await dbSelect('fbads_daily_data', { order: ['date', false], limit: 90 });
+  } catch(e) { rows = []; }
 
   function render() {
-    let filtered = campaigns;
-    if (filterPlatform !== 'all') filtered = filtered.filter(c => c.platform === filterPlatform);
-    const totalBudget = campaigns.reduce((s, c) => s + (parseFloat(c.budget_total) || 0), 0);
-    const totalSpent = campaigns.reduce((s, c) => s + (parseFloat(c.spent) || 0), 0);
-    const activeCount = campaigns.filter(c => c.status === 'actif').length;
-
-    content.innerHTML = `
-      <div class="stats-grid" style="margin-bottom:20px">
-        <div class="stat-card">
-          <div class="stat-icon blue"><i class="fas fa-bullhorn"></i></div>
-          <div class="stat-info"><h3>${campaigns.length}</h3><p>Campagnes totales</p></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon green"><i class="fas fa-play-circle"></i></div>
-          <div class="stat-info"><h3>${activeCount}</h3><p>Actives</p></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon gold"><i class="fas fa-wallet"></i></div>
-          <div class="stat-info"><h3>${formatCurrency(totalBudget)}</h3><p>Budget total</p></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon red"><i class="fas fa-receipt"></i></div>
-          <div class="stat-info">
-            <h3>${formatCurrency(totalSpent)}</h3><p>Total depense</p>
-            ${totalBudget > 0 ? `<div class="progress-bar mt-8" style="width:120px"><div class="progress-bar-fill ${(totalSpent/totalBudget)>0.9?'danger':(totalSpent/totalBudget)>0.7?'warning':''}" style="width:${Math.min(100,totalSpent/totalBudget*100)}%"></div></div>` : ''}
-          </div>
-        </div>
-      </div>
-
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <div class="filter-group">
-            <button class="${filterPlatform === 'all' ? 'active' : ''}" data-pf="all">Toutes</button>
-            <button class="${filterPlatform === 'facebook' ? 'active' : ''}" data-pf="facebook"><i class="fab fa-facebook"></i> Facebook</button>
-            <button class="${filterPlatform === 'instagram' ? 'active' : ''}" data-pf="instagram"><i class="fab fa-instagram"></i> Instagram</button>
-          </div>
-        </div>
-        <div class="toolbar-right">
-          <button class="btn btn-primary" id="btn-add-campaign"><i class="fas fa-plus"></i> Nouvelle campagne</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-body" style="padding:0">
-          ${filtered.length === 0 ? `
-            <div class="empty-state">
-              <i class="fab fa-facebook"></i>
-              <h4>Aucune campagne</h4>
-              <p>Creez votre premiere campagne Facebook / Instagram</p>
-            </div>
-          ` : `
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Campagne</th>
-                  <th>Plateforme</th>
-                  <th>Statut</th>
-                  <th>Budget</th>
-                  <th>Depense</th>
-                  <th>Progression</th>
-                  <th>Periode</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filtered.map(c => {
-                  const pct = c.budget_total > 0 ? Math.round((parseFloat(c.spent) || 0) / c.budget_total * 100) : 0;
-                  return `
-                    <tr>
-                      <td>
-                        <strong>${c.name}</strong>
-                        ${c.objective ? `<br><span class="text-small text-muted">${c.objective}</span>` : ''}
-                      </td>
-                      <td><span class="badge-platform ${c.platform}"><i class="fab fa-${c.platform}"></i> ${c.platform}</span></td>
-                      <td><span class="badge-status ${c.status}">${c.status}</span></td>
-                      <td class="nowrap">${formatCurrency(c.budget_total)}</td>
-                      <td class="nowrap">${formatCurrency(c.spent)}</td>
-                      <td>
-                        <div class="progress-bar" style="width:100px">
-                          <div class="progress-bar-fill ${pct > 90 ? 'danger' : pct > 70 ? 'warning' : ''}" style="width:${Math.min(100, pct)}%"></div>
-                        </div>
-                        <span class="text-small text-muted">${pct}%</span>
-                      </td>
-                      <td class="text-small text-muted nowrap">${formatDate(c.start_date)} - ${formatDate(c.end_date)}</td>
-                      <td class="text-right nowrap">
-                        <button class="btn-ghost" title="Metriques" onclick="adMetrics('${c.id}','${c.name}')"><i class="fas fa-chart-bar"></i></button>
-                        <button class="btn-ghost" title="Modifier" onclick="adEdit('${c.id}')"><i class="fas fa-pen"></i></button>
-                        <button class="btn-ghost" title="Supprimer" onclick="adDelete('${c.id}','${c.name}')"><i class="fas fa-trash"></i></button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          `}
-        </div>
-      </div>
-    `;
-
-    content.querySelectorAll('.filter-group button[data-pf]').forEach(btn => {
-      btn.addEventListener('click', () => { filterPlatform = btn.dataset.pf; render(); });
+    const totals = { spend: 0, impressions: 0, clicks: 0, leads: 0, reach: 0 };
+    rows.forEach(r => {
+      totals.spend += parseFloat(r.spend) || 0;
+      totals.impressions += (r.impressions || 0);
+      totals.clicks += (r.clicks || 0);
+      totals.leads += (r.leads || 0);
+      totals.reach += (r.reach || 0);
     });
-    content.querySelector('#btn-add-campaign')?.addEventListener('click', () => adForm());
+    const cpl = totals.leads > 0 ? totals.spend / totals.leads : 0;
+    const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions * 100) : 0;
+    const cpm = totals.impressions > 0 ? (totals.spend / totals.impressions * 1000) : 0;
+    const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
+    const cplClass = cpl === 0 ? '' : cpl <= CPL_TARGET ? 'green' : cpl <= CPL_TARGET * 1.3 ? 'gold' : 'red';
+    const cplBadge = cpl > 0 ? (cpl <= CPL_TARGET ? ' ✓' : ' ▲') : '';
+
+    content.textContent = '';
+
+    // Stats grid
+    const statsGrid = document.createElement('div');
+    statsGrid.className = 'stats-grid';
+    statsGrid.style.marginBottom = '20px';
+    const statsData = [
+      { icon: 'fas fa-wallet', color: 'blue', value: formatCurrency(totals.spend), label: 'Depense totale' },
+      { icon: 'fas fa-user-plus', color: 'green', value: String(totals.leads), label: 'Leads' },
+      { icon: 'fas fa-euro-sign', color: cplClass || 'gold', value: cpl > 0 ? cpl.toFixed(2) + ' \u20AC' + cplBadge : '--', label: 'CPL (cible: ' + CPL_TARGET + '\u20AC)' },
+      { icon: 'fas fa-mouse-pointer', color: 'purple', value: ctr.toFixed(2) + '%', label: 'CTR' },
+      { icon: 'fas fa-eye', color: 'orange', value: cpm.toFixed(2) + ' \u20AC', label: 'CPM' },
+      { icon: 'fas fa-hand-pointer', color: 'red', value: totals.clicks + ' / ' + cpc.toFixed(2) + '\u20AC', label: 'Clics / CPC' }
+    ];
+    statsData.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+      const iconDiv = document.createElement('div');
+      iconDiv.className = 'stat-icon ' + s.color;
+      const ic = document.createElement('i');
+      ic.className = s.icon;
+      iconDiv.appendChild(ic);
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'stat-info';
+      const h3 = document.createElement('h3');
+      h3.textContent = s.value;
+      const p = document.createElement('p');
+      p.textContent = s.label;
+      infoDiv.appendChild(h3);
+      infoDiv.appendChild(p);
+      card.appendChild(iconDiv);
+      card.appendChild(infoDiv);
+      statsGrid.appendChild(card);
+    });
+    content.appendChild(statsGrid);
+
+    // Charts row
+    const chartsRow = document.createElement('div');
+    chartsRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px';
+
+    const chartPanel1 = document.createElement('div');
+    chartPanel1.className = 'panel';
+    const cpTitle1 = document.createElement('div');
+    cpTitle1.className = 'panel-header';
+    const cpH = document.createElement('h3');
+    cpH.textContent = 'Depense / jour';
+    cpTitle1.appendChild(cpH);
+    chartPanel1.appendChild(cpTitle1);
+    const cpBody1 = document.createElement('div');
+    cpBody1.className = 'panel-body';
+    const canvas1 = document.createElement('canvas');
+    canvas1.id = 'fb-spend-chart';
+    canvas1.height = 250;
+    cpBody1.appendChild(canvas1);
+    chartPanel1.appendChild(cpBody1);
+    chartsRow.appendChild(chartPanel1);
+
+    const chartPanel2 = document.createElement('div');
+    chartPanel2.className = 'panel';
+    const cpTitle2 = document.createElement('div');
+    cpTitle2.className = 'panel-header';
+    const cpH2 = document.createElement('h3');
+    cpH2.textContent = 'Leads & Clics / jour';
+    cpTitle2.appendChild(cpH2);
+    chartPanel2.appendChild(cpTitle2);
+    const cpBody2 = document.createElement('div');
+    cpBody2.className = 'panel-body';
+    const canvas2 = document.createElement('canvas');
+    canvas2.id = 'fb-leads-chart';
+    canvas2.height = 250;
+    cpBody2.appendChild(canvas2);
+    chartPanel2.appendChild(cpBody2);
+    chartsRow.appendChild(chartPanel2);
+    content.appendChild(chartsRow);
+
+    // Campaigns table
+    const campMap = {};
+    rows.forEach(r => {
+      const cn = r.campaign_name || 'Inconnu';
+      if (!campMap[cn]) campMap[cn] = { impressions:0, clicks:0, leads:0, spend:0, reach:0, days:0 };
+      const c = campMap[cn];
+      c.impressions += r.impressions || 0;
+      c.clicks += r.clicks || 0;
+      c.leads += r.leads || 0;
+      c.spend += parseFloat(r.spend) || 0;
+      c.reach += r.reach || 0;
+      c.days++;
+    });
+
+    const tablePanel = document.createElement('div');
+    tablePanel.className = 'panel';
+    const tpHeader = document.createElement('div');
+    tpHeader.className = 'panel-header';
+    const tpH = document.createElement('h3');
+    tpH.textContent = 'Campagnes';
+    tpHeader.appendChild(tpH);
+    tablePanel.appendChild(tpHeader);
+    const tpBody = document.createElement('div');
+    tpBody.className = 'panel-body';
+    tpBody.style.padding = '0';
+
+    if (Object.keys(campMap).length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      const emI = document.createElement('i');
+      emI.className = 'fab fa-facebook';
+      const emH = document.createElement('h4');
+      emH.textContent = 'Aucune donnee';
+      const emP = document.createElement('p');
+      emP.textContent = 'Les donnees apparaitront apres la premiere synchronisation Meta API.';
+      empty.appendChild(emI);
+      empty.appendChild(emH);
+      empty.appendChild(emP);
+      tpBody.appendChild(empty);
+    } else {
+      const table = document.createElement('table');
+      table.className = 'data-table';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      ['Campagne','Impressions','Clics','CTR','Leads','CPL','Depense','Reach','Freq. moy.'].forEach(t => {
+        const th = document.createElement('th');
+        th.textContent = t;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      Object.entries(campMap).forEach(([name, c]) => {
+        const tr = document.createElement('tr');
+        const cctr = c.impressions > 0 ? (c.clicks / c.impressions * 100).toFixed(2) + '%' : '--';
+        const ccpl = c.leads > 0 ? (c.spend / c.leads) : 0;
+        const ccplText = c.leads > 0 ? ccpl.toFixed(2) + ' \u20AC' : '--';
+        const freq = c.reach > 0 ? (c.impressions / c.reach).toFixed(1) : '--';
+        const cplColor = ccpl === 0 ? '' : ccpl <= CPL_TARGET ? 'color:#27ae60' : ccpl <= CPL_TARGET*1.3 ? 'color:#f39c12' : 'color:#e74c3c';
+        const vals = [
+          name,
+          c.impressions.toLocaleString(),
+          c.clicks.toLocaleString(),
+          cctr,
+          String(c.leads),
+          ccplText,
+          formatCurrency(c.spend),
+          c.reach.toLocaleString(),
+          freq
+        ];
+        vals.forEach((v, i) => {
+          const td = document.createElement('td');
+          if (i === 0) { const b = document.createElement('strong'); b.textContent = v; td.appendChild(b); }
+          else { td.textContent = v; }
+          if (i === 5 && cplColor) td.style.cssText = cplColor + ';font-weight:600';
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      tpBody.appendChild(table);
+    }
+    tablePanel.appendChild(tpBody);
+    content.appendChild(tablePanel);
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'text-small text-muted text-center';
+    footer.style.marginTop = '12px';
+    footer.textContent = 'Source : Meta Marketing API \u2014 Agent Marc';
+    content.appendChild(footer);
+
+    // Draw charts
+    const last30 = rows.filter(r => r.date).sort((a,b) => a.date.localeCompare(b.date)).slice(-30);
+    const labels = last30.map(r => r.date.slice(5));
+    const spendData = last30.map(r => parseFloat(r.spend) || 0);
+    const leadsData = last30.map(r => r.leads || 0);
+    const clicksData = last30.map(r => r.clicks || 0);
+
+    if (typeof Chart !== 'undefined' && last30.length > 0) {
+      new Chart(document.getElementById('fb-spend-chart'), {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Depense (\u20AC)', data: spendData, backgroundColor: 'rgba(59,89,152,0.6)' }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+      new Chart(document.getElementById('fb-leads-chart'), {
+        type: 'line',
+        data: { labels, datasets: [
+          { label: 'Leads', data: leadsData, borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.1)', fill: true, tension: 0.3 },
+          { label: 'Clics', data: clicksData, borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', fill: true, tension: 0.3, yAxisID: 'y1' }
+        ] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, position: 'left' }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } }
+      });
+    }
   }
   render();
 };
