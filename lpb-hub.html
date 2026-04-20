@@ -2334,7 +2334,7 @@ function autoSyncWindsor() {
 // ============================================
 // EMAIL COMPOSE
 // ============================================
-window.emailCompose = function(to, contactName, dealId, contactId) {
+window.emailCompose = function(to, contactName, dealId, contactId, tplSubject, tplBody) {
   var overlay = document.getElementById('email-compose-overlay');
   if (!overlay) return;
 
@@ -2346,8 +2346,8 @@ window.emailCompose = function(to, contactName, dealId, contactId) {
   var logCheck = document.getElementById('ec-log-activity');
 
   if (toInput) toInput.value = to || '';
-  if (subjectInput) subjectInput.value = contactName ? 'La Planète Bois — ' + contactName : 'La Planète Bois';
-  if (bodyInput) bodyInput.value = (contactName ? 'Bonjour ' + contactName.split(' ')[0] + ',\n\n' : 'Bonjour,\n\n') + '\n\nCordialement,\nL\'équipe La Planète Bois\n+33 3 23 53 17 78\nwww.laplanetebois.fr';
+  if (subjectInput) subjectInput.value = tplSubject || (contactName ? 'La Planète Bois — ' + contactName : 'La Planète Bois');
+  if (bodyInput) bodyInput.value = tplBody || ((contactName ? 'Bonjour ' + contactName.split(' ')[0] + ',\n\n' : 'Bonjour,\n\n') + '\n\nCordialement,\nL\'équipe La Planète Bois\n+33 3 23 53 17 78\nwww.laplanetebois.fr');
 
   overlay.style.display = 'flex';
 
@@ -3565,6 +3565,25 @@ async function renderLeadsConsolides(content, context) {
     return;
   }
 
+  // Filtrer les leads déjà présents dans le PRM (source='prm') pour éviter les doublons
+  try {
+    var prmC = await dbSelect('contacts');
+    var prmSirets = new Set();
+    var prmKeys = new Set();
+    prmC.forEach(function(c){
+      if (c.source !== 'prm') return;
+      var m = (c.notes||'').match(/^siret:\s*(\S+)/m);
+      if (m) prmSirets.add(m[1].trim());
+      var key = ((c.company||'').toLowerCase().trim()) + '|' + ((c.city||'').toLowerCase().trim());
+      prmKeys.add(key);
+    });
+    allLeads = allLeads.filter(function(l){
+      if (l.siret && prmSirets.has(String(l.siret).trim())) return false;
+      var k = ((l.entreprise||'').toLowerCase().trim()) + '|' + ((l.ville||'').toLowerCase().trim());
+      return !prmKeys.has(k);
+    });
+  } catch(e) { /* si echec, on affiche tout */ }
+
   var PRIO_COLORS = { A: '#e53935', B: '#fb8c00', C: '#43a047' };
   var STATUT_COLORS = { Nouveau: '#3498db', Contacté: '#9b59b6', Qualifié: '#1abc9c', Converti: '#2d6a4f', Perdu: '#e74c3c' };
 
@@ -3756,12 +3775,56 @@ async function renderLeadsConsolides(content, context) {
 // ============================================
 // PROSPECT FICHE (Leads consolidés popup)
 // ============================================
-window.prospectView = function(idx) {
+window.prospectView = async function(idx) {
   var l = (window._lcAllLeads || [])[idx];
   if (!l) return;
   var popup = $('#deal-popup-overlay');
   var body = $('#deal-popup-body');
   popup.style.display = 'flex';
+
+  // Load existing extras (remarque, etape, rappels) from Supabase
+  var allContacts = await dbSelect('contacts');
+  var existing = allContacts.find(function(c){
+    if (c.source !== 'prospect_consolide' && c.source !== 'prm') return false;
+    if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+    return c.company === l.entreprise && c.city === (l.ville||'');
+  });
+  var existingContactId = existing ? existing.id : null;
+  var existingNotes = existing ? (existing.notes||'') : '';
+  var etapeMatch = existingNotes.match(/etape_prospect:\s*(\S+)/);
+  var existingEtape = etapeMatch ? etapeMatch[1] : 'a_appeler';
+  var remarqueMatch = existingNotes.match(/remarque_prospect:\s*([\s\S]*?)(?=\n\w|$)/);
+  var existingRemarque = remarqueMatch ? remarqueMatch[1].trim() : '';
+  var rappels = [];
+  if (existingContactId) {
+    var planEvents = await dbSelect('planning');
+    rappels = planEvents.filter(function(ev){ return ev.contact_id === existingContactId && ev.status !== 'annule'; });
+    rappels.sort(function(a,b){ return (a.start_date||'') < (b.start_date||'') ? -1 : 1; });
+  }
+  var ETAPE_OPTIONS = [
+    {key:'a_appeler',     label:'À appeler',           color:'#3498db'},
+    {key:'nrp1',          label:'NRP 1',               color:'#e67e22'},
+    {key:'nrp2',          label:'NRP 2',               color:'#e74c3c'},
+    {key:'contacte',      label:'Contacté',            color:'#9b59b6'},
+    {key:'mail_info',     label:'Mail info',           color:'#e0a030'},
+    {key:'devis_envoye',  label:'Devis',               color:'#2ecc71'},
+    {key:'partenaire',    label:'Partenaire',          color:'#2d6a4f'}
+  ];
+  var currentEtape = ETAPE_OPTIONS.find(function(e){ return e.key===existingEtape; }) || ETAPE_OPTIONS[0];
+  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
+  var rappelsHtml = rappels.length === 0 ? '<div style="color:var(--text-light);font-size:0.85rem;padding:8px 0">Aucun rappel</div>' :
+    rappels.map(function(ev){
+      var icon = TYPE_ICONS[ev.type] || 'fa-calendar-day';
+      var done = ev.status === 'termine';
+      var dateStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '?';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border-radius:8px;margin-bottom:6px">'
+        + '<i class="fas '+icon+'" style="color:'+(done?'#27ae60':'#e67e22')+';width:18px"></i>'
+        + '<div style="flex:1;min-width:0"><div style="font-size:0.88rem;font-weight:600">'+escHtml(ev.title||'Rappel')+'</div>'
+        + '<div style="font-size:0.75rem;color:var(--text-light)">'+dateStr+(ev.start_time?' · '+ev.start_time.substring(0,5):'')+'</div></div>'
+        + (done ? '<span style="background:#27ae60;color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:10px">Fait</span>'
+          : '<button onclick="window._prospectPlanDone(\''+ev.id+'\','+idx+')" style="background:#27ae60;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:0.75rem;cursor:pointer"><i class="fas fa-check"></i></button>')
+        + '</div>';
+    }).join('');
 
   var PRIO_COLORS = { A: '#e53935', B: '#fb8c00', C: '#43a047' };
   var STATUT_COLORS = { Nouveau: '#3498db', Contacté: '#9b59b6', Qualifié: '#1abc9c', Converti: '#2d6a4f', Perdu: '#e74c3c' };
@@ -3769,7 +3832,18 @@ window.prospectView = function(idx) {
   var statutCol = STATUT_COLORS[l.statut] || '#78909c';
   var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
 
+  var total = (window._lcAllLeads||[]).length;
+  var prevIdx = (idx - 1 + total) % total;
+  var nextIdx = (idx + 1) % total;
+
   body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <div style="font-size:0.78rem;color:var(--text-light);font-weight:600"><i class="fas fa-list"></i> Lead ${idx+1} / ${total}</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="window.prospectView(${prevIdx})" class="btn btn-sm btn-outline" title="Lead précédent"${total<=1?' disabled':''}><i class="fas fa-chevron-left"></i> Précédent</button>
+        <button onclick="window.prospectView(${nextIdx})" class="btn btn-sm btn-primary" title="Lead suivant"${total<=1?' disabled':''}>Suivant <i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap">
       <!-- LEFT -->
       <div style="flex:1;min-width:280px">
@@ -3826,6 +3900,44 @@ window.prospectView = function(idx) {
           <div style="font-size:0.85rem;white-space:pre-wrap;line-height:1.5">${escHtml(l.notes)}</div>
         </div>` : ''}
 
+        <!-- ÉTAPE -->
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-flag"></i> Étape prospect</div>
+          <select id="prospect-etape-select" onchange="window._prospectEtapeChange(this.value,${idx})" style="width:100%;border:2px solid ${currentEtape.color};border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);font-weight:600;box-sizing:border-box">
+            ${ETAPE_OPTIONS.map(function(e){ return '<option value="'+e.key+'"'+(existingEtape===e.key?' selected':'')+'>'+e.label+'</option>'; }).join('')}
+          </select>
+        </div>
+
+        <!-- REMARQUE -->
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-comment-alt"></i> Remarque</div>
+          <textarea id="prospect-remarque-ta" rows="4" placeholder="Notes internes, observations, suite à donner..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical;line-height:1.5;box-sizing:border-box">${escHtml(existingRemarque)}</textarea>
+          <button id="prospect-save-btn" onclick="window._prospectSaveExtras(${idx})" class="btn btn-primary" style="width:100%;margin-top:8px;font-size:0.85rem"><i class="fas fa-save"></i> Enregistrer</button>
+        </div>
+
+        <!-- RAPPELS -->
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light)"><i class="fas fa-bell"></i> Rappels</div>
+            <button onclick="window._prospectAddRappel(${idx})" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.78rem;cursor:pointer;font-weight:600"><i class="fas fa-plus"></i> Ajouter</button>
+          </div>
+          <div id="prospect-rappels-list">${rappelsHtml}</div>
+        </div>
+
+        <!-- MAILS TYPES -->
+        ${l.email ? `<div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-paper-plane"></i> Mails types</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${(window._getMailTemplates(l.categorie||'', l.contact||l.entreprise||'', l.entreprise||'')).map(function(t){
+              return '<button onclick="window._prospectOpenMailTpl('+idx+',\''+t.id+'\')" style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;transition:background 0.15s" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'var(--bg)\'">'
+                +'<span style="font-size:1rem">'+t.emoji+'</span>'
+                +'<div style="flex:1;min-width:0"><div style="font-size:0.85rem;font-weight:600;color:var(--text)">'+escHtml(t.nom)+'</div><div style="font-size:0.75rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(t.sujet)+'</div></div>'
+                +'<i class="fas fa-chevron-right" style="color:var(--text-light);font-size:0.75rem;flex-shrink:0"></i>'
+              +'</button>';
+            }).join('')}
+          </div>
+        </div>` : ''}
+
         <div class="panel" style="padding:14px">
           <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:12px"><i class="fas fa-rocket"></i> Actions</div>
           <button onclick="window._prospectToPRM(${idx})" class="btn btn-primary" style="width:100%;margin-bottom:8px">
@@ -3841,6 +3953,408 @@ window.prospectView = function(idx) {
   popup.onclick = function(e) { if (e.target === popup) popup.style.display = 'none'; };
 };
 
+// ================================================
+// MAILS TYPES PROSPECTS (par métier)
+// ================================================
+// Photos publiques par métier — remplacer par les vraies URLs LPB quand dispo.
+// Gmail auto-prévisualise les URLs se terminant par .jpg / .png (doit être public).
+window._LPB_PHOTOS = {
+  paysag:    'https://www.laplanetebois.fr/photos/terrasse-paysagiste.jpg',
+  architect: 'https://www.laplanetebois.fr/photos/extension-bois.jpg',
+  construct: 'https://www.laplanetebois.fr/photos/ossature-bois.jpg',
+  piscin:    'https://www.laplanetebois.fr/photos/plage-piscine.jpg',
+  immob:     'https://www.laplanetebois.fr/photos/terrasse-valorisation.jpg',
+  decor:     'https://www.laplanetebois.fr/photos/pergola-design.jpg',
+  generique: 'https://www.laplanetebois.fr/photos/realisations-lpb.jpg'
+};
+window._LPB_GALERIE = 'https://www.laplanetebois.fr/realisations';
+
+window._getMailTemplates = function(categorie, prenom, entreprise) {
+  var cat = (categorie||'').toLowerCase();
+  var SITE = 'https://laplanetebois.fr/';
+  var REAL = 'https://laplanetebois.fr/realisations';
+
+  var parts = (prenom||'').trim().split(/\s+/).filter(Boolean);
+  var nomFamille = parts.length > 1 ? parts[parts.length-1] : (parts[0] || '');
+  var salut = nomFamille ? ('Bonjour Mr '+nomFamille) : 'Bonjour';
+
+  var SIGN = '\n\nQuelques réalisations : '+REAL+'\n\nÀ bientôt,\n\nYoann\nLa Planète Bois — 06 47 61 69 19\n'+SITE;
+
+  function build(corps){ return salut+',\n\n'+corps+SIGN; }
+
+  // Templates APRÈS APPEL adaptés par catégorie (proposition de valeur ciblée)
+  var parCat = {
+    immobili: {
+      id:'apres_agence_immo', emoji:'🏡', nom:'Après appel — Agence immobilière',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour le temps accordé lors de notre appel.\n\n"+
+        "Pour rappel, nous installons terrasses bois, pergolas, carports et extensions. "+
+        "Une terrasse ou une pergola bien posée valorise sensiblement un bien à la vente comme à la location, "+
+        "et accélère souvent les signatures.\n\n"+
+        "Je vous propose un accord simple : nous prenons en charge les projets bois de vos clients, "+
+        "et vous touchez une commission d'apporteur d'affaires sur chaque chantier signé."
+      )
+    },
+    architect: {
+      id:'apres_architecte', emoji:'📐', nom:'Après appel — Architecte',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Pour rappel, nous sommes spécialisés en construction bois : terrasses, pergolas, "+
+        "extensions et surélévations ossature bois, carports. Nous travaillons en bois massif "+
+        "(pin CL4, cumaru, ipé).\n\n"+
+        "Nous pouvons intervenir en sous-traitance sur vos plans ou comme entreprise bois "+
+        "référencée pour vos clients. Je peux vous transmettre notre plaquette et nos fourchettes tarifaires."
+      )
+    },
+    carreleur: {
+      id:'apres_carreleur', emoji:'🧱', nom:'Après appel — Carreleur',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et extensions bois. Vos clients demandent "+
+        "souvent un aménagement extérieur en complément du carrelage intérieur — nous sommes "+
+        "complémentaires sur beaucoup de chantiers.\n\n"+
+        "Je vous propose qu'on s'envoie les leads mutuellement : commission d'apporteur "+
+        "d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    'constructeur maison': {
+      id:'apres_constructeur_maison', emoji:'🏠', nom:'Après appel — Constructeur maison',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous réalisons en sous-traitance le lot bois de vos constructions : terrasses, pergolas, "+
+        "carports et extensions ossature bois. Bois massif uniquement (pin CL4, cumaru, ipé), "+
+        "équipe basée en IDF.\n\n"+
+        "Je peux vous adresser notre grille tarifaire sous-traitance et quelques références de chantiers récents."
+      )
+    },
+    courtier: {
+      id:'apres_courtier', emoji:'🤝', nom:'Après appel — Courtier travaux',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "La Planète Bois intervient en IDF sur terrasses bois, pergolas, carports, extensions "+
+        "et surélévations ossature bois. Nous sommes en mesure de reprendre les leads bois "+
+        "que vous qualifiez, avec des délais de réponse rapides.\n\n"+
+        "Je peux vous transmettre notre plaquette, zone d'intervention et fourchettes tarifaires "+
+        "pour que vous puissiez nous référencer auprès de vos clients."
+      )
+    },
+    couvreur: {
+      id:'apres_couvreur', emoji:'🔨', nom:'Après appel — Couvreur / Charpentier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour le temps accordé lors de notre appel.\n\n"+
+        "Nos métiers se croisent souvent : vous intervenez sur charpente et couverture, "+
+        "nous sur terrasses, pergolas et extensions bois. Les clients qui font appel à vous "+
+        "ont souvent un projet extérieur bois en tête, et l'inverse est vrai aussi.\n\n"+
+        "Je vous propose qu'on s'envoie les leads respectifs : commission d'apporteur "+
+        "d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    'maçon': {
+      id:'apres_macon', emoji:'🧰', nom:'Après appel — Maçon terrassier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous posons terrasses bois, pergolas et carports, souvent sur dalles ou terrassements "+
+        "réalisés par des confrères comme vous. Le client enchaîne presque systématiquement gros "+
+        "œuvre puis terrasse bois.\n\n"+
+        "L'idée : vous nous transmettez les clients qui cherchent la partie bois après votre "+
+        "intervention, on fait l'inverse pour les demandes de terrassement. Commission d'apport reversée."
+      )
+    },
+    menuisier: {
+      id:'apres_menuisier', emoji:'🪵', nom:'Après appel — Menuisier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous intervenons sur la construction bois extérieure : terrasses, pergolas, extensions, "+
+        "carports. Votre métier est plutôt intérieur et menuiserie sur mesure — nous sommes "+
+        "donc bien complémentaires sur les chantiers.\n\n"+
+        "Je vous propose qu'on se renvoie les chantiers respectifs, avec une commission d'apporteur "+
+        "d'affaires sur chaque signature."
+      )
+    },
+    paysag: {
+      id:'apres_paysagiste', emoji:'🌿', nom:'Après appel — Paysagiste',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous posons terrasses bois, pergolas et carports — exactement ce qui vient compléter "+
+        "vos aménagements extérieurs. Bois massif uniquement (pin CL4, cumaru, ipé), pas de composite.\n\n"+
+        "Je vous propose un partenariat simple : vous nous transmettez vos clients qui veulent "+
+        "une terrasse ou une pergola bois, et vous touchez une commission sur chaque chantier signé."
+      )
+    },
+    peintre: {
+      id:'apres_peintre', emoji:'🎨', nom:'Après appel — Peintre',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et extensions. Vos clients en phase de "+
+        "rénovation ont souvent un projet extérieur bois en parallèle : nous pouvons nous "+
+        "envoyer les leads mutuellement.\n\n"+
+        "Commission d'apporteur d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    piscin: {
+      id:'apres_pisciniste', emoji:'🏊', nom:'Après appel — Pisciniste',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous posons les plages de piscine en bois massif (cumaru, ipé, pin CL4) ainsi que "+
+        "les pergolas et locaux techniques bois. Une plage bois bien posée finalise l'ensemble "+
+        "et fait toute la différence à la livraison client.\n\n"+
+        "Nous pouvons intervenir en sous-traitance sur vos chantiers ou être référencés "+
+        "directement auprès de vos clients."
+      )
+    },
+    plombier: {
+      id:'apres_plombier', emoji:'🔧', nom:'Après appel — Plombier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et extensions. Vos clients en rénovation "+
+        "ou construction ont souvent un projet extérieur bois en parallèle : nous pouvons "+
+        "nous envoyer les chantiers respectifs.\n\n"+
+        "Commission d'apporteur d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    promoteur: {
+      id:'apres_promoteur', emoji:'🏗️', nom:'Après appel — Promoteur / Constructeur',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "La Planète Bois intervient en sous-traitance sur le lot bois de vos programmes : "+
+        "terrasses, pergolas, carports et extensions ossature bois. Nous sommes basés en IDF "+
+        "et pouvons gérer plusieurs lots en parallèle.\n\n"+
+        "Je peux vous transmettre notre plaquette, nos références et notre grille tarifaire "+
+        "sous-traitance si cela vous intéresse."
+      )
+    },
+    'lectricien': {
+      id:'apres_electricien', emoji:'⚡', nom:'Après appel — Électricien',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et carports. Vos chantiers extérieurs "+
+        "(spots, éclairages terrasse, bornes, IRVE) croisent souvent les nôtres — on termine "+
+        "régulièrement juste après votre passage.\n\n"+
+        "Je vous propose qu'on s'envoie les leads respectifs : commission d'apporteur "+
+        "d'affaires reversée sur chaque chantier signé."
+      )
+    }
+  };
+
+  // Ordre de matching (priorité : promoteur AVANT constructeur pour "Promoteur / constructeur")
+  var order = [
+    'promoteur','constructeur maison','immobili','architect','carreleur','courtier',
+    'couvreur','maçon','menuisier','paysag','peintre','piscin','plombier','lectricien'
+  ];
+
+  var metierTpl = null;
+  for (var i=0; i<order.length; i++) {
+    if (cat.includes(order[i])) { metierTpl = parCat[order[i]]; break; }
+  }
+
+  // Génériques (toujours disponibles)
+  var generiques = [
+    { id:'g_premier', emoji:'👋', nom:'Premier contact',
+      sujet:'La Planète Bois — Partenariat',
+      corps: build(
+        "Je me permets de vous contacter pour vous présenter brièvement notre activité.\n\n"+
+        "La Planète Bois installe terrasses bois, pergolas, carports, extensions et "+
+        "surélévations ossature bois. Nous intervenons exclusivement en bois massif "+
+        "(pin CL4, cumaru, ipé).\n\n"+
+        "J'aurais souhaité échanger quelques minutes avec vous sur une possible collaboration. "+
+        "Je vous appelle dans les prochains jours, mais n'hésitez pas à me joindre au 06 47 61 69 19 "+
+        "si vous préférez."
+      )
+    },
+    { id:'g_relance', emoji:'🔔', nom:'Relance',
+      sujet:'Suite à mon message — La Planète Bois',
+      corps: build(
+        "Je reviens vers vous suite à mon précédent message.\n\n"+
+        "Je reste à votre disposition pour échanger sur une éventuelle collaboration entre "+
+        "nos deux structures.\n\n"+
+        "Vous pouvez me joindre directement au 06 47 61 69 19."
+      )
+    },
+    { id:'g_devis', emoji:'📋', nom:'Chiffrage projet',
+      sujet:'Chiffrage projet bois — La Planète Bois',
+      corps: build(
+        "Suite à notre échange concernant votre projet, je reviens vers vous pour préparer "+
+        "un chiffrage précis.\n\n"+
+        "Pour établir un devis, il me faudrait : la surface concernée, le type de bois "+
+        "souhaité (pin CL4, cumaru ou ipé), l'état du support existant et l'adresse du chantier.\n\n"+
+        "Dès réception de ces éléments, je vous transmets une proposition sous 48h."
+      )
+    }
+  ];
+
+  return metierTpl ? [metierTpl].concat(generiques) : generiques;
+};
+
+window._prospectOpenMailTpl = function(idx, tplId) {
+  var l = (window._lcAllLeads || [])[idx];
+  if (!l || !l.email) { toast('Aucun email pour ce prospect', 'error'); return; }
+  var prenom = l.contact || l.entreprise || 'Prospect';
+  var entreprise = l.entreprise || '';
+  var tpls = window._getMailTemplates(l.categorie||'', prenom, entreprise);
+  var tpl = tpls.find(function(t){ return t.id === tplId; });
+  if (!tpl) return;
+  window.emailCompose(l.email, prenom, null, null, tpl.sujet, tpl.corps);
+};
+
+// NRP1 → crée automatiquement un rappel à J+5
+window._prospectEtapeChange = async function(etape, idx) {
+  var sel = document.querySelector('#prospect-etape-select');
+  var ETAPE_COLORS = {nrp1:'#e67e22',nrp2:'#e74c3c',contacte:'#9b59b6',mail_info:'#e0a030',devis_envoye:'#2ecc71',partenaire:'#2d6a4f'};
+  if (sel) sel.style.borderColor = ETAPE_COLORS[etape] || '#3498db';
+  var l = (window._lcAllLeads || [])[idx];
+  if (!l) return;
+
+  // Trouver ou créer le contact PRM (source=prm pour apparaître dans le board)
+  var allC = await dbSelect('contacts');
+  var ex = allC.find(function(c){
+    if (c.source !== 'prm' && c.source !== 'prospect_consolide') return false;
+    if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+    return c.company === l.entreprise && c.city === (l.ville||'');
+  });
+
+  var todayIso = new Date().toISOString().substring(0,10);
+  function buildNotes(baseNotes) {
+    var base = (baseNotes||'')
+      .replace(/^prm_stage:\s*\S+\s*\n?/m,'')
+      .replace(/^stage_since:\s*\S+\s*\n?/m,'')
+      .replace(/etape_prospect:\s*\S+\s*\n?/,'');
+    var header = 'prm_stage: '+etape+'\n'
+      + 'stage_since: '+todayIso+'\n'
+      + (l.siret && !base.includes('siret:') ? 'siret: '+l.siret+'\n' : '')
+      + (l.categorie && !base.includes('categorie:') ? 'categorie: '+l.categorie+'\n' : '')
+      + (l.priorite && !base.includes('priorite:') ? 'priorite: '+l.priorite+'\n' : '')
+      + 'source_prm: leads_consolide\n';
+    return header + base.trim();
+  }
+
+  // a_appeler = reste dans Leads consolidés (pas de doublon avec PRM)
+  var targetSource = (etape === 'a_appeler') ? 'prospect_consolide' : 'prm';
+
+  var cid;
+  if (ex) {
+    await dbUpdate('contacts', ex.id, { source: targetSource, notes: buildNotes(ex.notes) });
+    cid = ex.id;
+  } else {
+    var np = (l.contact||l.entreprise||'Prospect').split(' ');
+    var r = await dbInsert('contacts',{
+      first_name:np[0]||'Prospect', last_name:np.slice(1).join(' ')||'',
+      company:l.entreprise||'', phone:l.telephone||'', email:l.email||'',
+      city:l.ville||'', source: targetSource, status:'prospect',
+      notes: buildNotes('')
+    });
+    cid = r && r.id ? r.id : null;
+  }
+
+  toast(etape === 'a_appeler' ? '📋 Lead marqué « À appeler »' : '📌 Ajouté au PRM — étape : '+etape, 'success');
+};
+
+// Sauvegarder étape + remarque dans un shadow contact Supabase
+window._prospectSaveExtras = async function(idx) {
+  var l = (window._lcAllLeads||[])[idx]; if (!l) return;
+  var btn = document.querySelector('#prospect-save-btn');
+  var ta  = document.querySelector('#prospect-remarque-ta');
+  var sel = document.querySelector('#prospect-etape-select');
+  if (!ta||!sel) return;
+  var remarque = ta.value.trim(), etape = sel.value;
+  if (btn) { btn.disabled=true; btn.textContent='Enregistrement...'; }
+  var allContacts = await dbSelect('contacts');
+  var existing = allContacts.find(function(c){
+    if (c.source !== 'prospect_consolide' && c.source !== 'prm') return false;
+    if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+    return c.company === l.entreprise && c.city === (l.ville||'');
+  });
+  function rebuildNotes(base, etape, remarque) {
+    base = (base||'').replace(/etape_prospect:\s*\S+/,'').replace(/remarque_prospect:[\s\S]*?(\n(?=\w)|$)/,'$1').trim();
+    return base + (base?'\n':'') + 'etape_prospect: '+etape + (remarque ? '\nremarque_prospect: '+remarque : '');
+  }
+  if (existing) {
+    await dbUpdate('contacts', existing.id, {notes: rebuildNotes(existing.notes, etape, remarque)});
+  } else {
+    var np = (l.contact||l.entreprise||'Prospect').split(' ');
+    await dbInsert('contacts',{first_name:np[0]||'Prospect',last_name:np.slice(1).join(' ')||'',company:l.entreprise||'',phone:l.telephone||'',email:l.email||'',city:l.ville||'',source:'prospect_consolide',status:'prospect',notes:rebuildNotes(l.siret?'siret: '+l.siret:'', etape, remarque)});
+  }
+  if (btn) { btn.disabled=false; btn.textContent='Enregistré !'; setTimeout(function(){ btn.textContent='Enregistrer'; }, 2000); }
+  toast('✅ Enregistré','success');
+};
+
+// Ouvrir un mini formulaire pour ajouter un rappel
+window._prospectAddRappel = async function(idx) {
+  var l = (window._lcAllLeads||[])[idx]; if (!l) return;
+  var allContacts = await dbSelect('contacts');
+  var existing = allContacts.find(function(c){
+    if (c.source !== 'prospect_consolide' && c.source !== 'prm') return false;
+    if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+    return c.company === l.entreprise && c.city === (l.ville||'');
+  });
+  var contactId = existing ? existing.id : null;
+  if (!contactId) {
+    var np = (l.contact||l.entreprise||'Prospect').split(' ');
+    var r = await dbInsert('contacts',{first_name:np[0]||'Prospect',last_name:np.slice(1).join(' ')||'',company:l.entreprise||'',phone:l.telephone||'',email:l.email||'',city:l.ville||'',source:'prospect_consolide',status:'prospect',notes:(l.siret?'siret: '+l.siret+'\n':'')+'etape_prospect: a_appeler'});
+    contactId = r && r.id ? r.id : null;
+  }
+  if (!contactId) { toast('Erreur','error'); return; }
+  var today = new Date().toISOString().substring(0,10);
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:var(--card);border-radius:16px;padding:28px;width:380px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.3)';
+  card.innerHTML = '<h4 style="margin:0 0 16px"><i class="fas fa-bell" style="color:var(--primary)"></i> Rappel — '+escHtml(l.entreprise||l.contact||'Prospect')+'</h4>'
+    +'<label style="font-size:0.82rem;font-weight:600">Titre</label>'
+    +'<input id="prappel-title" type="text" placeholder="Ex: Rappeler" style="width:100%;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Date</label><input id="prappel-date" type="date" value="'+today+'" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Heure</label><input id="prappel-time" type="time" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'</div>'
+    +'<label style="font-size:0.82rem;font-weight:600">Type</label>'
+    +'<select id="prappel-type" style="width:100%;margin:4px 0 14px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<option value="rappel">Rappel</option><option value="tache">Tâche</option><option value="rdv">RDV</option><option value="autre">Autre</option>'
+    +'</select>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="prappel-save" onclick="window._prospectSaveRappel('+idx+',\''+contactId+'\')" class="btn btn-primary" style="flex:1"><i class="fas fa-check"></i> Créer</button>'
+    +'<button onclick="this.closest(\'[style*=z-index]\').remove()" class="btn btn-outline" style="flex:1">Annuler</button>'
+    +'</div>';
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  ov.onclick = function(e){ if(e.target===ov) ov.remove(); };
+  setTimeout(function(){ var t=document.getElementById('prappel-title'); if(t) t.focus(); }, 50);
+  window._currentRappelOverlay = ov;
+};
+
+window._prospectSaveRappel = async function(idx, contactId) {
+  var title = (document.getElementById('prappel-title')||{}).value||'';
+  var date  = (document.getElementById('prappel-date')||{}).value||'';
+  var time  = (document.getElementById('prappel-time')||{}).value||'';
+  var type  = (document.getElementById('prappel-type')||{}).value||'rappel';
+  if (!title.trim()) { toast('Titre requis','error'); return; }
+  if (!date) { toast('Date requise','error'); return; }
+  var btn = document.getElementById('prappel-save');
+  if (btn) { btn.disabled=true; }
+  await dbInsert('planning',{title:title.trim(),start_date:date,start_time:time||null,type:type,status:'planifie',contact_id:contactId});
+  if (window._currentRappelOverlay) window._currentRappelOverlay.remove();
+  toast('✅ Rappel créé !','success');
+  window.prospectView(idx);
+};
+
+window._prospectPlanDone = async function(evId, idx) {
+  await dbUpdate('planning', evId, {status:'termine'});
+  toast('✅ Rappel terminé','success');
+  window.prospectView(idx);
+};
+
 window._prospectToPRM = async function(idx) {
   var l = (window._lcAllLeads || [])[idx];
   if (!l) return;
@@ -3848,7 +4362,7 @@ window._prospectToPRM = async function(idx) {
     var nameParts = (l.contact || l.entreprise || 'Inconnu').split(' ');
     var firstName = nameParts[0] || 'Inconnu';
     var lastName = nameParts.slice(1).join(' ') || '';
-    var notes = 'prm_stage: a_contacter\nsource_prm: leads_consolide\n'
+    var notes = 'prm_stage: nrp1\nsource_prm: leads_consolide\n'
       + (l.priorite ? 'priorite: '+l.priorite+'\n' : '')
       + (l.score ? 'score: '+l.score+'\n' : '')
       + (l.categorie ? 'categorie: '+l.categorie+'\n' : '')
@@ -7804,17 +8318,21 @@ pages.prm = async function(subTab) {
   var prmContacts = contacts.filter(function(c){ return c.source === 'prm'; });
 
   var PRM_STAGES = [
-    { key: 'a_contacter',   label: 'À contacter',   color: '#3498db', icon: 'fa-user-clock' },
-    { key: 'contacte',      label: 'Contacté',       color: '#9b59b6', icon: 'fa-phone-volume' },
-    { key: 'en_discussion', label: 'En discussion',  color: '#e0a030', icon: 'fa-comments' },
-    { key: 'devis_envoye',  label: 'Devis envoyé',   color: '#2ecc71', icon: 'fa-file-invoice' },
-    { key: 'partenaire',    label: 'Partenaire',     color: '#2d6a4f', icon: 'fa-handshake' },
-    { key: 'perdu_prm',     label: 'Perdu',          color: '#e74c3c', icon: 'fa-times-circle' }
+    { key: 'nrp1',          label: 'NRP 1',       color: '#e67e22', icon: 'fa-phone-slash' },
+    { key: 'nrp2',          label: 'NRP 2',       color: '#e74c3c', icon: 'fa-phone-slash' },
+    { key: 'contacte',      label: 'Contacté',    color: '#9b59b6', icon: 'fa-phone-volume' },
+    { key: 'mail_info',     label: 'Mail info',   color: '#e0a030', icon: 'fa-envelope' },
+    { key: 'devis_envoye',  label: 'Devis',       color: '#2ecc71', icon: 'fa-file-invoice' },
+    { key: 'partenaire',    label: 'Partenaire',  color: '#2d6a4f', icon: 'fa-handshake' }
   ];
 
   function getPrmStage(c) {
     var m = (c.notes||'').match(/^prm_stage:\s*(\S+)/m);
-    return m ? m[1] : 'a_contacter';
+    var k = m ? m[1] : 'nrp1';
+    // Migration anciennes clefs
+    if (k === 'a_contacter' || k === 'perdu_prm') return 'nrp1';
+    if (k === 'en_discussion') return 'mail_info';
+    return k;
   }
 
   function getPrmField(c, key) {
@@ -7827,7 +8345,7 @@ pages.prm = async function(subTab) {
     PRM_STAGES.forEach(function(s){ stageMap[s.key] = []; });
     prmContacts.forEach(function(c){
       var st = getPrmStage(c);
-      if (!stageMap[st]) st = 'a_contacter';
+      if (!stageMap[st]) st = 'nrp1';
       stageMap[st].push(c);
     });
 
@@ -7843,6 +8361,14 @@ pages.prm = async function(subTab) {
       '<div class="pipeline">' +
         PRM_STAGES.map(function(st){
           var cards = stageMap[st.key] || [];
+          // NRP1 / NRP2 : trier les plus anciens en premier (par stage_since ascendant)
+          if (st.key === 'nrp1' || st.key === 'nrp2') {
+            cards.sort(function(a, b){
+              var da = getPrmField(a, 'stage_since') || '9999-12-31';
+              var db = getPrmField(b, 'stage_since') || '9999-12-31';
+              return da.localeCompare(db);
+            });
+          }
           return '<div class="pipeline-col">' +
             '<div class="pipeline-col-header" style="border-bottom-color:' + st.color + '">' +
               '<span><i class="fas ' + st.icon + '" style="color:' + st.color + ';margin-right:6px"></i>' + st.label + '</span>' +
@@ -7854,7 +8380,19 @@ pages.prm = async function(subTab) {
                 var prio = getPrmField(c, 'priorite');
                 var score = getPrmField(c, 'score');
                 var cat = getPrmField(c, 'categorie');
+                var stageSince = getPrmField(c, 'stage_since');
                 var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
+                var daysIn = '';
+                if (stageSince) {
+                  var d0 = new Date(stageSince);
+                  if (!isNaN(d0)) {
+                    var nb = Math.max(0, Math.floor((Date.now() - d0.getTime()) / 86400000));
+                    var ageCol = nb >= 7 ? '#e53935' : nb >= 3 ? '#fb8c00' : '#888';
+                    var dateStr = d0.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+                    var lbl = nb === 0 ? 'aujourd\'hui' : nb === 1 ? 'depuis 1 jour' : 'depuis ' + nb + ' jours';
+                    daysIn = '<div style="font-size:0.68rem;color:' + ageCol + ';margin-top:4px;font-weight:600"><i class="far fa-clock"></i> ' + lbl + ' · ' + dateStr + '</div>';
+                  }
+                }
                 return '<div class="deal-card" draggable="true" data-prm-id="' + c.id + '" onclick="window.prmView(\'' + c.id + '\')" style="position:relative;cursor:pointer">' +
                   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
                     '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + avatarHtml(c) + '</div>' +
@@ -7866,6 +8404,7 @@ pages.prm = async function(subTab) {
                   '</div>' +
                   (cat ? '<div style="font-size:0.72rem;color:var(--text-light);margin-top:3px"><i class="fas fa-tag"></i> ' + escHtml(cat) + '</div>' : '') +
                   (score ? '<div style="font-size:0.78rem;font-weight:700;color:var(--primary);margin-top:4px">Score : ' + escHtml(score) + '</div>' : '') +
+                  daysIn +
                   '<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--text-light);margin-top:6px">' +
                     (c.phone ? '<a href="tel:' + c.phone.replace(/\s/g,'') + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-phone"></i></a>' : '<span></span>') +
                     (c.email ? '<a href="mailto:' + escHtml(c.email) + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-envelope"></i></a>' : '<span></span>') +
@@ -7901,8 +8440,15 @@ pages.prm = async function(subTab) {
         if (!cId || !newStage) return;
         var c = prmContacts.find(function(x){ return x.id === cId; });
         if (!c) return;
+        var todayIso = new Date().toISOString().substring(0,10);
         var newNotes = (c.notes||'').replace(/^prm_stage:\s*\S+/m, 'prm_stage: '+newStage);
         if (!(c.notes||'').match(/^prm_stage:/m)) newNotes = 'prm_stage: '+newStage+'\n'+(c.notes||'');
+        // Mettre à jour stage_since à chaque changement de colonne
+        if (newNotes.match(/^stage_since:/m)) {
+          newNotes = newNotes.replace(/^stage_since:\s*\S+/m, 'stage_since: '+todayIso);
+        } else {
+          newNotes = newNotes.replace(/^prm_stage:\s*\S+\s*\n?/m, function(m){ return m + 'stage_since: '+todayIso+'\n'; });
+        }
         await dbUpdate('contacts', cId, { notes: newNotes });
         c.notes = newNotes;
         toast('Déplacé vers ' + newStage.replace(/_/g,' '));
@@ -7925,12 +8471,12 @@ window.prmView = async function(contactId) {
   if (!c) { body.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Introuvable</h4></div>'; return; }
 
   var PRM_STAGES = [
-    { key: 'a_contacter',   label: 'À contacter' },
+    { key: 'nrp1',          label: 'NRP 1' },
+    { key: 'nrp2',          label: 'NRP 2' },
     { key: 'contacte',      label: 'Contacté' },
-    { key: 'en_discussion', label: 'En discussion' },
-    { key: 'devis_envoye',  label: 'Devis envoyé' },
-    { key: 'partenaire',    label: 'Partenaire' },
-    { key: 'perdu_prm',     label: 'Perdu' }
+    { key: 'mail_info',     label: 'Mail info' },
+    { key: 'devis_envoye',  label: 'Devis' },
+    { key: 'partenaire',    label: 'Partenaire' }
   ];
 
   function getPF(key) {
@@ -7938,7 +8484,9 @@ window.prmView = async function(contactId) {
     return m ? m[1].trim() : '';
   }
 
-  var currentStage = getPF('prm_stage') || 'a_contacter';
+  var currentStage = getPF('prm_stage') || 'nrp1';
+  if (currentStage === 'a_contacter' || currentStage === 'perdu_prm') currentStage = 'nrp1';
+  if (currentStage === 'en_discussion') currentStage = 'mail_info';
   var prio = getPF('priorite');
   var score = getPF('score');
   var cat = getPF('categorie');
@@ -7946,6 +8494,29 @@ window.prmView = async function(contactId) {
   var siteWeb = getPF('site_web');
   var notesProspect = getPF('notes_prospects');
   var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
+
+  // Remarque (texte libre séparé des meta)
+  var remarqueMatch = (c.notes||'').match(/^remarque_prm:\s*([\s\S]*?)(?=\n\w+:|$)/m);
+  var remarque = remarqueMatch ? remarqueMatch[1].trim() : '';
+
+  // Charger les rappels (planning events liés)
+  var allPlanning = await dbSelect('planning');
+  var rappels = allPlanning.filter(function(e){ return e.contact_id === c.id; })
+    .sort(function(a,b){ return new Date(a.start_date||0) - new Date(b.start_date||0); });
+  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
+  var rappelsHtml = rappels.length === 0
+    ? '<div style="color:var(--text-light);font-size:0.85rem;padding:8px 0">Aucun rappel</div>'
+    : rappels.map(function(ev){
+        var icon = TYPE_ICONS[ev.type] || 'fa-calendar-day';
+        var done = ev.status === 'termine';
+        var dateStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}) : '';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border);'+(done?'opacity:0.5;text-decoration:line-through':'')+'">'
+          +'<i class="fas '+icon+'" style="color:var(--primary);width:14px"></i>'
+          +'<div style="flex:1;min-width:0"><div style="font-size:0.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(ev.title||'')+'</div>'
+          +'<div style="font-size:0.72rem;color:var(--text-light)">'+dateStr+(ev.start_time?' · '+escHtml(ev.start_time):'')+'</div></div>'
+          +(done?'':'<button onclick="window._prmPlanDone(\''+ev.id+'\',\''+c.id+'\')" class="btn btn-sm" style="font-size:0.7rem;padding:3px 8px" title="Marquer terminé"><i class="fas fa-check"></i></button>')
+          +'</div>';
+      }).join('');
 
   body.innerHTML =
     '<div style="display:flex;gap:20px;flex-wrap:wrap">' +
@@ -7995,15 +8566,37 @@ window.prmView = async function(contactId) {
           '</div>' : '') +
 
         '<div class="panel" style="padding:14px;margin-bottom:14px">' +
-          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes internes</div>' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-comment-alt"></i> Remarque</div>' +
+          '<textarea id="prm-remarque-txt" rows="3" placeholder="Notes internes, observations, suite à donner..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical;line-height:1.5;box-sizing:border-box">' + escHtml(remarque) + '</textarea>' +
+          '<button id="prm-save-remarque" class="btn btn-primary" style="width:100%;margin-top:8px;font-size:0.85rem"><i class="fas fa-save"></i> Enregistrer la remarque</button>' +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light)"><i class="fas fa-bell"></i> Rappels</div>' +
+            '<button onclick="window._prmAddRappel(\''+c.id+'\')" class="btn btn-sm" style="font-size:0.72rem;padding:3px 10px"><i class="fas fa-plus"></i> Ajouter</button>' +
+          '</div>' +
+          rappelsHtml +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes (avancé)</div>' +
           '<textarea id="prm-notes-txt" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical">' + escHtml(c.notes||'') + '</textarea>' +
           '<button id="prm-save-notes" class="btn btn-primary" style="width:100%;margin-top:8px"><i class="fas fa-save"></i> Sauvegarder</button>' +
         '</div>' +
 
-        (c.email ?
-          '<div class="panel" style="padding:14px;margin-bottom:14px">' +
-            '<button onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.company||c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" class="btn btn-primary" style="width:100%"><i class="fas fa-envelope"></i> Envoyer un email</button>' +
-          '</div>' : '') +
+        (c.email ? (function(){
+          var prenomM = c.last_name || c.first_name || c.company || 'Prospect';
+          var tpls = (window._getMailTemplates ? window._getMailTemplates(cat||'', prenomM, c.company||'') : []);
+          var tplBtns = tpls.map(function(t){
+            return '<button onclick="window._prmOpenMailTpl(\''+c.id+'\',\''+t.id+'\')" class="btn" style="width:100%;margin-bottom:6px;text-align:left;font-size:0.82rem;padding:8px 10px">'+t.emoji+' '+escHtml(t.nom)+'</button>';
+          }).join('');
+          return '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-envelope"></i> Mails types</div>' +
+            tplBtns +
+            '<button onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.company||c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" class="btn btn-primary" style="width:100%;margin-top:6px;font-size:0.82rem"><i class="fas fa-pen"></i> Mail vierge</button>' +
+          '</div>';
+        })() : '') +
 
         '<div class="panel" style="padding:14px">' +
           '<button onclick="window._prmDelete(\'' + c.id + '\')" class="btn" style="width:100%;color:#e74c3c;border-color:#e74c3c"><i class="fas fa-trash"></i> Supprimer du PRM</button>' +
@@ -8033,7 +8626,85 @@ window.prmView = async function(contactId) {
 
   saveBtn?.addEventListener('click', savePRM);
   stageSel?.addEventListener('change', savePRM);
+
+  // Sauvegarder la remarque (ajoutée/remplacée dans notes sous clef remarque_prm:)
+  var remarqueTxt = body.querySelector('#prm-remarque-txt');
+  var remarqueBtn = body.querySelector('#prm-save-remarque');
+  remarqueBtn?.addEventListener('click', async function(){
+    var v = (remarqueTxt.value||'').trim();
+    var base = (c.notes||'').replace(/^remarque_prm:\s*[\s\S]*?(?=\n\w+:|$)/m,'').replace(/\n{3,}/g,'\n\n').trim();
+    var updated = base + (v ? (base?'\n':'') + 'remarque_prm: ' + v : '');
+    await dbUpdate('contacts', c.id, { notes: updated });
+    c.notes = updated;
+    toast('✅ Remarque enregistrée','success');
+  });
+
   popup.onclick = function(e){ if(e.target===popup) popup.style.display='none'; };
+};
+
+// ===== Mail template depuis fiche PRM =====
+window._prmOpenMailTpl = async function(contactId, tplId) {
+  var contacts = await dbSelect('contacts', { eq: [['id', contactId]] });
+  var c = contacts && contacts[0];
+  if (!c || !c.email) { toast('Aucun email', 'error'); return; }
+  var m = (c.notes||'').match(/^categorie:\s*(.+)$/m);
+  var cat = m ? m[1].trim() : '';
+  var prenom = c.last_name || c.first_name || c.company || 'Prospect';
+  var tpls = window._getMailTemplates(cat, prenom, c.company||'');
+  var tpl = tpls.find(function(t){ return t.id === tplId; });
+  if (!tpl) return;
+  window.emailCompose(c.email, prenom, null, c.id, tpl.sujet, tpl.corps);
+};
+
+// ===== Rappels PRM =====
+window._prmAddRappel = function(contactId) {
+  var today = new Date().toISOString().substring(0,10);
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:var(--card);border-radius:16px;padding:28px;width:380px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.3)';
+  var h = '<h4 style="margin:0 0 16px"><i class="fas fa-bell" style="color:var(--primary)"></i> Nouveau rappel</h4>'
+    +'<label style="font-size:0.82rem;font-weight:600">Titre</label>'
+    +'<input id="prm-rappel-title" type="text" placeholder="Ex: Rappeler" style="width:100%;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Date</label><input id="prm-rappel-date" type="date" value="'+today+'" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Heure</label><input id="prm-rappel-time" type="time" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'</div>'
+    +'<label style="font-size:0.82rem;font-weight:600">Type</label>'
+    +'<select id="prm-rappel-type" style="width:100%;margin:4px 0 14px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<option value="rappel">Rappel</option><option value="tache">Tâche</option><option value="rdv">RDV</option><option value="autre">Autre</option>'
+    +'</select>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="prm-rappel-save" onclick="window._prmSaveRappel(\''+contactId+'\')" class="btn btn-primary" style="flex:1"><i class="fas fa-check"></i> Créer</button>'
+    +'<button onclick="this.closest(\'[style*=z-index]\').remove()" class="btn btn-outline" style="flex:1">Annuler</button>'
+    +'</div>';
+  card.appendChild(document.createRange().createContextualFragment(h));
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  ov.onclick = function(e){ if(e.target===ov) ov.remove(); };
+  setTimeout(function(){ var t=document.getElementById('prm-rappel-title'); if(t) t.focus(); }, 50);
+  window._currentPrmRappelOverlay = ov;
+};
+
+window._prmSaveRappel = async function(contactId) {
+  var title = (document.getElementById('prm-rappel-title')||{}).value||'';
+  var date  = (document.getElementById('prm-rappel-date')||{}).value||'';
+  var time  = (document.getElementById('prm-rappel-time')||{}).value||'';
+  var type  = (document.getElementById('prm-rappel-type')||{}).value||'rappel';
+  if (!title.trim()) { toast('Titre requis','error'); return; }
+  if (!date) { toast('Date requise','error'); return; }
+  var btn = document.getElementById('prm-rappel-save');
+  if (btn) btn.disabled = true;
+  await dbInsert('planning',{title:title.trim(),start_date:date,start_time:time||null,type:type,status:'planifie',contact_id:contactId});
+  if (window._currentPrmRappelOverlay) window._currentPrmRappelOverlay.remove();
+  toast('✅ Rappel créé','success');
+  window.prmView(contactId);
+};
+
+window._prmPlanDone = async function(evId, contactId) {
+  await dbUpdate('planning', evId, {status:'termine'});
+  toast('✅ Terminé','success');
+  window.prmView(contactId);
 };
 
 window.prmForm = function() {
@@ -8057,7 +8728,7 @@ window.prmForm = function() {
   body.querySelector('#pf-save')?.addEventListener('click', async function(){
     var nameParts = (body.querySelector('#pf-name').value||'Inconnu').trim().split(' ');
     var cat = body.querySelector('#pf-cat').value.trim();
-    var notes = 'prm_stage: a_contacter\n'+(cat?'categorie: '+cat+'\n':'')+(body.querySelector('#pf-notes').value||'');
+    var notes = 'prm_stage: nrp1\n'+(cat?'categorie: '+cat+'\n':'')+(body.querySelector('#pf-notes').value||'');
     var payload = {
       first_name: nameParts[0]||'Inconnu',
       last_name: nameParts.slice(1).join(' ')||'',
