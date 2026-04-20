@@ -8744,6 +8744,12 @@ window.prmView = async function(contactId) {
           (siteWeb ? '<div style="margin-top:6px"><a href="'+escHtml(siteWeb)+'" target="_blank" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-globe" style="width:16px"></i> '+escHtml(siteWeb)+'</a></div>' : '') +
           (!c.phone && !c.email && !c.city && !siret && !siteWeb ? '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic">Aucune coordonnée renseignée</div>' : '') +
         '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes (avancé)</div>' +
+          '<textarea id="prm-notes-txt" rows="8" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical;font-family:monospace;line-height:1.5">' + escHtml(c.notes||'') + '</textarea>' +
+          '<button id="prm-save-notes" class="btn btn-primary" style="width:100%;margin-top:8px"><i class="fas fa-save"></i> Sauvegarder</button>' +
+        '</div>' +
       '</div>' +
 
       '<div style="flex:1;min-width:240px">' +
@@ -8774,12 +8780,6 @@ window.prmView = async function(contactId) {
             '<button onclick="window._prmAddRappel(\''+c.id+'\')" class="btn btn-sm" style="font-size:0.72rem;padding:3px 10px"><i class="fas fa-plus"></i> Ajouter</button>' +
           '</div>' +
           rappelsHtml +
-        '</div>' +
-
-        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
-          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes (avancé)</div>' +
-          '<textarea id="prm-notes-txt" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical">' + escHtml(c.notes||'') + '</textarea>' +
-          '<button id="prm-save-notes" class="btn btn-primary" style="width:100%;margin-top:8px"><i class="fas fa-save"></i> Sauvegarder</button>' +
         '</div>' +
 
         (c.email ? (function(){
