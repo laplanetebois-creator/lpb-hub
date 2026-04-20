@@ -8259,6 +8259,14 @@ pages.prm = async function(subTab) {
       '<div class="pipeline">' +
         PRM_STAGES.map(function(st){
           var cards = stageMap[st.key] || [];
+          // NRP1 / NRP2 : trier les plus anciens en premier (par stage_since ascendant)
+          if (st.key === 'nrp1' || st.key === 'nrp2') {
+            cards.sort(function(a, b){
+              var da = getPrmField(a, 'stage_since') || '9999-12-31';
+              var db = getPrmField(b, 'stage_since') || '9999-12-31';
+              return da.localeCompare(db);
+            });
+          }
           return '<div class="pipeline-col">' +
             '<div class="pipeline-col-header" style="border-bottom-color:' + st.color + '">' +
               '<span><i class="fas ' + st.icon + '" style="color:' + st.color + ';margin-right:6px"></i>' + st.label + '</span>' +
