@@ -8539,13 +8539,17 @@ window.prmView = async function(contactId) {
           '</select>' +
         '</div>' +
 
-        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
-          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-address-book"></i> Coordonnées</div>' +
+        '<div id="prm-coords-panel" class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light)"><i class="fas fa-address-book"></i> Coordonnées</div>' +
+            '<button onclick="window._prmEditCoords(\''+c.id+'\')" class="btn btn-sm" style="font-size:0.72rem;padding:3px 10px" title="Modifier"><i class="fas fa-pen"></i> Éditer</button>' +
+          '</div>' +
           (c.phone ? '<div style="margin-bottom:6px"><a href="tel:'+c.phone.replace(/\s/g,'')+'" style="color:var(--primary)"><i class="fas fa-phone" style="width:16px"></i> '+escHtml(c.phone)+'</a></div>' : '') +
           (c.email ? '<div style="margin-bottom:6px"><a href="mailto:'+escHtml(c.email)+'" style="color:var(--primary)"><i class="fas fa-envelope" style="width:16px"></i> '+escHtml(c.email)+'</a></div>' : '') +
           (c.city ? '<div style="margin-bottom:6px;font-size:0.82rem"><i class="fas fa-map-marker-alt" style="width:16px;color:var(--text-light)"></i> '+escHtml(c.city)+'</div>' : '') +
           (siret ? '<div style="font-size:0.8rem;color:var(--text-light)"><i class="fas fa-id-card" style="width:16px"></i> SIRET : '+escHtml(siret)+'</div>' : '') +
           (siteWeb ? '<div style="margin-top:6px"><a href="'+escHtml(siteWeb)+'" target="_blank" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-globe" style="width:16px"></i> '+escHtml(siteWeb)+'</a></div>' : '') +
+          (!c.phone && !c.email && !c.city && !siret && !siteWeb ? '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic">Aucune coordonnée renseignée</div>' : '') +
         '</div>' +
       '</div>' +
 
@@ -8654,6 +8658,90 @@ window._prmOpenMailTpl = async function(contactId, tplId) {
   var tpl = tpls.find(function(t){ return t.id === tplId; });
   if (!tpl) return;
   window.emailCompose(c.email, prenom, null, c.id, tpl.sujet, tpl.corps);
+};
+
+// ===== Edition coordonnees PRM =====
+window._prmEditCoords = async function(contactId) {
+  var panel = document.getElementById('prm-coords-panel');
+  if (!panel) return;
+  var contacts = await dbSelect('contacts', { eq: [['id', contactId]] });
+  var c = contacts && contacts[0];
+  if (!c) return;
+
+  function getPF(key) {
+    var m = (c.notes||'').match(new RegExp('^'+key+':\\s*(.+)$', 'm'));
+    return m ? m[1].trim() : '';
+  }
+  var cat = getPF('categorie');
+  var siret = getPF('siret');
+  var siteWeb = getPF('site_web');
+
+  var CATS = ['','Agence immobilière','Architecte','Carreleur','Constructeur maison','Courtier travaux','Couvreur charpentier','Maçon terrassier','Menuisier','Paysagiste','Peintre','Pisciniste','Plombier','Promoteur / constructeur','Électricien'];
+  var INP = 'width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box;margin-bottom:8px';
+
+  var html =
+    '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pen"></i> Coordonnées — édition</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<input id="prm-edit-first" placeholder="Prénom" value="'+escHtml(c.first_name||'')+'" style="'+INP+'">' +
+      '<input id="prm-edit-last" placeholder="Nom" value="'+escHtml(c.last_name||'')+'" style="'+INP+'">' +
+    '</div>' +
+    '<input id="prm-edit-company" placeholder="Entreprise" value="'+escHtml(c.company||'')+'" style="'+INP+'">' +
+    '<input id="prm-edit-phone" type="tel" placeholder="Téléphone" value="'+escHtml(c.phone||'')+'" style="'+INP+'">' +
+    '<input id="prm-edit-email" type="email" placeholder="Email" value="'+escHtml(c.email||'')+'" style="'+INP+'">' +
+    '<input id="prm-edit-city" placeholder="Ville" value="'+escHtml(c.city||'')+'" style="'+INP+'">' +
+    '<select id="prm-edit-cat" style="'+INP+'">' +
+      CATS.map(function(k){ return '<option value="'+escHtml(k)+'"'+(cat===k?' selected':'')+'>'+(k||'— Catégorie —')+'</option>'; }).join('') +
+    '</select>' +
+    '<input id="prm-edit-web" placeholder="Site web (https://...)" value="'+escHtml(siteWeb)+'" style="'+INP+'">' +
+    '<input id="prm-edit-siret" placeholder="SIRET" value="'+escHtml(siret)+'" style="'+INP+'">' +
+    '<div style="display:flex;gap:6px;margin-top:6px">' +
+      '<button onclick="window.prmView(\''+contactId+'\')" class="btn" style="flex:1;font-size:0.82rem"><i class="fas fa-times"></i> Annuler</button>' +
+      '<button onclick="window._prmSaveCoords(\''+contactId+'\')" class="btn btn-primary" style="flex:1;font-size:0.82rem"><i class="fas fa-save"></i> Enregistrer</button>' +
+    '</div>';
+  panel.textContent = '';
+  panel.appendChild(document.createRange().createContextualFragment(html));
+  var f = document.getElementById('prm-edit-first'); if (f) f.focus();
+};
+
+window._prmSaveCoords = async function(contactId) {
+  var contacts = await dbSelect('contacts', { eq: [['id', contactId]] });
+  var c = contacts && contacts[0];
+  if (!c) return;
+
+  function val(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+  var patch = {
+    first_name: val('prm-edit-first') || null,
+    last_name:  val('prm-edit-last')  || null,
+    company:    val('prm-edit-company') || null,
+    phone:      val('prm-edit-phone') || null,
+    email:      val('prm-edit-email') || null,
+    city:       val('prm-edit-city')  || null
+  };
+
+  var notes = c.notes || '';
+  function setPF(k, v) {
+    var reLine = new RegExp('^'+k+':\\s*.*\\n?', 'm');
+    var exists = reLine.test(notes);
+    if (v) {
+      if (exists) notes = notes.replace(reLine, k+': '+v+'\n');
+      else notes = k+': '+v+'\n'+notes;
+    } else if (exists) {
+      notes = notes.replace(reLine, '');
+    }
+  }
+  setPF('categorie', val('prm-edit-cat'));
+  setPF('site_web',  val('prm-edit-web'));
+  setPF('siret',     val('prm-edit-siret'));
+  patch.notes = notes;
+
+  try {
+    await dbUpdate('contacts', contactId, patch);
+    toast('✅ Coordonnées enregistrées', 'success');
+    window.prmView(contactId);
+  } catch(e) {
+    toast('Erreur sauvegarde: '+(e.message||e), 'error');
+  }
 };
 
 // ===== Rappels PRM =====
