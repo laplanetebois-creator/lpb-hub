@@ -3565,22 +3565,41 @@ async function renderLeadsConsolides(content, context) {
     return;
   }
 
-  // Filtrer les leads déjà présents dans le PRM (source='prm') pour éviter les doublons
+  // Filtrer leads déjà dans PRM + merger overrides prospect_consolide (coordonnées éditées)
   try {
-    var prmC = await dbSelect('contacts');
-    var prmSirets = new Set();
-    var prmKeys = new Set();
-    prmC.forEach(function(c){
-      if (c.source !== 'prm') return;
+    var allC = await dbSelect('contacts');
+    var bySiret = {};
+    var byKey = {};
+    allC.forEach(function(c){
+      if (c.source !== 'prm' && c.source !== 'prospect_consolide') return;
       var m = (c.notes||'').match(/^siret:\s*(\S+)/m);
-      if (m) prmSirets.add(m[1].trim());
+      if (m) bySiret[m[1].trim()] = c;
       var key = ((c.company||'').toLowerCase().trim()) + '|' + ((c.city||'').toLowerCase().trim());
-      prmKeys.add(key);
+      if (key !== '|') byKey[key] = c;
     });
-    allLeads = allLeads.filter(function(l){
-      if (l.siret && prmSirets.has(String(l.siret).trim())) return false;
+
+    function matchContact(l) {
+      if (l.siret && bySiret[String(l.siret).trim()]) return bySiret[String(l.siret).trim()];
       var k = ((l.entreprise||'').toLowerCase().trim()) + '|' + ((l.ville||'').toLowerCase().trim());
-      return !prmKeys.has(k);
+      return byKey[k] || null;
+    }
+
+    allLeads = allLeads.filter(function(l){
+      var c = matchContact(l);
+      if (c && c.source === 'prm') return false; // deja dans PRM -> hors liste
+      if (c && c.source === 'prospect_consolide') {
+        // override: les valeurs DB remplacent celles du JSON
+        var fn = [c.first_name||'', c.last_name||''].filter(Boolean).join(' ').trim();
+        if (fn) l.contact = fn;
+        if (c.company) l.entreprise = c.company;
+        if (c.phone)   l.telephone  = c.phone;
+        if (c.email)   l.email      = c.email;
+        if (c.city)    l.ville      = c.city;
+        var mc = (c.notes||'').match(/^categorie:\s*(.+)$/m); if (mc) l.categorie = mc[1].trim();
+        var mw = (c.notes||'').match(/^site_web:\s*(.+)$/m);  if (mw) l.site      = mw[1].trim();
+        var ms = (c.notes||'').match(/^siret:\s*(\S+)/m);     if (ms) l.siret     = ms[1].trim();
+      }
+      return true;
     });
   } catch(e) { /* si echec, on affiche tout */ }
 
@@ -3868,8 +3887,11 @@ window.prospectView = async function(idx) {
           </div>
         </div>
 
-        <div class="panel" style="padding:14px;margin-bottom:14px">
-          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-address-book"></i> Coordonnées</div>
+        <div id="prospect-coords-panel" class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light)"><i class="fas fa-address-book"></i> Coordonnées</div>
+            <button onclick="window._prospectEditCoords(${idx})" class="btn btn-sm" style="font-size:0.72rem;padding:3px 10px" title="Modifier"><i class="fas fa-pen"></i> Éditer</button>
+          </div>
           ${l.contact ? '<div style="margin-bottom:6px"><i class="fas fa-user" style="width:16px;color:var(--text-light)"></i> <strong>'+escHtml(l.contact)+'</strong></div>' : ''}
           ${l.telephone ? '<div style="margin-bottom:6px"><a href="tel:'+l.telephone.replace(/\s/g,'')+'" style="color:var(--primary)"><i class="fas fa-phone" style="width:16px"></i> '+escHtml(l.telephone)+'</a></div>' : ''}
           ${l.email ? '<div style="margin-bottom:6px"><a href="mailto:'+escHtml(l.email)+'" style="color:var(--primary)"><i class="fas fa-envelope" style="width:16px"></i> '+escHtml(l.email)+'</a></div>' : ''}
@@ -4208,6 +4230,109 @@ window._prospectOpenMailTpl = function(idx, tplId) {
   var tpl = tpls.find(function(t){ return t.id === tplId; });
   if (!tpl) return;
   window.emailCompose(l.email, prenom, null, null, tpl.sujet, tpl.corps);
+};
+
+// ===== Edition coordonnees Leads consolidés =====
+window._prospectEditCoords = function(idx) {
+  var panel = document.getElementById('prospect-coords-panel');
+  if (!panel) return;
+  var l = (window._lcAllLeads||[])[idx];
+  if (!l) return;
+
+  var CATS = ['','Agence immobilière','Architecte','Carreleur','Constructeur maison','Courtier travaux','Couvreur charpentier','Maçon terrassier','Menuisier','Paysagiste','Peintre','Pisciniste','Plombier','Promoteur / constructeur','Électricien'];
+  var INP = 'width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box;margin-bottom:8px';
+
+  var html =
+    '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pen"></i> Coordonnées — édition</div>' +
+    '<input id="pc-edit-contact" placeholder="Nom du contact" value="'+escHtml(l.contact||'')+'" style="'+INP+'">' +
+    '<input id="pc-edit-entreprise" placeholder="Entreprise" value="'+escHtml(l.entreprise||'')+'" style="'+INP+'">' +
+    '<input id="pc-edit-phone" type="tel" placeholder="Téléphone" value="'+escHtml(l.telephone||'')+'" style="'+INP+'">' +
+    '<input id="pc-edit-email" type="email" placeholder="Email" value="'+escHtml(l.email||'')+'" style="'+INP+'">' +
+    '<input id="pc-edit-city" placeholder="Ville" value="'+escHtml(l.ville||'')+'" style="'+INP+'">' +
+    '<select id="pc-edit-cat" style="'+INP+'">' +
+      CATS.map(function(k){ return '<option value="'+escHtml(k)+'"'+((l.categorie||'')===k?' selected':'')+'>'+(k||'— Catégorie —')+'</option>'; }).join('') +
+    '</select>' +
+    '<input id="pc-edit-web" placeholder="Site web (https://...)" value="'+escHtml(l.site||'')+'" style="'+INP+'">' +
+    '<input id="pc-edit-siret" placeholder="SIRET" value="'+escHtml(l.siret||'')+'" style="'+INP+'">' +
+    '<div style="display:flex;gap:6px;margin-top:6px">' +
+      '<button onclick="window.prospectView('+idx+')" class="btn" style="flex:1;font-size:0.82rem"><i class="fas fa-times"></i> Annuler</button>' +
+      '<button onclick="window._prospectSaveCoords('+idx+')" class="btn btn-primary" style="flex:1;font-size:0.82rem"><i class="fas fa-save"></i> Enregistrer</button>' +
+    '</div>';
+  panel.textContent = '';
+  panel.appendChild(document.createRange().createContextualFragment(html));
+  var f = document.getElementById('pc-edit-contact'); if (f) f.focus();
+};
+
+window._prospectSaveCoords = async function(idx) {
+  var l = (window._lcAllLeads||[])[idx];
+  if (!l) return;
+
+  function val(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+  var contact    = val('pc-edit-contact');
+  var entreprise = val('pc-edit-entreprise');
+  var phone      = val('pc-edit-phone');
+  var email      = val('pc-edit-email');
+  var city       = val('pc-edit-city');
+  var cat        = val('pc-edit-cat');
+  var web        = val('pc-edit-web');
+  var siret      = val('pc-edit-siret');
+
+  // Chercher contact DB existant (meme logique que _prospectEtapeChange)
+  var allC = await dbSelect('contacts');
+  var ex = allC.find(function(c){
+    if (c.source !== 'prm' && c.source !== 'prospect_consolide') return false;
+    if (siret && c.notes && c.notes.includes('siret: '+siret)) return true;
+    return c.company === entreprise && c.city === city;
+  });
+
+  var parts = (contact||'').split(/\s+/).filter(Boolean);
+  var fn = parts[0] || '';
+  var ln = parts.slice(1).join(' ') || '';
+
+  function setPF(notes, k, v) {
+    var re = new RegExp('^'+k+':\\s*.*\\n?', 'm');
+    if (v) {
+      if (notes.match(re)) return notes.replace(re, k+': '+v+'\n');
+      return k+': '+v+'\n'+notes;
+    }
+    return notes.match(re) ? notes.replace(re, '') : notes;
+  }
+  var notes = (ex && ex.notes) || '';
+  notes = setPF(notes, 'siret', siret);
+  notes = setPF(notes, 'categorie', cat);
+  notes = setPF(notes, 'site_web', web);
+
+  var payload = {
+    first_name: fn || null,
+    last_name:  ln || null,
+    company:    entreprise || null,
+    phone:      phone || null,
+    email:      email || null,
+    city:       city || null,
+    notes:      notes
+  };
+
+  try {
+    if (ex) {
+      await dbUpdate('contacts', ex.id, payload);
+    } else {
+      payload.source = 'prospect_consolide';
+      await dbInsert('contacts', payload);
+    }
+    // Patch en memoire pour feedback immediat
+    l.contact    = contact;
+    l.entreprise = entreprise;
+    l.telephone  = phone;
+    l.email      = email;
+    l.ville      = city;
+    l.categorie  = cat;
+    l.site       = web;
+    l.siret      = siret;
+    toast('✅ Coordonnées enregistrées', 'success');
+    window.prospectView(idx);
+  } catch(e) {
+    toast('Erreur: '+(e.message||e), 'error');
+  }
 };
 
 // NRP1 → crée automatiquement un rappel à J+5
