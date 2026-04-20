@@ -1639,8 +1639,11 @@ a.att-item { position: relative; display: block; }
   <!-- DEAL POPUP -->
   <div class="modal-overlay" id="deal-popup-overlay" style="display:none">
     <div class="modal" id="deal-popup" style="max-width:1100px;width:95%">
-      <div class="modal-header">
-        <h3 id="deal-popup-title">Detail du lead</h3>
+      <div class="modal-header" style="display:flex;align-items:center;gap:8px">
+        <button id="deal-popup-prev" title="Lead precedent (←)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;width:34px;height:34px;cursor:pointer;color:var(--text);font-size:0.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fas fa-chevron-left"></i></button>
+        <button id="deal-popup-next" title="Lead suivant (→)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;width:34px;height:34px;cursor:pointer;color:var(--text);font-size:0.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fas fa-chevron-right"></i></button>
+        <h3 id="deal-popup-title" style="margin:0;flex:1">Detail du lead</h3>
+        <span id="deal-popup-counter" style="font-size:0.78rem;color:var(--text-light);white-space:nowrap"></span>
         <button class="modal-close" id="deal-popup-close">&times;</button>
       </div>
       <div class="modal-body" id="deal-popup-body" style="padding:16px;max-height:75vh;overflow-y:auto"></div>
@@ -3516,6 +3519,16 @@ window.closeDealPopup = function() {
 };
 $('#deal-popup-close')?.addEventListener('click', closeDealPopup);
 $('#deal-popup-overlay')?.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeDealPopup(); });
+// Raccourcis clavier navigation deals : fleches gauche/droite
+document.addEventListener('keydown', function(e) {
+  var overlay = document.getElementById('deal-popup-overlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  var tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') { var b = document.getElementById('deal-popup-prev'); if (b && !b.disabled) { e.preventDefault(); b.click(); } }
+  else if (e.key === 'ArrowRight') { var n = document.getElementById('deal-popup-next'); if (n && !n.disabled) { e.preventDefault(); n.click(); } }
+  else if (e.key === 'Escape') { closeDealPopup(); }
+});
 
 // Edit / Delete activity inline
 window._editActivity = function(actId, btn) {
@@ -4529,6 +4542,33 @@ window.dealView = async function(id) {
   var popupBody = $('#deal-popup-body');
   popup.style.display = 'flex';
   popupBody.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  // Navigation prev/next dans le meme stage (colonne kanban courante)
+  (function setupDealNav(){
+    var cardEl = document.querySelector('.deal-card[data-deal-id="' + id + '"]');
+    var siblingIds = [];
+    if (cardEl) {
+      var col = cardEl.closest('.pipeline-col, .kanban-col, [data-stage]');
+      if (col) siblingIds = Array.from(col.querySelectorAll('.deal-card[data-deal-id]')).map(function(el){ return el.getAttribute('data-deal-id'); });
+    }
+    var idx = siblingIds.indexOf(id);
+    var prevId = idx > 0 ? siblingIds[idx - 1] : null;
+    var nextId = (idx >= 0 && idx < siblingIds.length - 1) ? siblingIds[idx + 1] : null;
+    var prevBtn = document.getElementById('deal-popup-prev');
+    var nextBtn = document.getElementById('deal-popup-next');
+    var counterEl = document.getElementById('deal-popup-counter');
+    function cfg(btn, targetId){
+      if (!btn) return;
+      btn.disabled = !targetId;
+      btn.style.opacity = targetId ? '1' : '0.35';
+      btn.style.cursor = targetId ? 'pointer' : 'not-allowed';
+      btn.onclick = targetId ? function(){ window.dealView(targetId); } : null;
+    }
+    cfg(prevBtn, prevId);
+    cfg(nextBtn, nextId);
+    if (counterEl) counterEl.textContent = (idx >= 0 && siblingIds.length > 1) ? ((idx + 1) + ' / ' + siblingIds.length) : '';
+  })();
+
 
   const [deals, contacts, activities, planningEvents] = await Promise.all([
     dbSelect('deals', { eq: [['id', id]] }),
