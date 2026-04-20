@@ -8305,8 +8305,9 @@ pages.prm = async function(subTab) {
                   if (!isNaN(d0)) {
                     var nb = Math.max(0, Math.floor((Date.now() - d0.getTime()) / 86400000));
                     var ageCol = nb >= 7 ? '#e53935' : nb >= 3 ? '#fb8c00' : '#888';
+                    var dateStr = d0.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
                     var lbl = nb === 0 ? 'aujourd\'hui' : nb === 1 ? 'depuis 1 jour' : 'depuis ' + nb + ' jours';
-                    daysIn = '<div style="font-size:0.68rem;color:' + ageCol + ';margin-top:4px;font-weight:600"><i class="far fa-clock"></i> ' + lbl + '</div>';
+                    daysIn = '<div style="font-size:0.68rem;color:' + ageCol + ';margin-top:4px;font-weight:600"><i class="far fa-clock"></i> ' + lbl + ' · ' + dateStr + '</div>';
                   }
                 }
                 return '<div class="deal-card" draggable="true" data-prm-id="' + c.id + '" onclick="window.prmView(\'' + c.id + '\')" style="position:relative;cursor:pointer">' +
