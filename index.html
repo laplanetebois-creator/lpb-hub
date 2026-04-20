@@ -8411,6 +8411,29 @@ window.prmView = async function(contactId) {
   var notesProspect = getPF('notes_prospects');
   var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
 
+  // Remarque (texte libre séparé des meta)
+  var remarqueMatch = (c.notes||'').match(/^remarque_prm:\s*([\s\S]*?)(?=\n\w+:|$)/m);
+  var remarque = remarqueMatch ? remarqueMatch[1].trim() : '';
+
+  // Charger les rappels (planning events liés)
+  var allPlanning = await dbSelect('planning');
+  var rappels = allPlanning.filter(function(e){ return e.contact_id === c.id; })
+    .sort(function(a,b){ return new Date(a.start_date||0) - new Date(b.start_date||0); });
+  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
+  var rappelsHtml = rappels.length === 0
+    ? '<div style="color:var(--text-light);font-size:0.85rem;padding:8px 0">Aucun rappel</div>'
+    : rappels.map(function(ev){
+        var icon = TYPE_ICONS[ev.type] || 'fa-calendar-day';
+        var done = ev.status === 'termine';
+        var dateStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}) : '';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border);'+(done?'opacity:0.5;text-decoration:line-through':'')+'">'
+          +'<i class="fas '+icon+'" style="color:var(--primary);width:14px"></i>'
+          +'<div style="flex:1;min-width:0"><div style="font-size:0.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(ev.title||'')+'</div>'
+          +'<div style="font-size:0.72rem;color:var(--text-light)">'+dateStr+(ev.start_time?' · '+escHtml(ev.start_time):'')+'</div></div>'
+          +(done?'':'<button onclick="window._prmPlanDone(\''+ev.id+'\',\''+c.id+'\')" class="btn btn-sm" style="font-size:0.7rem;padding:3px 8px" title="Marquer terminé"><i class="fas fa-check"></i></button>')
+          +'</div>';
+      }).join('');
+
   body.innerHTML =
     '<div style="display:flex;gap:20px;flex-wrap:wrap">' +
       '<div style="flex:1;min-width:260px">' +
@@ -8459,7 +8482,21 @@ window.prmView = async function(contactId) {
           '</div>' : '') +
 
         '<div class="panel" style="padding:14px;margin-bottom:14px">' +
-          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes internes</div>' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-comment-alt"></i> Remarque</div>' +
+          '<textarea id="prm-remarque-txt" rows="3" placeholder="Notes internes, observations, suite à donner..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical;line-height:1.5;box-sizing:border-box">' + escHtml(remarque) + '</textarea>' +
+          '<button id="prm-save-remarque" class="btn btn-primary" style="width:100%;margin-top:8px;font-size:0.85rem"><i class="fas fa-save"></i> Enregistrer la remarque</button>' +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light)"><i class="fas fa-bell"></i> Rappels</div>' +
+            '<button onclick="window._prmAddRappel(\''+c.id+'\')" class="btn btn-sm" style="font-size:0.72rem;padding:3px 10px"><i class="fas fa-plus"></i> Ajouter</button>' +
+          '</div>' +
+          rappelsHtml +
+        '</div>' +
+
+        '<div class="panel" style="padding:14px;margin-bottom:14px">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-pencil-alt"></i> Notes (avancé)</div>' +
           '<textarea id="prm-notes-txt" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical">' + escHtml(c.notes||'') + '</textarea>' +
           '<button id="prm-save-notes" class="btn btn-primary" style="width:100%;margin-top:8px"><i class="fas fa-save"></i> Sauvegarder</button>' +
         '</div>' +
@@ -8497,7 +8534,71 @@ window.prmView = async function(contactId) {
 
   saveBtn?.addEventListener('click', savePRM);
   stageSel?.addEventListener('change', savePRM);
+
+  // Sauvegarder la remarque (ajoutée/remplacée dans notes sous clef remarque_prm:)
+  var remarqueTxt = body.querySelector('#prm-remarque-txt');
+  var remarqueBtn = body.querySelector('#prm-save-remarque');
+  remarqueBtn?.addEventListener('click', async function(){
+    var v = (remarqueTxt.value||'').trim();
+    var base = (c.notes||'').replace(/^remarque_prm:\s*[\s\S]*?(?=\n\w+:|$)/m,'').replace(/\n{3,}/g,'\n\n').trim();
+    var updated = base + (v ? (base?'\n':'') + 'remarque_prm: ' + v : '');
+    await dbUpdate('contacts', c.id, { notes: updated });
+    c.notes = updated;
+    toast('✅ Remarque enregistrée','success');
+  });
+
   popup.onclick = function(e){ if(e.target===popup) popup.style.display='none'; };
+};
+
+// ===== Rappels PRM =====
+window._prmAddRappel = function(contactId) {
+  var today = new Date().toISOString().substring(0,10);
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:var(--card);border-radius:16px;padding:28px;width:380px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.3)';
+  var h = '<h4 style="margin:0 0 16px"><i class="fas fa-bell" style="color:var(--primary)"></i> Nouveau rappel</h4>'
+    +'<label style="font-size:0.82rem;font-weight:600">Titre</label>'
+    +'<input id="prm-rappel-title" type="text" placeholder="Ex: Rappeler" style="width:100%;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Date</label><input id="prm-rappel-date" type="date" value="'+today+'" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Heure</label><input id="prm-rappel-time" type="time" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'</div>'
+    +'<label style="font-size:0.82rem;font-weight:600">Type</label>'
+    +'<select id="prm-rappel-type" style="width:100%;margin:4px 0 14px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<option value="rappel">Rappel</option><option value="tache">Tâche</option><option value="rdv">RDV</option><option value="autre">Autre</option>'
+    +'</select>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="prm-rappel-save" onclick="window._prmSaveRappel(\''+contactId+'\')" class="btn btn-primary" style="flex:1"><i class="fas fa-check"></i> Créer</button>'
+    +'<button onclick="this.closest(\'[style*=z-index]\').remove()" class="btn btn-outline" style="flex:1">Annuler</button>'
+    +'</div>';
+  card.appendChild(document.createRange().createContextualFragment(h));
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  ov.onclick = function(e){ if(e.target===ov) ov.remove(); };
+  setTimeout(function(){ var t=document.getElementById('prm-rappel-title'); if(t) t.focus(); }, 50);
+  window._currentPrmRappelOverlay = ov;
+};
+
+window._prmSaveRappel = async function(contactId) {
+  var title = (document.getElementById('prm-rappel-title')||{}).value||'';
+  var date  = (document.getElementById('prm-rappel-date')||{}).value||'';
+  var time  = (document.getElementById('prm-rappel-time')||{}).value||'';
+  var type  = (document.getElementById('prm-rappel-type')||{}).value||'rappel';
+  if (!title.trim()) { toast('Titre requis','error'); return; }
+  if (!date) { toast('Date requise','error'); return; }
+  var btn = document.getElementById('prm-rappel-save');
+  if (btn) btn.disabled = true;
+  await dbInsert('planning',{title:title.trim(),start_date:date,start_time:time||null,type:type,status:'planifie',contact_id:contactId});
+  if (window._currentPrmRappelOverlay) window._currentPrmRappelOverlay.remove();
+  toast('✅ Rappel créé','success');
+  window.prmView(contactId);
+};
+
+window._prmPlanDone = async function(evId, contactId) {
+  await dbUpdate('planning', evId, {status:'termine'});
+  toast('✅ Terminé','success');
+  window.prmView(contactId);
 };
 
 window.prmForm = function() {
