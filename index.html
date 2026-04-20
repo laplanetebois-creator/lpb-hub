@@ -3805,10 +3805,10 @@ window.prospectView = async function(idx) {
     {key:'a_appeler',     label:'À appeler',           color:'#3498db'},
     {key:'nrp1',          label:'NRP 1',               color:'#e67e22'},
     {key:'nrp2',          label:'NRP 2',               color:'#e74c3c'},
-    {key:'contacte',      label:'Contacté',            color:'#9b59b6'},
-    {key:'mail_info',     label:'Mail info',           color:'#e0a030'},
-    {key:'devis_envoye',  label:'Devis',               color:'#2ecc71'},
-    {key:'partenaire',    label:'Partenaire',          color:'#2d6a4f'}
+    {key:'contacte',      label:'Contacté sans plus', color:'#9b59b6'},
+    {key:'interesse',     label:'Intéressé',           color:'#f39c12'},
+    {key:'partenaire',    label:'Partenaire',          color:'#2d6a4f'},
+    {key:'perdu',         label:'Perdu',               color:'#95a5a6'}
   ];
   var currentEtape = ETAPE_OPTIONS.find(function(e){ return e.key===existingEtape; }) || ETAPE_OPTIONS[0];
   var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
@@ -4213,7 +4213,7 @@ window._prospectOpenMailTpl = function(idx, tplId) {
 // NRP1 → crée automatiquement un rappel à J+5
 window._prospectEtapeChange = async function(etape, idx) {
   var sel = document.querySelector('#prospect-etape-select');
-  var ETAPE_COLORS = {nrp1:'#e67e22',nrp2:'#e74c3c',contacte:'#9b59b6',mail_info:'#e0a030',devis_envoye:'#2ecc71',partenaire:'#2d6a4f'};
+  var ETAPE_COLORS = {a_appeler:'#3498db',nrp1:'#e67e22',nrp2:'#e74c3c',contacte:'#9b59b6',interesse:'#f39c12',partenaire:'#2d6a4f',perdu:'#95a5a6'};
   if (sel) sel.style.borderColor = ETAPE_COLORS[etape] || '#3498db';
   var l = (window._lcAllLeads || [])[idx];
   if (!l) return;
@@ -8318,20 +8318,21 @@ pages.prm = async function(subTab) {
   var prmContacts = contacts.filter(function(c){ return c.source === 'prm'; });
 
   var PRM_STAGES = [
-    { key: 'nrp1',          label: 'NRP 1',       color: '#e67e22', icon: 'fa-phone-slash' },
-    { key: 'nrp2',          label: 'NRP 2',       color: '#e74c3c', icon: 'fa-phone-slash' },
-    { key: 'contacte',      label: 'Contacté',    color: '#9b59b6', icon: 'fa-phone-volume' },
-    { key: 'mail_info',     label: 'Mail info',   color: '#e0a030', icon: 'fa-envelope' },
-    { key: 'devis_envoye',  label: 'Devis',       color: '#2ecc71', icon: 'fa-file-invoice' },
-    { key: 'partenaire',    label: 'Partenaire',  color: '#2d6a4f', icon: 'fa-handshake' }
+    { key: 'nrp1',       label: 'NRP 1',              color: '#e67e22', icon: 'fa-phone-slash' },
+    { key: 'nrp2',       label: 'NRP 2',              color: '#e74c3c', icon: 'fa-phone-slash' },
+    { key: 'contacte',   label: 'Contacté sans plus', color: '#9b59b6', icon: 'fa-phone-volume' },
+    { key: 'interesse',  label: 'Intéressé',          color: '#f39c12', icon: 'fa-star' },
+    { key: 'partenaire', label: 'Partenaire',         color: '#2d6a4f', icon: 'fa-handshake' },
+    { key: 'perdu',      label: 'Perdu',              color: '#95a5a6', icon: 'fa-times-circle' }
   ];
 
   function getPrmStage(c) {
     var m = (c.notes||'').match(/^prm_stage:\s*(\S+)/m);
     var k = m ? m[1] : 'nrp1';
     // Migration anciennes clefs
-    if (k === 'a_contacter' || k === 'perdu_prm') return 'nrp1';
-    if (k === 'en_discussion') return 'mail_info';
+    if (k === 'a_contacter') return 'nrp1';
+    if (k === 'perdu_prm') return 'perdu';
+    if (k === 'en_discussion' || k === 'mail_info' || k === 'devis_envoye') return 'interesse';
     return k;
   }
 
@@ -8471,12 +8472,12 @@ window.prmView = async function(contactId) {
   if (!c) { body.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h4>Introuvable</h4></div>'; return; }
 
   var PRM_STAGES = [
-    { key: 'nrp1',          label: 'NRP 1' },
-    { key: 'nrp2',          label: 'NRP 2' },
-    { key: 'contacte',      label: 'Contacté' },
-    { key: 'mail_info',     label: 'Mail info' },
-    { key: 'devis_envoye',  label: 'Devis' },
-    { key: 'partenaire',    label: 'Partenaire' }
+    { key: 'nrp1',       label: 'NRP 1' },
+    { key: 'nrp2',       label: 'NRP 2' },
+    { key: 'contacte',   label: 'Contacté sans plus' },
+    { key: 'interesse',  label: 'Intéressé' },
+    { key: 'partenaire', label: 'Partenaire' },
+    { key: 'perdu',      label: 'Perdu' }
   ];
 
   function getPF(key) {
@@ -8485,8 +8486,9 @@ window.prmView = async function(contactId) {
   }
 
   var currentStage = getPF('prm_stage') || 'nrp1';
-  if (currentStage === 'a_contacter' || currentStage === 'perdu_prm') currentStage = 'nrp1';
-  if (currentStage === 'en_discussion') currentStage = 'mail_info';
+  if (currentStage === 'a_contacter') currentStage = 'nrp1';
+  if (currentStage === 'perdu_prm') currentStage = 'perdu';
+  if (currentStage === 'en_discussion' || currentStage === 'mail_info' || currentStage === 'devis_envoye') currentStage = 'interesse';
   var prio = getPF('priorite');
   var score = getPF('score');
   var cat = getPF('categorie');
