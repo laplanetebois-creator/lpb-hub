@@ -8466,10 +8466,32 @@ pages.prm = async function(subTab) {
     return m ? m[1].trim() : '';
   }
 
+  window._prmSearchQ = window._prmSearchQ || '';
+
+  function prmMatches(c, q) {
+    if (!q) return true;
+    // Normalise : supprime espaces, points, tirets, parenthèses pour les numéros
+    function norm(s){ return (s||'').toString().toLowerCase().replace(/[\s.\-()+]/g,''); }
+    var qN = norm(q);
+    var qLow = q.toLowerCase();
+    var haystack = [
+      c.first_name, c.last_name, c.company, c.email, c.city,
+      getPrmField(c,'categorie'), getPrmField(c,'notes_prospects')
+    ].map(function(x){ return (x||'').toLowerCase(); }).join(' ');
+    if (haystack.indexOf(qLow) !== -1) return true;
+    // Numérique : téléphone + siret (sans séparateurs)
+    var phoneN = norm(c.phone);
+    var siretN = norm(getPrmField(c,'siret'));
+    if (phoneN && phoneN.indexOf(qN) !== -1) return true;
+    if (siretN && siretN.indexOf(qN) !== -1) return true;
+    return false;
+  }
+
   function renderPRM() {
     var stageMap = {};
     PRM_STAGES.forEach(function(s){ stageMap[s.key] = []; });
-    prmContacts.forEach(function(c){
+    var filtered = prmContacts.filter(function(c){ return prmMatches(c, window._prmSearchQ); });
+    filtered.forEach(function(c){
       var st = getPrmStage(c);
       if (!stageMap[st]) st = 'nrp1';
       stageMap[st].push(c);
@@ -8480,8 +8502,14 @@ pages.prm = async function(subTab) {
         '<button class="tab-btn active" data-prm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-stream"></i> Pipeline PRM</button>' +
         '<button class="tab-btn" data-prm-tab="consolide" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-layer-group"></i> Leads consolidés</button>' +
       '</div>' +
-      '<div class="toolbar" style="margin-bottom:16px">' +
-        '<div class="toolbar-left"><span class="text-muted"><i class="fas fa-briefcase"></i> <strong>' + prmContacts.length + '</strong> prospect(s) pro</span></div>' +
+      '<div class="toolbar" style="margin-bottom:16px;gap:10px;flex-wrap:wrap">' +
+        '<div class="toolbar-left" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+          '<span class="text-muted"><i class="fas fa-briefcase"></i> <strong>' + filtered.length + '</strong> / ' + prmContacts.length + ' prospect(s)</span>' +
+          '<div style="position:relative">' +
+            '<i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-light);font-size:0.8rem"></i>' +
+            '<input id="prm-search" type="search" placeholder="Rechercher (nom, téléphone, SIRET, ville…)" value="' + escHtml(window._prmSearchQ) + '" style="padding:7px 10px 7px 30px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text);width:320px;max-width:100%">' +
+          '</div>' +
+        '</div>' +
         '<div class="toolbar-right"><button class="btn btn-primary" id="btn-add-prm"><i class="fas fa-plus"></i> Nouveau prospect pro</button></div>' +
       '</div>' +
       '<div class="pipeline">' +
@@ -8544,6 +8572,24 @@ pages.prm = async function(subTab) {
       '</div>';
 
     content.querySelector('#btn-add-prm')?.addEventListener('click', function(){ window.prmForm(); });
+
+    // Recherche (nom, téléphone, email, SIRET, ville…)
+    var searchInput = content.querySelector('#prm-search');
+    if (searchInput) {
+      // Garde focus + position curseur à chaque re-render
+      searchInput.focus();
+      var v = searchInput.value;
+      searchInput.setSelectionRange(v.length, v.length);
+      var t;
+      searchInput.addEventListener('input', function(){
+        clearTimeout(t);
+        var val = searchInput.value;
+        t = setTimeout(function(){
+          window._prmSearchQ = val;
+          renderPRM();
+        }, 150);
+      });
+    }
 
     // Tab navigation
     content.querySelectorAll('[data-prm-tab]').forEach(function(btn){
