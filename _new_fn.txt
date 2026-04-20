@@ -1,7 +1,0 @@
-window.prospectView = async function(idx) {
-  var l = (window._lcAllLeads || [])[idx];
-  if (!l) return;
-  var popup = document.querySelector("#deal-popup-overlay");
-  var body = document.querySelector("#deal-popup-body");
-  popup.style.display = "flex";
-  body.innerHTML = "<div class=\"text-center\" style=\"padding:60px\"><i class=\"fas fa-spinner fa-spin fa-2x\"></i></div>";
