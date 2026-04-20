@@ -5462,6 +5462,7 @@ pages['google-ads'] = async function() {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   let googleAds = await dbSelect('google_ads_data', { order: ['date', false] });
+  let activeAdsTab = (window.__adsTabState || 'performance');
 
   function render() {
     const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
@@ -5490,7 +5491,15 @@ pages['google-ads'] = async function() {
       const gaTotalConv = googleAds.reduce((s, r) => s + (r.conversions || 0), 0);
       const gaAvgCpc = gaTotalClicks > 0 ? (gaTotalSpend / gaTotalClicks).toFixed(2) : 0;
       const gaConvRate = gaTotalClicks > 0 ? (gaTotalConv / gaTotalClicks * 100).toFixed(2) : 0;
-      content.innerHTML = `
+
+      const adsTabsHtml = `
+        <div class="tabs" style="margin-bottom:20px">
+          <button class="tab-btn ${activeAdsTab === 'performance' ? 'active' : ''}" data-ads-tab="performance"><i class="fas fa-chart-line"></i> Performance</button>
+          <button class="tab-btn ${activeAdsTab === 'rapport' ? 'active' : ''}" data-ads-tab="rapport"><i class="fas fa-file-contract"></i> Rapport <span style="background:var(--warning);color:white;padding:1px 7px;border-radius:10px;font-size:0.7rem;margin-left:4px">1</span></button>
+        </div>
+      `;
+
+      const performanceHtml = activeAdsTab !== 'performance' ? '' : `
         <div class="stats-grid" style="margin-bottom:20px">
           <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-eye"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalImpr)}</h3><p>Impressions</p></div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalClicks)}</h3><p>Clics</p></div></div>
@@ -5536,6 +5545,145 @@ pages['google-ads'] = async function() {
           <i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google Ads — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}
         </div>
       `;
+
+      const rapportHtml = activeAdsTab !== 'rapport' ? '' : `
+        <div class="panel" style="margin-bottom:20px">
+          <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+            <div>
+              <h3 style="margin:0"><i class="fas fa-file-contract" style="color:var(--primary)"></i> Fix score optimisation 50,1% (-40%)</h3>
+              <div class="text-small text-muted" style="margin-top:4px"><i class="fas fa-robot"></i> Jordan Belfort &bull; <i class="fas fa-brain"></i> Opus 4.7 &bull; <i class="far fa-clock"></i> 20 avril 2026 a 17:09</div>
+            </div>
+            <span style="background:#e0a030;color:white;padding:6px 14px;border-radius:20px;font-size:0.82rem;font-weight:600"><i class="fas fa-exclamation-circle"></i> Action requise</span>
+          </div>
+          <div class="panel-body">
+            <div style="background:var(--bg);padding:16px;border-radius:var(--radius);margin-bottom:20px;border-left:4px solid var(--primary)">
+              <strong>Contexte</strong> &mdash; Capture Google Ads du 20/04 : score d'optimisation <strong>50,1%</strong> (tendance -40%). 2 recommandations Google : <em>(1) +12,6% "Ad group sans keywords"</em>, <em>(2) +10,3% "Maximize conversions"</em>. Consigne Yoann : "regle le probleme".
+            </div>
+
+            <h4 style="margin:20px 0 10px"><i class="fas fa-stethoscope"></i> Diagnostic (30 derniers jours)</h4>
+            <table class="data-table" style="margin-bottom:16px">
+              <thead><tr><th>Metrique</th><th style="text-align:right">Valeur</th><th style="text-align:right">Cible</th><th>Statut</th></tr></thead>
+              <tbody>
+                <tr><td>Depense</td><td style="text-align:right">46,76 EUR</td><td style="text-align:right">~150/mois</td><td><span style="color:var(--success);font-weight:600">OK</span></td></tr>
+                <tr><td>Impressions</td><td style="text-align:right">790</td><td style="text-align:right">-</td><td>-</td></tr>
+                <tr><td>Clics</td><td style="text-align:right">48</td><td style="text-align:right">-</td><td>-</td></tr>
+                <tr><td>CTR</td><td style="text-align:right">6,08%</td><td style="text-align:right">&ge; 4%</td><td><span style="color:var(--success);font-weight:600">Excellent</span></td></tr>
+                <tr><td>CPC moyen</td><td style="text-align:right">0,97 EUR</td><td style="text-align:right">-</td><td>-</td></tr>
+                <tr><td><strong>Conversions</strong></td><td style="text-align:right"><strong>1</strong></td><td style="text-align:right">&ge; 6/mois</td><td><span style="color:var(--danger);font-weight:600">Sous-volume critique</span></td></tr>
+                <tr><td>CPL brut</td><td style="text-align:right">46,76 EUR</td><td style="text-align:right">&le; 80 EUR</td><td><span style="color:#e67e22;font-weight:600">Warning tolerable</span></td></tr>
+              </tbody>
+            </table>
+
+            <h4 style="margin:20px 0 10px"><i class="fas fa-search"></i> Hypothese ad group vide : <span style="color:var(--primary)">Carport</span></h4>
+            <ul style="line-height:1.7">
+              <li>Budget split cible : terrasse 60% / pergola 25% / <strong>carport 15%</strong> &mdash; 3 ad groups</li>
+              <li>Search Console 30j : "carport bois" position 17, "abri voiture" position 18, <strong>0 clic</strong></li>
+              <li>Campagne unique "LPB - Search - Soissons 60km" &rarr; structure probable = 3 ad groups (terrasse/pergola/carport)</li>
+              <li>Carport = produit le plus recemment ajoute &rarr; candidat naturel a l'oubli de keywords</li>
+            </ul>
+            <div style="background:#fff3cd;border-left:4px solid #e0a030;padding:12px 16px;margin:12px 0;border-radius:4px">
+              <strong><i class="fas fa-exclamation-triangle"></i> A confirmer cote Yoann :</strong> dans Google Ads UI &rarr; LPB - Search - Soissons 60km &rarr; Groupes d'annonces, verifier quel ad group affiche 0 keyword. Plan B existe si c'est Terrasse ou Pergola.
+            </div>
+
+            <h4 style="margin:20px 0 10px"><i class="fas fa-ban" style="color:var(--danger)"></i> Maximize Conversions : <span style="color:var(--danger)">NO-GO</span></h4>
+            <ul style="line-height:1.7">
+              <li>Google exige <strong>15 conv/30j minimum</strong> (ideal 30) pour le ML smart bidding</li>
+              <li>Nous : <strong>1 conv/30j</strong> &mdash; 15x trop peu</li>
+              <li>Activer maintenant = Google explose le CPC pour apprendre = budget 150 EUR crame en &lt;10 jours</li>
+              <li><strong>NE PAS cliquer Auto-apply</strong> &mdash; Google appliquerait Max Conv et abimerait l'apprentissage</li>
+            </ul>
+            <div style="background:#d1ecf1;border-left:4px solid #3498db;padding:12px 16px;margin:12px 0;border-radius:4px">
+              <strong><i class="fas fa-lightbulb"></i> Revisite :</strong> si volume atteint 15+ conv/30j (correction ad group vide + saisonnalite printemps/ete), tester Max Conv avec tCPA = 60 EUR comme garde-fou.
+            </div>
+
+            <h4 style="margin:24px 0 12px"><i class="fas fa-tasks"></i> Plan d'action</h4>
+
+            <div class="panel" style="margin-bottom:14px;border-left:4px solid var(--danger)">
+              <div class="panel-header" style="background:#fff3f3"><h3><span style="background:var(--danger);color:white;padding:3px 10px;border-radius:4px;font-size:0.75rem;margin-right:8px">P0</span> Ajouter keywords Carport</h3></div>
+              <div class="panel-body">
+                <p style="margin:0 0 8px"><strong>Match exact</strong> (zone commerciale chaude) :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0 0 12px;overflow-x:auto">[carport bois soissons]
+[carport bois sur mesure]
+[carport bois 2 voitures]
+[carport bois aisne]
+[abri voiture bois soissons]</pre>
+
+                <p style="margin:0 0 8px"><strong>Match expression</strong> (intention qualifiee) :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0 0 12px;overflow-x:auto">"carport bois"
+"carport bois sur mesure"
+"abri voiture bois"
+"carport bois 1 voiture"
+"carport bois 2 voitures"
+"carport bois adosse"</pre>
+
+                <p style="margin:0 0 8px"><strong>Match large modifie</strong> (volume controle) :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0 0 12px;overflow-x:auto">+carport +bois +soissons
++carport +bois +aisne
++abri +voiture +bois
++carport +bois +artisan</pre>
+
+                <p style="margin:0 0 8px"><strong>Negatifs a pousser</strong> :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0;overflow-x:auto">carport metal
+carport tole
+carport alu
+carport aluminium
+carport borne electrique
+carport occasion
+carport pas cher
+carport kit</pre>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-bottom:14px;border-left:4px solid #e0a030">
+              <div class="panel-header" style="background:#fff8e1"><h3><span style="background:#e0a030;color:white;padding:3px 10px;border-radius:4px;font-size:0.75rem;margin-right:8px">P1</span> Rejeter Max Conversions + desactiver Auto-apply</h3></div>
+              <div class="panel-body">
+                <ol style="line-height:1.7;margin:0">
+                  <li>Google Ads &rarr; Recommandations &rarr; "Bid more efficiently" &rarr; <strong>Dismiss</strong> (pas Apply)</li>
+                  <li>Settings &rarr; Auto-apply &rarr; <strong>desactiver</strong> "Use Maximize conversions bidding" et "Use optimized targeting"</li>
+                  <li>Garder <strong>Manual CPC</strong> tant que volume &lt; 15 conv/mois</li>
+                </ol>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-bottom:14px;border-left:4px solid #3498db">
+              <div class="panel-header" style="background:#e7f5fe"><h3><span style="background:#3498db;color:white;padding:3px 10px;border-radius:4px;font-size:0.75rem;margin-right:8px">P2</span> Surveillance post-fix (J+7)</h3></div>
+              <div class="panel-body">
+                <ul style="line-height:1.7;margin:0">
+                  <li>Volume impressions ad group Carport <strong>&gt; 50/jour</strong> ? (sinon enchere trop basse)</li>
+                  <li>CTR ad group <strong>&gt; 3%</strong> ? (sinon annonces a reecrire)</li>
+                  <li>CPL global <strong>sous 80 EUR</strong> ? (sinon ajuster match types vers plus exact)</li>
+                </ul>
+              </div>
+            </div>
+
+            <h4 style="margin:24px 0 10px"><i class="fas fa-clipboard-check"></i> 3 suggestions creees (status=pending)</h4>
+            <table class="data-table">
+              <thead><tr><th>Prio</th><th>Titre</th><th>Impact</th><th>Effort</th><th>Risque</th></tr></thead>
+              <tbody>
+                <tr><td><span style="background:var(--danger);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem">P0</span></td><td>Ajouter keywords ad group vide (probable Carport)</td><td>+12,6% score opt.</td><td>faible</td><td>faible</td></tr>
+                <tr><td><span style="background:#e0a030;color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem">P1</span></td><td>Rejeter Max Conv + desactiver Auto-apply</td><td>Protege budget 150 EUR/mois</td><td>faible</td><td>faible</td></tr>
+                <tr><td><span style="background:#3498db;color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem">P2</span></td><td>Audit structure campagne</td><td>Visibilite compte</td><td>faible</td><td>nul</td></tr>
+              </tbody>
+            </table>
+
+            <div class="text-small text-muted mt-16" style="text-align:right;font-style:italic">
+              Agent Jordan Belfort &bull; Modele Opus 4.7 &bull; Run 2026-04-20 17:09 &bull; Source Windsor.ai &rarr; Supabase
+            </div>
+          </div>
+        </div>
+      `;
+
+      content.innerHTML = adsTabsHtml + performanceHtml + rapportHtml;
+
+      content.querySelectorAll('.tabs .tab-btn[data-ads-tab]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          activeAdsTab = btn.dataset.adsTab;
+          window.__adsTabState = activeAdsTab;
+          render();
+        });
+      });
+
+      if (activeAdsTab === 'performance') {
       content.querySelector('#btn-refresh-ads')?.addEventListener('click', async () => {
         toast('Sync Google Ads...', 'warning');
         await syncGoogleAds();
@@ -5568,6 +5716,7 @@ pages['google-ads'] = async function() {
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
           });
         }
+      }
       }
     }
   }
