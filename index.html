@@ -3971,100 +3971,231 @@ window._LPB_GALERIE = 'https://www.laplanetebois.fr/realisations';
 window._getMailTemplates = function(categorie, prenom, entreprise) {
   var cat = (categorie||'').toLowerCase();
   var SITE = 'https://laplanetebois.fr/';
+  var REAL = 'https://laplanetebois.fr/realisations';
 
-  // Nom de famille pour la salutation "Bonjour Mr X"
   var parts = (prenom||'').trim().split(/\s+/).filter(Boolean);
   var nomFamille = parts.length > 1 ? parts[parts.length-1] : (parts[0] || '');
+  var salut = nomFamille ? ('Bonjour Mr '+nomFamille) : 'Bonjour';
 
-  // Construit un mail au format de référence (intro libre)
-  function mail(intro) {
-    return 'Bonjour Mr '+nomFamille+',\n\n'
-      + intro + '\n\n'
-      + 'voici ce que nous faisons :\n\n'
-      + '* terrasse bois\n'
-      + '* pergolas bois\n'
-      + '* carport bois\n'
-      + '* extension bois\n\n'
-      + 'Vous trouverez toutes les informations sur notre site internet :\n'
-      + SITE + '\n\n'
-      + 'Je suis disponible pour toutes questions,\n'
-      + 'Yoann';
-  }
+  var SIGN = '\n\nQuelques réalisations : '+REAL+'\n\nÀ bientôt,\n\nYoann\nLa Planète Bois — 06 47 61 69 19\n'+SITE;
 
-  var generiques = [
-    { id:'g_apres_appel', emoji:'📞', nom:'Après appel',
+  function build(corps){ return salut+',\n\n'+corps+SIGN; }
+
+  // Templates APRÈS APPEL adaptés par catégorie (proposition de valeur ciblée)
+  var parCat = {
+    immobili: {
+      id:'apres_agence_immo', emoji:'🏡', nom:'Après appel — Agence immobilière',
       sujet:'Suite à notre échange — La Planète Bois',
-      corps: mail('Suite à notre échange,') },
-    { id:'g_premier', emoji:'👋', nom:'Premier contact',
-      sujet:'La Planète Bois — Soissons',
-      corps: mail('Je me permets de vous contacter pour vous présenter notre activité.') },
-    { id:'g_relance1', emoji:'🔔', nom:'Relance',
-      sujet:'Suite à mon message — La Planète Bois',
-      corps: mail('Je reviens vers vous suite à mon précédent message.') },
-    { id:'g_devis', emoji:'📋', nom:'Chiffrage projet',
-      sujet:'Chiffrage projet bois — La Planète Bois',
-      corps: mail('Suite à notre échange concernant votre projet,') }
-  ];
-
-  var parMetier = {
-    paysag: [
-      { id:'pa_apres_appel', emoji:'📞', nom:'Après appel — Paysagiste',
-        sujet:'Suite à notre échange — La Planète Bois',
-        corps: mail('Suite à notre échange,') },
-      { id:'pa_partenariat', emoji:'🌿', nom:'Partenariat paysagiste',
-        sujet:'Partenariat paysagiste — La Planète Bois',
-        corps: mail('Je vous contacte pour une éventuelle collaboration.') }
-    ],
-    architect: [
-      { id:'ar_apres_appel', emoji:'📞', nom:'Après appel — Architecte',
-        sujet:'Suite à notre échange — La Planète Bois',
-        corps: mail('Suite à notre échange,') },
-      { id:'ar_projet', emoji:'📐', nom:'Entreprise bois partenaire',
-        sujet:'Entreprise bois pour vos projets — La Planète Bois',
-        corps: mail('Je me permets de vous contacter pour vos projets bois.') }
-    ],
-    construct: [
-      { id:'cn_apres_appel', emoji:'📞', nom:'Après appel — Constructeur',
-        sujet:'Suite à notre échange — La Planète Bois',
-        corps: mail('Suite à notre échange,') },
-      { id:'cn_soustraitance', emoji:'🏗️', nom:'Sous-traitance bois',
-        sujet:'Sous-traitance lot bois — La Planète Bois',
-        corps: mail('Je vous contacte pour une collaboration sur le lot bois de vos chantiers.') }
-    ],
-    piscin: [
-      { id:'pi_apres_appel', emoji:'📞', nom:'Après appel — Pisciniste',
-        sujet:'Suite à notre échange — La Planète Bois',
-        corps: mail('Suite à notre échange,') },
-      { id:'pi_terrasse', emoji:'🏊', nom:'Plages de piscine',
-        sujet:'Plages de piscine bois — La Planète Bois',
-        corps: mail('Je vous contacte pour une collaboration autour de vos chantiers piscine.') }
-    ],
-    immob: [
-      { id:'im_apres_appel', emoji:'📞', nom:'Après appel — Agent immobilier',
-        sujet:'Suite à notre échange — La Planète Bois',
-        corps: mail('Suite à notre échange,') },
-      { id:'im_valorisation', emoji:'🏡', nom:'Valorisation bien',
-        sujet:'Valorisation de vos biens — La Planète Bois',
-        corps: mail('Je vous contacte pour une collaboration sur la valorisation de vos biens.') }
-    ],
-    decor: [
-      { id:'de_apres_appel', emoji:'📞', nom:'Après appel — Décorateur',
-        sujet:'Suite à notre échange — La Planète Bois',
-        corps: mail('Suite à notre échange,') },
-      { id:'de_terrasse', emoji:'✨', nom:'Terrasses & pergolas',
-        sujet:'Collaboration extérieur bois — La Planète Bois',
-        corps: mail('Je vous contacte pour une collaboration sur vos projets extérieurs.') }
-    ]
+      corps: build(
+        "Merci pour le temps accordé lors de notre appel.\n\n"+
+        "Pour rappel, nous installons terrasses bois, pergolas, carports et extensions. "+
+        "Une terrasse ou une pergola bien posée valorise sensiblement un bien à la vente comme à la location, "+
+        "et accélère souvent les signatures.\n\n"+
+        "Je vous propose un accord simple : nous prenons en charge les projets bois de vos clients, "+
+        "et vous touchez une commission d'apporteur d'affaires sur chaque chantier signé."
+      )
+    },
+    architect: {
+      id:'apres_architecte', emoji:'📐', nom:'Après appel — Architecte',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Pour rappel, nous sommes spécialisés en construction bois : terrasses, pergolas, "+
+        "extensions et surélévations ossature bois, carports. Nous travaillons en bois massif "+
+        "(pin CL4, cumaru, ipé).\n\n"+
+        "Nous pouvons intervenir en sous-traitance sur vos plans ou comme entreprise bois "+
+        "référencée pour vos clients. Je peux vous transmettre notre plaquette et nos fourchettes tarifaires."
+      )
+    },
+    carreleur: {
+      id:'apres_carreleur', emoji:'🧱', nom:'Après appel — Carreleur',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et extensions bois. Vos clients demandent "+
+        "souvent un aménagement extérieur en complément du carrelage intérieur — nous sommes "+
+        "complémentaires sur beaucoup de chantiers.\n\n"+
+        "Je vous propose qu'on s'envoie les leads mutuellement : commission d'apporteur "+
+        "d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    'constructeur maison': {
+      id:'apres_constructeur_maison', emoji:'🏠', nom:'Après appel — Constructeur maison',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous réalisons en sous-traitance le lot bois de vos constructions : terrasses, pergolas, "+
+        "carports et extensions ossature bois. Bois massif uniquement (pin CL4, cumaru, ipé), "+
+        "équipe basée en IDF.\n\n"+
+        "Je peux vous adresser notre grille tarifaire sous-traitance et quelques références de chantiers récents."
+      )
+    },
+    courtier: {
+      id:'apres_courtier', emoji:'🤝', nom:'Après appel — Courtier travaux',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "La Planète Bois intervient en IDF sur terrasses bois, pergolas, carports, extensions "+
+        "et surélévations ossature bois. Nous sommes en mesure de reprendre les leads bois "+
+        "que vous qualifiez, avec des délais de réponse rapides.\n\n"+
+        "Je peux vous transmettre notre plaquette, zone d'intervention et fourchettes tarifaires "+
+        "pour que vous puissiez nous référencer auprès de vos clients."
+      )
+    },
+    couvreur: {
+      id:'apres_couvreur', emoji:'🔨', nom:'Après appel — Couvreur / Charpentier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour le temps accordé lors de notre appel.\n\n"+
+        "Nos métiers se croisent souvent : vous intervenez sur charpente et couverture, "+
+        "nous sur terrasses, pergolas et extensions bois. Les clients qui font appel à vous "+
+        "ont souvent un projet extérieur bois en tête, et l'inverse est vrai aussi.\n\n"+
+        "Je vous propose qu'on s'envoie les leads respectifs : commission d'apporteur "+
+        "d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    'maçon': {
+      id:'apres_macon', emoji:'🧰', nom:'Après appel — Maçon terrassier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous posons terrasses bois, pergolas et carports, souvent sur dalles ou terrassements "+
+        "réalisés par des confrères comme vous. Le client enchaîne presque systématiquement gros "+
+        "œuvre puis terrasse bois.\n\n"+
+        "L'idée : vous nous transmettez les clients qui cherchent la partie bois après votre "+
+        "intervention, on fait l'inverse pour les demandes de terrassement. Commission d'apport reversée."
+      )
+    },
+    menuisier: {
+      id:'apres_menuisier', emoji:'🪵', nom:'Après appel — Menuisier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous intervenons sur la construction bois extérieure : terrasses, pergolas, extensions, "+
+        "carports. Votre métier est plutôt intérieur et menuiserie sur mesure — nous sommes "+
+        "donc bien complémentaires sur les chantiers.\n\n"+
+        "Je vous propose qu'on se renvoie les chantiers respectifs, avec une commission d'apporteur "+
+        "d'affaires sur chaque signature."
+      )
+    },
+    paysag: {
+      id:'apres_paysagiste', emoji:'🌿', nom:'Après appel — Paysagiste',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous posons terrasses bois, pergolas et carports — exactement ce qui vient compléter "+
+        "vos aménagements extérieurs. Bois massif uniquement (pin CL4, cumaru, ipé), pas de composite.\n\n"+
+        "Je vous propose un partenariat simple : vous nous transmettez vos clients qui veulent "+
+        "une terrasse ou une pergola bois, et vous touchez une commission sur chaque chantier signé."
+      )
+    },
+    peintre: {
+      id:'apres_peintre', emoji:'🎨', nom:'Après appel — Peintre',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et extensions. Vos clients en phase de "+
+        "rénovation ont souvent un projet extérieur bois en parallèle : nous pouvons nous "+
+        "envoyer les leads mutuellement.\n\n"+
+        "Commission d'apporteur d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    piscin: {
+      id:'apres_pisciniste', emoji:'🏊', nom:'Après appel — Pisciniste',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous posons les plages de piscine en bois massif (cumaru, ipé, pin CL4) ainsi que "+
+        "les pergolas et locaux techniques bois. Une plage bois bien posée finalise l'ensemble "+
+        "et fait toute la différence à la livraison client.\n\n"+
+        "Nous pouvons intervenir en sous-traitance sur vos chantiers ou être référencés "+
+        "directement auprès de vos clients."
+      )
+    },
+    plombier: {
+      id:'apres_plombier', emoji:'🔧', nom:'Après appel — Plombier',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et extensions. Vos clients en rénovation "+
+        "ou construction ont souvent un projet extérieur bois en parallèle : nous pouvons "+
+        "nous envoyer les chantiers respectifs.\n\n"+
+        "Commission d'apporteur d'affaires reversée sur chaque chantier signé."
+      )
+    },
+    promoteur: {
+      id:'apres_promoteur', emoji:'🏗️', nom:'Après appel — Promoteur / Constructeur',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "La Planète Bois intervient en sous-traitance sur le lot bois de vos programmes : "+
+        "terrasses, pergolas, carports et extensions ossature bois. Nous sommes basés en IDF "+
+        "et pouvons gérer plusieurs lots en parallèle.\n\n"+
+        "Je peux vous transmettre notre plaquette, nos références et notre grille tarifaire "+
+        "sous-traitance si cela vous intéresse."
+      )
+    },
+    'lectricien': {
+      id:'apres_electricien', emoji:'⚡', nom:'Après appel — Électricien',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: build(
+        "Merci pour notre échange.\n\n"+
+        "Nous installons terrasses bois, pergolas et carports. Vos chantiers extérieurs "+
+        "(spots, éclairages terrasse, bornes, IRVE) croisent souvent les nôtres — on termine "+
+        "régulièrement juste après votre passage.\n\n"+
+        "Je vous propose qu'on s'envoie les leads respectifs : commission d'apporteur "+
+        "d'affaires reversée sur chaque chantier signé."
+      )
+    }
   };
 
-  // Trouver les templates du métier
-  var metierTpls = [];
-  Object.keys(parMetier).forEach(function(k){
-    if (cat.includes(k)) metierTpls = metierTpls.concat(parMetier[k]);
-  });
+  // Ordre de matching (priorité : promoteur AVANT constructeur pour "Promoteur / constructeur")
+  var order = [
+    'promoteur','constructeur maison','immobili','architect','carreleur','courtier',
+    'couvreur','maçon','menuisier','paysag','peintre','piscin','plombier','lectricien'
+  ];
 
-  // Génériques toujours présents, métier en premier si dispo
-  return metierTpls.concat(generiques);
+  var metierTpl = null;
+  for (var i=0; i<order.length; i++) {
+    if (cat.includes(order[i])) { metierTpl = parCat[order[i]]; break; }
+  }
+
+  // Génériques (toujours disponibles)
+  var generiques = [
+    { id:'g_premier', emoji:'👋', nom:'Premier contact',
+      sujet:'La Planète Bois — Partenariat',
+      corps: build(
+        "Je me permets de vous contacter pour vous présenter brièvement notre activité.\n\n"+
+        "La Planète Bois installe terrasses bois, pergolas, carports, extensions et "+
+        "surélévations ossature bois. Nous intervenons exclusivement en bois massif "+
+        "(pin CL4, cumaru, ipé).\n\n"+
+        "J'aurais souhaité échanger quelques minutes avec vous sur une possible collaboration. "+
+        "Je vous appelle dans les prochains jours, mais n'hésitez pas à me joindre au 06 47 61 69 19 "+
+        "si vous préférez."
+      )
+    },
+    { id:'g_relance', emoji:'🔔', nom:'Relance',
+      sujet:'Suite à mon message — La Planète Bois',
+      corps: build(
+        "Je reviens vers vous suite à mon précédent message.\n\n"+
+        "Je reste à votre disposition pour échanger sur une éventuelle collaboration entre "+
+        "nos deux structures.\n\n"+
+        "Vous pouvez me joindre directement au 06 47 61 69 19."
+      )
+    },
+    { id:'g_devis', emoji:'📋', nom:'Chiffrage projet',
+      sujet:'Chiffrage projet bois — La Planète Bois',
+      corps: build(
+        "Suite à notre échange concernant votre projet, je reviens vers vous pour préparer "+
+        "un chiffrage précis.\n\n"+
+        "Pour établir un devis, il me faudrait : la surface concernée, le type de bois "+
+        "souhaité (pin CL4, cumaru ou ipé), l'état du support existant et l'adresse du chantier.\n\n"+
+        "Dès réception de ces éléments, je vous transmets une proposition sous 48h."
+      )
+    }
+  ];
+
+  return metierTpl ? [metierTpl].concat(generiques) : generiques;
 };
 
 window._prospectOpenMailTpl = function(idx, tplId) {
