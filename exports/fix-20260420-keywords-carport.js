@@ -41,10 +41,10 @@ var KEYWORDS_PHRASE = [
 var CPC_PHRASE = 1.00;
 
 var KEYWORDS_BROAD = [
-  '+carport +bois +soissons',
-  '+carport +bois +aisne',
-  '+abri +voiture +bois',
-  '+carport +bois +artisan'
+  'carport bois soissons',
+  'carport bois aisne',
+  'abri voiture bois',
+  'carport bois artisan'
 ];
 var CPC_BROAD = 0.80;
 
