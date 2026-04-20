@@ -3970,140 +3970,90 @@ window._LPB_GALERIE = 'https://www.laplanetebois.fr/realisations';
 
 window._getMailTemplates = function(categorie, prenom, entreprise) {
   var cat = (categorie||'').toLowerCase();
-  var SITE = 'https://www.laplanetebois.fr';
-  var GAL = SITE + '/realisations';
-  var sig = '\n\nBien cordialement,\n\nYoann Londes\nGérant — La Planète Bois\nAtelier basé à Soissons (02)\nTél. : 06 47 61 69 19\nSite : '+SITE;
-  var presentation = 'La Planète Bois est une entreprise artisanale basée à Soissons, spécialisée dans la fabrication et la pose d\'ouvrages bois massif : terrasses, pergolas, carports et extensions de maison en ossature bois.';
+  var SITE = 'https://laplanetebois.fr/';
 
-  var p = prenom.split(' ')[0];
+  // Nom de famille pour la salutation "Bonjour Mr X"
+  var parts = (prenom||'').trim().split(/\s+/).filter(Boolean);
+  var nomFamille = parts.length > 1 ? parts[parts.length-1] : (parts[0] || '');
+
+  // Construit un mail au format de référence (intro libre)
+  function mail(intro) {
+    return 'Bonjour Mr '+nomFamille+',\n\n'
+      + intro + '\n\n'
+      + 'voici ce que nous faisons :\n\n'
+      + '* terrasse bois\n'
+      + '* pergolas bois\n'
+      + '* carport bois\n'
+      + '* extension bois\n\n'
+      + 'Vous trouverez toutes les informations sur notre site internet :\n'
+      + SITE + '\n\n'
+      + 'Je suis disponible pour toutes questions,\n'
+      + 'Yoann';
+  }
 
   var generiques = [
-    {
-      id:'g_apres_appel',
-      emoji:'📞',
-      nom:'Après appel',
-      sujet:'Suite à notre échange téléphonique — La Planète Bois',
-      corps:'Bonjour '+p+',\n\nJe vous remercie pour notre échange téléphonique et pour le temps que vous m\'avez accordé.\n\nComme convenu, je me permets de vous adresser ce récapitulatif. '+presentation+'\n\nNos réalisations sont regroupées sur notre site, à votre disposition si vous souhaitez en prendre connaissance : '+GAL+'\n\nDès qu\'un projet vous semble pertinent, n\'hésitez pas à me communiquer quelques éléments (surface approximative, lieu du chantier, photos si possible). Je reviendrai vers vous rapidement avec une proposition chiffrée.\n\nJe reste à votre entière disposition pour toute information complémentaire.' + sig
-    },
-    {
-      id:'g_premier',
-      emoji:'👋',
-      nom:'Premier contact',
-      sujet:'Proposition de collaboration — La Planète Bois (Soissons)',
-      corps:'Bonjour '+p+',\n\nJe me permets de vous contacter afin de vous présenter notre activité, qui pourrait compléter utilement la vôtre.\n\n'+presentation+'\n\nNous intervenons régulièrement en partenariat avec des professionnels du bâtiment et de l\'aménagement extérieur, soit en sous-traitance, soit dans le cadre d\'un apport d\'affaires. Cette souplesse nous permet de nous adapter à votre mode de fonctionnement.\n\nVous pouvez découvrir quelques-unes de nos réalisations ici : '+GAL+'\n\nJe serais ravi d\'échanger avec vous, à votre convenance, pour voir comment nous pourrions travailler ensemble.' + sig
-    },
-    {
-      id:'g_relance1',
-      emoji:'🔔',
-      nom:'Relance',
-      sujet:'Suite à mon précédent message — La Planète Bois',
-      corps:'Bonjour '+p+',\n\nJe me permets de revenir vers vous, mon précédent message ayant peut-être échappé à votre attention.\n\nPour rappel, '+presentation.charAt(0).toLowerCase()+presentation.slice(1)+' Nous serions heureux d\'étudier une éventuelle collaboration, adaptée à votre activité.\n\nNos réalisations : '+GAL+'\n\nJe reste à votre disposition pour en discuter lorsque vous aurez un moment.' + sig
-    },
-    {
-      id:'g_devis',
-      emoji:'📋',
-      nom:'Demande d\'éléments pour chiffrage',
-      sujet:'Éléments nécessaires au chiffrage — La Planète Bois',
-      corps:'Bonjour '+p+',\n\nSuite à notre échange, je reviens vers vous concernant le chiffrage du projet évoqué.\n\nAfin de vous transmettre une estimation précise, pourriez-vous me communiquer les éléments suivants :\n\n• Surface approximative de l\'ouvrage\n• Adresse ou secteur du chantier\n• Essence souhaitée si déjà définie (pin classe 4, cumaru, ipé…)\n• Quelques photos du terrain ou de l\'emplacement, si possible\n• Délai envisagé par le client\n\nDès réception, je vous adresse une proposition détaillée sous 48 à 72 heures.\n\nJe reste à votre disposition pour toute précision.' + sig
-    }
+    { id:'g_apres_appel', emoji:'📞', nom:'Après appel',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps: mail('Suite à notre échange,') },
+    { id:'g_premier', emoji:'👋', nom:'Premier contact',
+      sujet:'La Planète Bois — Soissons',
+      corps: mail('Je me permets de vous contacter pour vous présenter notre activité.') },
+    { id:'g_relance1', emoji:'🔔', nom:'Relance',
+      sujet:'Suite à mon message — La Planète Bois',
+      corps: mail('Je reviens vers vous suite à mon précédent message.') },
+    { id:'g_devis', emoji:'📋', nom:'Chiffrage projet',
+      sujet:'Chiffrage projet bois — La Planète Bois',
+      corps: mail('Suite à notre échange concernant votre projet,') }
   ];
 
   var parMetier = {
     paysag: [
-      {
-        id:'pa_apres_appel',
-        emoji:'📞',
-        nom:'Après appel — Paysagiste',
-        sujet:'Suite à notre échange — Partenariat paysagiste',
-        corps:'Bonjour '+p+',\n\nJe vous remercie pour notre échange, il a été très agréable de découvrir votre activité et vos projets en cours.\n\nPour rappel, '+presentation.charAt(0).toLowerCase()+presentation.slice(1)+'\n\nConcrètement, lorsqu\'un de vos clients vous sollicite pour une terrasse, une pergola ou un carport bois, deux options s\'offrent à nous :\n\n• Nous intervenons en sous-traitance, vous conservez la relation client et la maîtrise du chantier.\n• Vous nous transmettez directement le contact, et nous vous reversons une commission d\'apport d\'affaires.\n\nVous trouverez nos dernières réalisations sur : '+GAL+'\n\nJe reste à votre disposition pour avancer sur un premier dossier dès que l\'occasion se présente.' + sig
-      },
-      {
-        id:'pa_partenariat',
-        emoji:'🌿',
-        nom:'Partenariat paysagiste',
+      { id:'pa_apres_appel', emoji:'📞', nom:'Après appel — Paysagiste',
+        sujet:'Suite à notre échange — La Planète Bois',
+        corps: mail('Suite à notre échange,') },
+      { id:'pa_partenariat', emoji:'🌿', nom:'Partenariat paysagiste',
         sujet:'Partenariat paysagiste — La Planète Bois',
-        corps:'Bonjour '+p+',\n\nEn tant que paysagiste, vous êtes régulièrement sollicité par vos clients pour la réalisation de terrasses, pergolas ou carports bois. C\'est précisément notre cœur de métier.\n\n'+presentation+'\n\nNous proposons aux paysagistes deux modes de collaboration :\n\n• Sous-traitance clé en main sur la partie menuiserie extérieure bois\n• Apport d\'affaires avec commission, si vous préférez transmettre le client\n\nNos réalisations : '+GAL+'\n\nJe serais ravi d\'échanger avec vous sur une éventuelle collaboration, à votre convenance.' + sig
-      }
+        corps: mail('Je vous contacte pour une éventuelle collaboration.') }
     ],
     architect: [
-      {
-        id:'ar_apres_appel',
-        emoji:'📞',
-        nom:'Après appel — Architecte',
-        sujet:'Suite à notre échange — Entreprise bois partenaire',
-        corps:'Bonjour '+p+',\n\nJe vous remercie pour notre échange téléphonique, qui m\'a permis de mieux comprendre votre approche et les projets sur lesquels vous travaillez actuellement.\n\n'+presentation+' Nous sommes assurés en responsabilité civile professionnelle et couverts par une garantie décennale.\n\nNous pouvons intervenir dès la phase APD pour chiffrer le lot bois de vos projets (extensions ossature bois, terrasses structurelles, pergolas, carports). Les plans ou l\'esquisse sont généralement suffisants pour transmettre une première estimation sous 48 à 72 heures.\n\nVous pouvez consulter quelques-unes de nos réalisations sur : '+GAL+'\n\nN\'hésitez pas à me transmettre un projet à chiffrer, je le traiterai en priorité.' + sig
-      },
-      {
-        id:'ar_projet',
-        emoji:'📐',
-        nom:'Entreprise bois partenaire',
-        sujet:'Entreprise de construction bois — La Planète Bois',
-        corps:'Bonjour '+p+',\n\nJe me permets de vous contacter afin de vous présenter notre entreprise, susceptible de vous accompagner sur le lot bois de vos projets.\n\n'+presentation+' Nos interventions couvrent aussi bien les ouvrages extérieurs (terrasses, pergolas, carports) que les extensions de maison en ossature bois.\n\nNous proposons un chiffrage gratuit dès la phase APD, sur la base de plans ou d\'une esquisse.\n\nQuelques réalisations : '+GAL+'\n\nJe serais heureux d\'échanger avec vous sur vos projets en cours ou à venir.' + sig
-      }
+      { id:'ar_apres_appel', emoji:'📞', nom:'Après appel — Architecte',
+        sujet:'Suite à notre échange — La Planète Bois',
+        corps: mail('Suite à notre échange,') },
+      { id:'ar_projet', emoji:'📐', nom:'Entreprise bois partenaire',
+        sujet:'Entreprise bois pour vos projets — La Planète Bois',
+        corps: mail('Je me permets de vous contacter pour vos projets bois.') }
     ],
     construct: [
-      {
-        id:'cn_apres_appel',
-        emoji:'📞',
-        nom:'Après appel — Constructeur',
-        sujet:'Suite à notre échange — Sous-traitance lot bois',
-        corps:'Bonjour '+p+',\n\nJe vous remercie pour notre échange téléphonique et pour les informations partagées sur votre organisation de chantier.\n\n'+presentation+' Nous travaillons régulièrement en sous-traitance pour des constructeurs de maisons individuelles, sur les prestations complémentaires que vos clients demandent fréquemment :\n\n• Terrasses bois livrées en coordination avec la maison\n• Pergolas adossées et carports bois\n• Extensions de maison en ossature bois\n\nNotre assurance décennale, notre KBIS et nos attestations sont disponibles sur simple demande.\n\nNos réalisations : '+GAL+'\n\nDès que vous avez un dossier test à nous confier, n\'hésitez pas à nous transmettre les plans ou simplement un brief. Nous revenons avec une estimation sous 48 à 72 heures.' + sig
-      },
-      {
-        id:'cn_soustraitance',
-        emoji:'🏗️',
-        nom:'Sous-traitance lot bois',
+      { id:'cn_apres_appel', emoji:'📞', nom:'Après appel — Constructeur',
+        sujet:'Suite à notre échange — La Planète Bois',
+        corps: mail('Suite à notre échange,') },
+      { id:'cn_soustraitance', emoji:'🏗️', nom:'Sous-traitance bois',
         sujet:'Sous-traitance lot bois — La Planète Bois',
-        corps:'Bonjour '+p+',\n\nJe me permets de vous contacter afin de vous présenter notre entreprise, qui pourrait utilement compléter vos prestations de construction.\n\n'+presentation+' Nous intervenons en sous-traitance auprès de plusieurs constructeurs de la région sur les ouvrages bois : terrasses, pergolas, carports et extensions ossature bois.\n\nTravail soigné, délais tenus, assurance décennale à jour. Nos réalisations : '+GAL+'\n\nJe serais ravi d\'échanger avec vous pour étudier une collaboration, à votre convenance.' + sig
-      }
+        corps: mail('Je vous contacte pour une collaboration sur le lot bois de vos chantiers.') }
     ],
     piscin: [
-      {
-        id:'pi_apres_appel',
-        emoji:'📞',
-        nom:'Après appel — Pisciniste',
-        sujet:'Suite à notre échange — Plages de piscine bois',
-        corps:'Bonjour '+p+',\n\nJe vous remercie pour notre échange téléphonique et pour le temps que vous m\'avez consacré.\n\n'+presentation+' Autour du bassin, nous réalisons des plages de piscine en bois massif : pin autoclave classe 4, cumaru ou ipé selon le budget et les attentes du client. Les lambourdes sont en bois CL4 traité, posées sur plots réglables, vissage inox A4 et finition au saturateur.\n\nNotre intervention s\'effectue une fois la piscine posée, en coordination simple avec votre planning.\n\nQuelques réalisations : '+GAL+'\n\nDès qu\'un de vos clients exprime ce besoin, n\'hésitez pas à me transmettre la surface approximative et l\'essence souhaitée. Je reviens vers vous sous 48 heures avec une proposition chiffrée.' + sig
-      },
-      {
-        id:'pi_terrasse',
-        emoji:'🏊',
-        nom:'Plages de piscine bois',
-        sujet:'Plages de piscine bois — Partenariat',
-        corps:'Bonjour '+p+',\n\nVos clients piscine ont très souvent besoin d\'une plage ou d\'une terrasse bois autour du bassin, prestation qui constitue notre cœur de métier.\n\n'+presentation+' Nous réalisons des plages de piscine exclusivement en bois massif (pin classe 4, cumaru, ipé), avec une pose soignée et durable.\n\nQuelques réalisations : '+GAL+'\n\nJe serais heureux d\'échanger avec vous sur une collaboration, afin que vos clients bénéficient d\'un accompagnement complet jusqu\'à la finition extérieure.' + sig
-      }
+      { id:'pi_apres_appel', emoji:'📞', nom:'Après appel — Pisciniste',
+        sujet:'Suite à notre échange — La Planète Bois',
+        corps: mail('Suite à notre échange,') },
+      { id:'pi_terrasse', emoji:'🏊', nom:'Plages de piscine',
+        sujet:'Plages de piscine bois — La Planète Bois',
+        corps: mail('Je vous contacte pour une collaboration autour de vos chantiers piscine.') }
     ],
     immob: [
-      {
-        id:'im_apres_appel',
-        emoji:'📞',
-        nom:'Après appel — Agent immobilier',
-        sujet:'Suite à notre échange — Valorisation de vos biens',
-        corps:'Bonjour '+p+',\n\nJe vous remercie pour notre échange téléphonique.\n\n'+presentation+' Nos prestations (terrasses, pergolas, carports, extensions ossature bois) représentent souvent un levier de valorisation important pour un bien à la vente ou pour un acquéreur en cours de réflexion.\n\nConcrètement, voici ce que nous proposons aux agents immobiliers :\n\n• Chiffrage gratuit et rapide (48 à 72h) d\'un projet d\'aménagement extérieur ou d\'extension\n• Visite sur place avec votre client, si cela peut faciliter la décision\n• Commission d\'apport d\'affaires sur chaque chantier signé via votre mise en relation\n\nNos réalisations : '+GAL+'\n\nDès qu\'un client évoque ce type de besoin, n\'hésitez pas à me le signaler, je reviens très vite avec un devis que vous pourrez lui transmettre.' + sig
-      },
-      {
-        id:'im_valorisation',
-        emoji:'🏡',
-        nom:'Valorisation bien immobilier',
+      { id:'im_apres_appel', emoji:'📞', nom:'Après appel — Agent immobilier',
+        sujet:'Suite à notre échange — La Planète Bois',
+        corps: mail('Suite à notre échange,') },
+      { id:'im_valorisation', emoji:'🏡', nom:'Valorisation bien',
         sujet:'Valorisation de vos biens — La Planète Bois',
-        corps:'Bonjour '+p+',\n\nUne terrasse bois bien intégrée ou une extension en ossature bois peut représenter un réel argument de vente pour vos clients, qu\'ils soient vendeurs ou acquéreurs.\n\n'+presentation+'\n\nNous proposons aux agents immobiliers un chiffrage rapide et gratuit, ainsi qu\'une commission d\'apport sur chaque chantier signé via votre mise en relation.\n\nRéalisations : '+GAL+'\n\nJe serais ravi d\'échanger avec vous sur une éventuelle collaboration, à votre convenance.' + sig
-      }
+        corps: mail('Je vous contacte pour une collaboration sur la valorisation de vos biens.') }
     ],
     decor: [
-      {
-        id:'de_apres_appel',
-        emoji:'📞',
-        nom:'Après appel — Décorateur',
-        sujet:'Suite à notre échange — Collaboration extérieur',
-        corps:'Bonjour '+p+',\n\nJe vous remercie pour notre échange, il a été très enrichissant de découvrir votre univers et vos projets.\n\n'+presentation+' Nous apportons un soin particulier aux finitions et à l\'intégration esthétique de nos ouvrages : choix des essences, calepinage, éclairage intégré, claire-voie…\n\nPour vos projets où l\'extérieur bois a toute sa place, nous pouvons intervenir de façon discrète (sous-traitance) ou en mise en relation directe, selon ce qui convient le mieux à votre positionnement.\n\nQuelques réalisations : '+GAL+'\n\nDès qu\'un projet s\'y prête, n\'hésitez pas à faire appel à nous.' + sig
-      },
-      {
-        id:'de_terrasse',
-        emoji:'✨',
-        nom:'Terrasses & pergolas sur-mesure',
+      { id:'de_apres_appel', emoji:'📞', nom:'Après appel — Décorateur',
+        sujet:'Suite à notre échange — La Planète Bois',
+        corps: mail('Suite à notre échange,') },
+      { id:'de_terrasse', emoji:'✨', nom:'Terrasses & pergolas',
         sujet:'Collaboration extérieur bois — La Planète Bois',
-        corps:'Bonjour '+p+',\n\nDans le cadre de vos projets d\'aménagement, vos clients souhaitent fréquemment une terrasse, une pergola ou un carport bois soignés et sur-mesure.\n\n'+presentation+' Nous apportons un soin particulier à l\'intégration esthétique et à la qualité des finitions.\n\nNos réalisations : '+GAL+'\n\nJe serais ravi d\'échanger avec vous sur une collaboration, à votre convenance.' + sig
-      }
+        corps: mail('Je vous contacte pour une collaboration sur vos projets extérieurs.') }
     ]
   };
 
