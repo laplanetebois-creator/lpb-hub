@@ -3783,15 +3783,14 @@ window.prospectView = async function(idx) {
     rappels.sort(function(a,b){ return (a.start_date||'') < (b.start_date||'') ? -1 : 1; });
   }
   var ETAPE_OPTIONS = [
-    {key:'a_identifier',label:'À identifier',color:'#78909c'},
-    {key:'a_contacter',label:'À contacter',color:'#3498db'},
-    {key:'contacte',label:'Contacté',color:'#9b59b6'},
-    {key:'nrp1',label:'NRP 1 — Relance J+5',color:'#e67e22'},
-    {key:'nrp2',label:'NRP 2',color:'#e74c3c'},
-    {key:'en_discussion',label:'En discussion',color:'#2ecc71'},
-    {key:'qualifie',label:'Qualifié',color:'#1abc9c'},
-    {key:'converti',label:'Converti',color:'#27ae60'},
-    {key:'perdu',label:'Perdu',color:'#78909c'}
+    {key:'a_contacter',   label:'À contacter',         color:'#3498db'},
+    {key:'nrp1',          label:'NRP 1 — Relance J+5', color:'#e67e22'},
+    {key:'nrp2',          label:'NRP 2',               color:'#e74c3c'},
+    {key:'contacte',      label:'Contacté',             color:'#9b59b6'},
+    {key:'en_discussion', label:'En discussion',        color:'#e0a030'},
+    {key:'devis_envoye',  label:'Devis envoyé',         color:'#2ecc71'},
+    {key:'partenaire',    label:'Partenaire',           color:'#2d6a4f'},
+    {key:'perdu_prm',     label:'Perdu',               color:'#e74c3c'}
   ];
   var currentEtape = ETAPE_OPTIONS.find(function(e){ return e.key===existingEtape; }) || ETAPE_OPTIONS[1];
   var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
@@ -3914,7 +3913,7 @@ window.prospectView = async function(idx) {
 // NRP1 → crée automatiquement un rappel à J+5
 window._prospectEtapeChange = async function(etape, idx) {
   var sel = document.querySelector('#prospect-etape-select');
-  var ETAPE_COLORS = {a_identifier:'#78909c',a_contacter:'#3498db',contacte:'#9b59b6',nrp1:'#e67e22',nrp2:'#e74c3c',en_discussion:'#2ecc71',qualifie:'#1abc9c',converti:'#27ae60',perdu:'#78909c'};
+  var ETAPE_COLORS = {a_contacter:'#3498db',nrp1:'#e67e22',nrp2:'#e74c3c',contacte:'#9b59b6',en_discussion:'#e0a030',devis_envoye:'#2ecc71',partenaire:'#2d6a4f',perdu_prm:'#e74c3c'};
   if (sel) sel.style.borderColor = ETAPE_COLORS[etape] || '#3498db';
   if (etape === 'nrp1') {
     var l = (window._lcAllLeads || [])[idx];
