@@ -4020,175 +4020,160 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
   var nomFamille = parts.length > 1 ? parts[parts.length-1] : (parts[0] || '');
   var salut = nomFamille ? ('Bonjour Mr '+nomFamille) : 'Bonjour';
 
-  var SIGN = '\n\nQuelques réalisations : '+REAL+'\n\nÀ bientôt,\n\nYoann\nLa Planète Bois — 06 47 61 69 19\n'+SITE;
+  var SIGN = '\n\nBien cordialement,\n\nYoann\nLa Planète Bois\n06 47 61 69 19\n'+SITE;
 
   function build(corps){ return salut+',\n\n'+corps+SIGN; }
 
-  // Templates APRÈS APPEL adaptés par catégorie (proposition de valeur ciblée)
+  var INTRO = "Je me permets de revenir vers vous suite à notre échange téléphonique.\n\n"+
+              "Pour information, nous sommes La Planète Bois, basés à Soissons. "+
+              "Nous réalisons des terrasses, pergolas, carports et extensions de maison en bois.";
+
+  var CLOTURE = "Vous pouvez découvrir nos réalisations ici : "+SITE+"\n\n"+
+                "N'hésitez pas à revenir vers moi si vous souhaitez en échanger.";
+
+  // Templates APRÈS APPEL adaptés par catégorie (ton tranquille, validé 2026-04-20)
   var parCat = {
     immobili: {
       id:'apres_agence_immo', emoji:'🏡', nom:'Après appel — Agence immobilière',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour le temps accordé lors de notre appel.\n\n"+
-        "Pour rappel, nous installons terrasses bois, pergolas, carports et extensions. "+
-        "Une terrasse ou une pergola bien posée valorise sensiblement un bien à la vente comme à la location, "+
-        "et accélère souvent les signatures.\n\n"+
-        "Je vous propose un accord simple : nous prenons en charge les projets bois de vos clients, "+
-        "et vous touchez une commission d'apporteur d'affaires sur chaque chantier signé."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Dans votre métier, vous avez régulièrement des clients qui cherchent à valoriser un bien "+
+        "avant mise en vente, ou des acquéreurs qui ont un projet d'aménagement extérieur en tête "+
+        "après l'achat. Si l'occasion se présente, nous serions ravis de pouvoir les accompagner.\n\n"+
+        "Nous proposons naturellement une commission d'apporteur sur chaque chantier signé via vos "+
+        "recommandations, à définir ensemble selon le volume.\n\n"+CLOTURE)
     },
     architect: {
       id:'apres_architecte', emoji:'📐', nom:'Après appel — Architecte',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Pour rappel, nous sommes spécialisés en construction bois : terrasses, pergolas, "+
-        "extensions et surélévations ossature bois, carports. Nous travaillons en bois massif "+
-        "(pin CL4, cumaru, ipé).\n\n"+
-        "Nous pouvons intervenir en sous-traitance sur vos plans ou comme entreprise bois "+
-        "référencée pour vos clients. Je peux vous transmettre notre plaquette et nos fourchettes tarifaires."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Vos projets d'extension, de pergola ou de terrasse croisent directement notre activité. "+
+        "Si l'occasion se présente sur un de vos dossiers, nous serions ravis de pouvoir intervenir "+
+        "sur la partie bois.\n\n"+
+        "Nous pouvons intervenir en sous-traitance sur vos plans ou être simplement référencés "+
+        "auprès de vos clients. Je me tiens à disposition si vous souhaitez que je vous transmette "+
+        "notre plaquette et nos fourchettes tarifaires.\n\n"+CLOTURE)
     },
     carreleur: {
       id:'apres_carreleur', emoji:'🧱', nom:'Après appel — Carreleur',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous installons terrasses bois, pergolas et extensions bois. Vos clients demandent "+
-        "souvent un aménagement extérieur en complément du carrelage intérieur — nous sommes "+
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Vos clients font souvent appel à vous pour le carrelage intérieur, et beaucoup enchaînent "+
+        "avec un projet d'aménagement extérieur bois juste après. Nos deux activités sont bien "+
         "complémentaires sur beaucoup de chantiers.\n\n"+
-        "Je vous propose qu'on s'envoie les leads mutuellement : commission d'apporteur "+
-        "d'affaires reversée sur chaque chantier signé."
-      )
+        "L'idée serait de nous envoyer les leads mutuellement quand l'un ou l'autre a un client "+
+        "qui cherche la prestation de l'autre, avec une commission d'apporteur à chaque chantier signé.\n\n"+CLOTURE)
     },
     'constructeur maison': {
       id:'apres_constructeur_maison', emoji:'🏠', nom:'Après appel — Constructeur maison',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous réalisons en sous-traitance le lot bois de vos constructions : terrasses, pergolas, "+
-        "carports et extensions ossature bois. Bois massif uniquement (pin CL4, cumaru, ipé), "+
-        "équipe basée en IDF.\n\n"+
-        "Je peux vous adresser notre grille tarifaire sous-traitance et quelques références de chantiers récents."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Sur vos chantiers de construction, il y a régulièrement un lot bois extérieur à prévoir "+
+        "(terrasse, pergola, carport). Si l'occasion se présente, nous serions ravis de pouvoir "+
+        "intervenir en complément de vos équipes.\n\n"+
+        "Nous travaillons en sous-traitance avec des tarifs adaptés. Je me tiens à disposition si "+
+        "vous souhaitez que je vous transmette notre grille tarifaire et quelques références récentes.\n\n"+CLOTURE)
     },
     courtier: {
       id:'apres_courtier', emoji:'🤝', nom:'Après appel — Courtier travaux',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "La Planète Bois intervient en IDF sur terrasses bois, pergolas, carports, extensions "+
-        "et surélévations ossature bois. Nous sommes en mesure de reprendre les leads bois "+
-        "que vous qualifiez, avec des délais de réponse rapides.\n\n"+
-        "Je peux vous transmettre notre plaquette, zone d'intervention et fourchettes tarifaires "+
-        "pour que vous puissiez nous référencer auprès de vos clients."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Parmi les demandes que vous qualifiez, il y a régulièrement des projets de terrasse, "+
+        "pergola ou extension bois. Si l'occasion se présente, nous serions ravis de pouvoir "+
+        "reprendre ce type de dossier.\n\n"+
+        "Nous proposons naturellement une commission d'apporteur sur chaque chantier signé via "+
+        "vos recommandations, à définir ensemble selon le volume.\n\n"+CLOTURE)
     },
     couvreur: {
       id:'apres_couvreur', emoji:'🔨', nom:'Après appel — Couvreur / Charpentier',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour le temps accordé lors de notre appel.\n\n"+
-        "Nos métiers se croisent souvent : vous intervenez sur charpente et couverture, "+
-        "nous sur terrasses, pergolas et extensions bois. Les clients qui font appel à vous "+
-        "ont souvent un projet extérieur bois en tête, et l'inverse est vrai aussi.\n\n"+
-        "Je vous propose qu'on s'envoie les leads respectifs : commission d'apporteur "+
-        "d'affaires reversée sur chaque chantier signé."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Nos métiers se croisent souvent : vous intervenez sur la charpente et la couverture, "+
+        "nous sur les terrasses, pergolas et extensions bois. Les clients qui font appel à vous "+
+        "ont souvent un projet extérieur bois en parallèle, et l'inverse est vrai aussi.\n\n"+
+        "L'idée serait de nous envoyer les leads respectifs quand l'occasion se présente, avec "+
+        "une commission d'apporteur à chaque chantier signé.\n\n"+CLOTURE)
     },
     'maçon': {
       id:'apres_macon', emoji:'🧰', nom:'Après appel — Maçon terrassier',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous posons terrasses bois, pergolas et carports, souvent sur dalles ou terrassements "+
-        "réalisés par des confrères comme vous. Le client enchaîne presque systématiquement gros "+
-        "œuvre puis terrasse bois.\n\n"+
-        "L'idée : vous nous transmettez les clients qui cherchent la partie bois après votre "+
-        "intervention, on fait l'inverse pour les demandes de terrassement. Commission d'apport reversée."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Beaucoup de vos clients enchaînent naturellement le gros œuvre ou le terrassement avec "+
+        "une terrasse ou une pergola bois. Nos activités se suivent souvent sur les mêmes chantiers.\n\n"+
+        "L'idée serait de nous envoyer les leads respectifs : vous nous transmettez les clients "+
+        "qui cherchent la partie bois après votre intervention, nous faisons l'inverse. Commission "+
+        "d'apporteur reversée à chaque chantier signé.\n\n"+CLOTURE)
     },
     menuisier: {
       id:'apres_menuisier', emoji:'🪵', nom:'Après appel — Menuisier',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous intervenons sur la construction bois extérieure : terrasses, pergolas, extensions, "+
-        "carports. Votre métier est plutôt intérieur et menuiserie sur mesure — nous sommes "+
-        "donc bien complémentaires sur les chantiers.\n\n"+
-        "Je vous propose qu'on se renvoie les chantiers respectifs, avec une commission d'apporteur "+
-        "d'affaires sur chaque signature."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Votre activité est plutôt tournée vers la menuiserie intérieure et sur-mesure, la nôtre "+
+        "vers la construction bois extérieure (terrasses, pergolas, carports, extensions). Nous "+
+        "sommes bien complémentaires sur beaucoup de chantiers.\n\n"+
+        "L'idée serait de nous renvoyer les chantiers respectifs quand l'occasion se présente, "+
+        "avec une commission d'apporteur à chaque signature.\n\n"+CLOTURE)
     },
     paysag: {
       id:'apres_paysagiste', emoji:'🌿', nom:'Après appel — Paysagiste',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous posons terrasses bois, pergolas et carports — exactement ce qui vient compléter "+
-        "vos aménagements extérieurs. Bois massif uniquement (pin CL4, cumaru, ipé), pas de composite.\n\n"+
-        "Je vous propose un partenariat simple : vous nous transmettez vos clients qui veulent "+
-        "une terrasse ou une pergola bois, et vous touchez une commission sur chaque chantier signé."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Nos prestations viennent souvent compléter vos aménagements extérieurs : terrasses bois, "+
+        "pergolas, carports. Si l'occasion se présente sur un de vos chantiers, nous serions ravis "+
+        "de pouvoir intervenir.\n\n"+
+        "L'idée serait un partenariat simple : vous nous transmettez vos clients qui veulent une "+
+        "terrasse ou une pergola bois, et vous touchez une commission sur chaque chantier signé.\n\n"+CLOTURE)
     },
     peintre: {
       id:'apres_peintre', emoji:'🎨', nom:'Après appel — Peintre',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous installons terrasses bois, pergolas et extensions. Vos clients en phase de "+
-        "rénovation ont souvent un projet extérieur bois en parallèle : nous pouvons nous "+
-        "envoyer les leads mutuellement.\n\n"+
-        "Commission d'apporteur d'affaires reversée sur chaque chantier signé."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Vos clients en phase de rénovation ont souvent un projet extérieur bois en parallèle "+
+        "(terrasse, pergola, petite extension). Nous pouvons être complémentaires sur ce type de dossier.\n\n"+
+        "L'idée serait de nous envoyer les leads mutuellement quand l'occasion se présente, avec "+
+        "une commission d'apporteur à chaque chantier signé.\n\n"+CLOTURE)
     },
     piscin: {
       id:'apres_pisciniste', emoji:'🏊', nom:'Après appel — Pisciniste',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous posons les plages de piscine en bois massif (cumaru, ipé, pin CL4) ainsi que "+
-        "les pergolas et locaux techniques bois. Une plage bois bien posée finalise l'ensemble "+
-        "et fait toute la différence à la livraison client.\n\n"+
-        "Nous pouvons intervenir en sous-traitance sur vos chantiers ou être référencés "+
-        "directement auprès de vos clients."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Sur vos chantiers, il y a régulièrement une plage de piscine, une pergola ou un local "+
+        "technique à prévoir. Si l'occasion se présente, nous serions ravis de pouvoir intervenir "+
+        "sur ces lots.\n\n"+
+        "Nous pouvons intervenir en sous-traitance directement sur vos projets, ou être référencés "+
+        "auprès de vos clients. Je me tiens à disposition si vous souhaitez que je vous transmette "+
+        "notre plaquette.\n\n"+CLOTURE)
     },
     plombier: {
       id:'apres_plombier', emoji:'🔧', nom:'Après appel — Plombier',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous installons terrasses bois, pergolas et extensions. Vos clients en rénovation "+
-        "ou construction ont souvent un projet extérieur bois en parallèle : nous pouvons "+
-        "nous envoyer les chantiers respectifs.\n\n"+
-        "Commission d'apporteur d'affaires reversée sur chaque chantier signé."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Vos clients en rénovation ou en construction ont souvent un projet extérieur bois en "+
+        "parallèle (terrasse, pergola, extension). Nos activités se croisent régulièrement sur "+
+        "les mêmes chantiers.\n\n"+
+        "L'idée serait de nous envoyer les leads respectifs quand l'occasion se présente, avec "+
+        "une commission d'apporteur à chaque chantier signé.\n\n"+CLOTURE)
     },
     promoteur: {
       id:'apres_promoteur', emoji:'🏗️', nom:'Après appel — Promoteur / Constructeur',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "La Planète Bois intervient en sous-traitance sur le lot bois de vos programmes : "+
-        "terrasses, pergolas, carports et extensions ossature bois. Nous sommes basés en IDF "+
-        "et pouvons gérer plusieurs lots en parallèle.\n\n"+
-        "Je peux vous transmettre notre plaquette, nos références et notre grille tarifaire "+
-        "sous-traitance si cela vous intéresse."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Sur vos programmes, il y a régulièrement un lot bois extérieur à prévoir (terrasses, "+
+        "pergolas, carports, extensions). Si l'occasion se présente, nous serions ravis de "+
+        "pouvoir intervenir en sous-traitance.\n\n"+
+        "Nous pouvons gérer plusieurs lots en parallèle sur différents programmes. Je me tiens "+
+        "à disposition si vous souhaitez que je vous transmette notre plaquette, nos références "+
+        "et notre grille tarifaire.\n\n"+CLOTURE)
     },
     'lectricien': {
       id:'apres_electricien', emoji:'⚡', nom:'Après appel — Électricien',
-      sujet:'Suite à notre échange — La Planète Bois',
-      corps: build(
-        "Merci pour notre échange.\n\n"+
-        "Nous installons terrasses bois, pergolas et carports. Vos chantiers extérieurs "+
-        "(spots, éclairages terrasse, bornes, IRVE) croisent souvent les nôtres — on termine "+
-        "régulièrement juste après votre passage.\n\n"+
-        "Je vous propose qu'on s'envoie les leads respectifs : commission d'apporteur "+
-        "d'affaires reversée sur chaque chantier signé."
-      )
+      sujet:'La Planète Bois — suite à notre échange',
+      corps: build(INTRO+"\n\n"+
+        "Vos chantiers extérieurs (spots, éclairages terrasse, bornes, IRVE) croisent souvent "+
+        "les nôtres : on termine régulièrement juste après votre passage, ou on se croise sur "+
+        "des projets qui nécessitent les deux expertises.\n\n"+
+        "L'idée serait de nous envoyer les leads respectifs quand l'occasion se présente, avec "+
+        "une commission d'apporteur à chaque chantier signé.\n\n"+CLOTURE)
     }
   };
 
@@ -5462,6 +5447,7 @@ pages['google-ads'] = async function() {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   let googleAds = await dbSelect('google_ads_data', { order: ['date', false] });
+  let activeAdsTab = (window.__adsTabState || 'performance');
 
   function render() {
     const gaTotalImpr = googleAds.reduce((s, r) => s + (r.impressions || 0), 0);
@@ -5490,7 +5476,15 @@ pages['google-ads'] = async function() {
       const gaTotalConv = googleAds.reduce((s, r) => s + (r.conversions || 0), 0);
       const gaAvgCpc = gaTotalClicks > 0 ? (gaTotalSpend / gaTotalClicks).toFixed(2) : 0;
       const gaConvRate = gaTotalClicks > 0 ? (gaTotalConv / gaTotalClicks * 100).toFixed(2) : 0;
-      content.innerHTML = `
+
+      const adsTabsHtml = `
+        <div class="tabs" style="margin-bottom:20px">
+          <button class="tab-btn ${activeAdsTab === 'performance' ? 'active' : ''}" data-ads-tab="performance"><i class="fas fa-chart-line"></i> Performance</button>
+          <button class="tab-btn ${activeAdsTab === 'rapport' ? 'active' : ''}" data-ads-tab="rapport"><i class="fas fa-file-contract"></i> Rapport <span style="background:var(--warning);color:white;padding:1px 7px;border-radius:10px;font-size:0.7rem;margin-left:4px">1</span></button>
+        </div>
+      `;
+
+      const performanceHtml = activeAdsTab !== 'performance' ? '' : `
         <div class="stats-grid" style="margin-bottom:20px">
           <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-eye"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalImpr)}</h3><p>Impressions</p></div></div>
           <div class="stat-card"><div class="stat-icon green"><i class="fas fa-mouse-pointer"></i></div><div class="stat-info"><h3>${formatNumber(gaTotalClicks)}</h3><p>Clics</p></div></div>
@@ -5536,6 +5530,145 @@ pages['google-ads'] = async function() {
           <i class="fas fa-sync-alt"></i> Source: Windsor.ai / Google Ads — Derniere sync: ${formatDateTime(localStorage.getItem('windsor_last_sync'))}
         </div>
       `;
+
+      const rapportHtml = activeAdsTab !== 'rapport' ? '' : `
+        <div class="panel" style="margin-bottom:20px">
+          <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+            <div>
+              <h3 style="margin:0"><i class="fas fa-file-contract" style="color:var(--primary)"></i> Fix score optimisation 50,1% (-40%)</h3>
+              <div class="text-small text-muted" style="margin-top:4px"><i class="fas fa-robot"></i> Jordan Belfort &bull; <i class="fas fa-brain"></i> Opus 4.7 &bull; <i class="far fa-clock"></i> 20 avril 2026 a 17:09</div>
+            </div>
+            <span style="background:#e0a030;color:white;padding:6px 14px;border-radius:20px;font-size:0.82rem;font-weight:600"><i class="fas fa-exclamation-circle"></i> Action requise</span>
+          </div>
+          <div class="panel-body">
+            <div style="background:var(--bg);padding:16px;border-radius:var(--radius);margin-bottom:20px;border-left:4px solid var(--primary)">
+              <strong>Contexte</strong> &mdash; Capture Google Ads du 20/04 : score d'optimisation <strong>50,1%</strong> (tendance -40%). 2 recommandations Google : <em>(1) +12,6% "Ad group sans keywords"</em>, <em>(2) +10,3% "Maximize conversions"</em>. Consigne Yoann : "regle le probleme".
+            </div>
+
+            <h4 style="margin:20px 0 10px"><i class="fas fa-stethoscope"></i> Diagnostic (30 derniers jours)</h4>
+            <table class="data-table" style="margin-bottom:16px">
+              <thead><tr><th>Metrique</th><th style="text-align:right">Valeur</th><th style="text-align:right">Cible</th><th>Statut</th></tr></thead>
+              <tbody>
+                <tr><td>Depense</td><td style="text-align:right">46,76 EUR</td><td style="text-align:right">~150/mois</td><td><span style="color:var(--success);font-weight:600">OK</span></td></tr>
+                <tr><td>Impressions</td><td style="text-align:right">790</td><td style="text-align:right">-</td><td>-</td></tr>
+                <tr><td>Clics</td><td style="text-align:right">48</td><td style="text-align:right">-</td><td>-</td></tr>
+                <tr><td>CTR</td><td style="text-align:right">6,08%</td><td style="text-align:right">&ge; 4%</td><td><span style="color:var(--success);font-weight:600">Excellent</span></td></tr>
+                <tr><td>CPC moyen</td><td style="text-align:right">0,97 EUR</td><td style="text-align:right">-</td><td>-</td></tr>
+                <tr><td><strong>Conversions</strong></td><td style="text-align:right"><strong>1</strong></td><td style="text-align:right">&ge; 6/mois</td><td><span style="color:var(--danger);font-weight:600">Sous-volume critique</span></td></tr>
+                <tr><td>CPL brut</td><td style="text-align:right">46,76 EUR</td><td style="text-align:right">&le; 80 EUR</td><td><span style="color:#e67e22;font-weight:600">Warning tolerable</span></td></tr>
+              </tbody>
+            </table>
+
+            <h4 style="margin:20px 0 10px"><i class="fas fa-search"></i> Hypothese ad group vide : <span style="color:var(--primary)">Carport</span></h4>
+            <ul style="line-height:1.7">
+              <li>Budget split cible : terrasse 60% / pergola 25% / <strong>carport 15%</strong> &mdash; 3 ad groups</li>
+              <li>Search Console 30j : "carport bois" position 17, "abri voiture" position 18, <strong>0 clic</strong></li>
+              <li>Campagne unique "LPB - Search - Soissons 60km" &rarr; structure probable = 3 ad groups (terrasse/pergola/carport)</li>
+              <li>Carport = produit le plus recemment ajoute &rarr; candidat naturel a l'oubli de keywords</li>
+            </ul>
+            <div style="background:#fff3cd;border-left:4px solid #e0a030;padding:12px 16px;margin:12px 0;border-radius:4px">
+              <strong><i class="fas fa-exclamation-triangle"></i> A confirmer cote Yoann :</strong> dans Google Ads UI &rarr; LPB - Search - Soissons 60km &rarr; Groupes d'annonces, verifier quel ad group affiche 0 keyword. Plan B existe si c'est Terrasse ou Pergola.
+            </div>
+
+            <h4 style="margin:20px 0 10px"><i class="fas fa-ban" style="color:var(--danger)"></i> Maximize Conversions : <span style="color:var(--danger)">NO-GO</span></h4>
+            <ul style="line-height:1.7">
+              <li>Google exige <strong>15 conv/30j minimum</strong> (ideal 30) pour le ML smart bidding</li>
+              <li>Nous : <strong>1 conv/30j</strong> &mdash; 15x trop peu</li>
+              <li>Activer maintenant = Google explose le CPC pour apprendre = budget 150 EUR crame en &lt;10 jours</li>
+              <li><strong>NE PAS cliquer Auto-apply</strong> &mdash; Google appliquerait Max Conv et abimerait l'apprentissage</li>
+            </ul>
+            <div style="background:#d1ecf1;border-left:4px solid #3498db;padding:12px 16px;margin:12px 0;border-radius:4px">
+              <strong><i class="fas fa-lightbulb"></i> Revisite :</strong> si volume atteint 15+ conv/30j (correction ad group vide + saisonnalite printemps/ete), tester Max Conv avec tCPA = 60 EUR comme garde-fou.
+            </div>
+
+            <h4 style="margin:24px 0 12px"><i class="fas fa-tasks"></i> Plan d'action</h4>
+
+            <div class="panel" style="margin-bottom:14px;border-left:4px solid var(--danger)">
+              <div class="panel-header" style="background:#fff3f3"><h3><span style="background:var(--danger);color:white;padding:3px 10px;border-radius:4px;font-size:0.75rem;margin-right:8px">P0</span> Ajouter keywords Carport</h3></div>
+              <div class="panel-body">
+                <p style="margin:0 0 8px"><strong>Match exact</strong> (zone commerciale chaude) :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0 0 12px;overflow-x:auto">[carport bois soissons]
+[carport bois sur mesure]
+[carport bois 2 voitures]
+[carport bois aisne]
+[abri voiture bois soissons]</pre>
+
+                <p style="margin:0 0 8px"><strong>Match expression</strong> (intention qualifiee) :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0 0 12px;overflow-x:auto">"carport bois"
+"carport bois sur mesure"
+"abri voiture bois"
+"carport bois 1 voiture"
+"carport bois 2 voitures"
+"carport bois adosse"</pre>
+
+                <p style="margin:0 0 8px"><strong>Match large modifie</strong> (volume controle) :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0 0 12px;overflow-x:auto">+carport +bois +soissons
++carport +bois +aisne
++abri +voiture +bois
++carport +bois +artisan</pre>
+
+                <p style="margin:0 0 8px"><strong>Negatifs a pousser</strong> :</p>
+                <pre style="background:#f6f8fa;padding:12px;border-radius:4px;font-size:0.82rem;margin:0;overflow-x:auto">carport metal
+carport tole
+carport alu
+carport aluminium
+carport borne electrique
+carport occasion
+carport pas cher
+carport kit</pre>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-bottom:14px;border-left:4px solid #e0a030">
+              <div class="panel-header" style="background:#fff8e1"><h3><span style="background:#e0a030;color:white;padding:3px 10px;border-radius:4px;font-size:0.75rem;margin-right:8px">P1</span> Rejeter Max Conversions + desactiver Auto-apply</h3></div>
+              <div class="panel-body">
+                <ol style="line-height:1.7;margin:0">
+                  <li>Google Ads &rarr; Recommandations &rarr; "Bid more efficiently" &rarr; <strong>Dismiss</strong> (pas Apply)</li>
+                  <li>Settings &rarr; Auto-apply &rarr; <strong>desactiver</strong> "Use Maximize conversions bidding" et "Use optimized targeting"</li>
+                  <li>Garder <strong>Manual CPC</strong> tant que volume &lt; 15 conv/mois</li>
+                </ol>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-bottom:14px;border-left:4px solid #3498db">
+              <div class="panel-header" style="background:#e7f5fe"><h3><span style="background:#3498db;color:white;padding:3px 10px;border-radius:4px;font-size:0.75rem;margin-right:8px">P2</span> Surveillance post-fix (J+7)</h3></div>
+              <div class="panel-body">
+                <ul style="line-height:1.7;margin:0">
+                  <li>Volume impressions ad group Carport <strong>&gt; 50/jour</strong> ? (sinon enchere trop basse)</li>
+                  <li>CTR ad group <strong>&gt; 3%</strong> ? (sinon annonces a reecrire)</li>
+                  <li>CPL global <strong>sous 80 EUR</strong> ? (sinon ajuster match types vers plus exact)</li>
+                </ul>
+              </div>
+            </div>
+
+            <h4 style="margin:24px 0 10px"><i class="fas fa-clipboard-check"></i> 3 suggestions creees (status=pending)</h4>
+            <table class="data-table">
+              <thead><tr><th>Prio</th><th>Titre</th><th>Impact</th><th>Effort</th><th>Risque</th></tr></thead>
+              <tbody>
+                <tr><td><span style="background:var(--danger);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem">P0</span></td><td>Ajouter keywords ad group vide (probable Carport)</td><td>+12,6% score opt.</td><td>faible</td><td>faible</td></tr>
+                <tr><td><span style="background:#e0a030;color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem">P1</span></td><td>Rejeter Max Conv + desactiver Auto-apply</td><td>Protege budget 150 EUR/mois</td><td>faible</td><td>faible</td></tr>
+                <tr><td><span style="background:#3498db;color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem">P2</span></td><td>Audit structure campagne</td><td>Visibilite compte</td><td>faible</td><td>nul</td></tr>
+              </tbody>
+            </table>
+
+            <div class="text-small text-muted mt-16" style="text-align:right;font-style:italic">
+              Agent Jordan Belfort &bull; Modele Opus 4.7 &bull; Run 2026-04-20 17:09 &bull; Source Windsor.ai &rarr; Supabase
+            </div>
+          </div>
+        </div>
+      `;
+
+      content.innerHTML = adsTabsHtml + performanceHtml + rapportHtml;
+
+      content.querySelectorAll('.tabs .tab-btn[data-ads-tab]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          activeAdsTab = btn.dataset.adsTab;
+          window.__adsTabState = activeAdsTab;
+          render();
+        });
+      });
+
+      if (activeAdsTab === 'performance') {
       content.querySelector('#btn-refresh-ads')?.addEventListener('click', async () => {
         toast('Sync Google Ads...', 'warning');
         await syncGoogleAds();
@@ -5568,6 +5701,7 @@ pages['google-ads'] = async function() {
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
           });
         }
+      }
       }
     }
   }
