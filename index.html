@@ -3565,6 +3565,25 @@ async function renderLeadsConsolides(content, context) {
     return;
   }
 
+  // Filtrer les leads déjà présents dans le PRM (source='prm') pour éviter les doublons
+  try {
+    var prmC = await dbSelect('contacts');
+    var prmSirets = new Set();
+    var prmKeys = new Set();
+    prmC.forEach(function(c){
+      if (c.source !== 'prm') return;
+      var m = (c.notes||'').match(/^siret:\s*(\S+)/m);
+      if (m) prmSirets.add(m[1].trim());
+      var key = ((c.company||'').toLowerCase().trim()) + '|' + ((c.city||'').toLowerCase().trim());
+      prmKeys.add(key);
+    });
+    allLeads = allLeads.filter(function(l){
+      if (l.siret && prmSirets.has(String(l.siret).trim())) return false;
+      var k = ((l.entreprise||'').toLowerCase().trim()) + '|' + ((l.ville||'').toLowerCase().trim());
+      return !prmKeys.has(k);
+    });
+  } catch(e) { /* si echec, on affiche tout */ }
+
   var PRIO_COLORS = { A: '#e53935', B: '#fb8c00', C: '#43a047' };
   var STATUT_COLORS = { Nouveau: '#3498db', Contacté: '#9b59b6', Qualifié: '#1abc9c', Converti: '#2d6a4f', Perdu: '#e74c3c' };
 
