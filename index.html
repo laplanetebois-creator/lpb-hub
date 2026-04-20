@@ -4129,9 +4129,14 @@ window._prospectEtapeChange = async function(etape, idx) {
     return c.company === l.entreprise && c.city === (l.ville||'');
   });
 
+  var todayIso = new Date().toISOString().substring(0,10);
   function buildNotes(baseNotes) {
-    var base = (baseNotes||'').replace(/^prm_stage:\s*\S+\s*\n?/m,'').replace(/etape_prospect:\s*\S+\s*\n?/,'');
+    var base = (baseNotes||'')
+      .replace(/^prm_stage:\s*\S+\s*\n?/m,'')
+      .replace(/^stage_since:\s*\S+\s*\n?/m,'')
+      .replace(/etape_prospect:\s*\S+\s*\n?/,'');
     var header = 'prm_stage: '+etape+'\n'
+      + 'stage_since: '+todayIso+'\n'
       + (l.siret && !base.includes('siret:') ? 'siret: '+l.siret+'\n' : '')
       + (l.categorie && !base.includes('categorie:') ? 'categorie: '+l.categorie+'\n' : '')
       + (l.priorite && !base.includes('priorite:') ? 'priorite: '+l.priorite+'\n' : '')
@@ -4155,14 +4160,6 @@ window._prospectEtapeChange = async function(etape, idx) {
   }
 
   toast('📌 Ajouté au PRM — étape : '+etape,'success');
-
-  // Rappel automatique J+5 quand on passe en NRP1
-  if (etape === 'nrp1' && cid) {
-    var d = new Date(); d.setDate(d.getDate()+5);
-    var dateJ5 = d.toISOString().substring(0,10);
-    await dbInsert('planning',{title:'Relance NRP1 — '+(l.entreprise||l.contact||'Prospect'),start_date:dateJ5,type:'rappel',status:'planifie',contact_id:cid,notes:'Relance automatique NRP1'});
-    toast('📅 Rappel J+5 créé pour le '+new Date(dateJ5).toLocaleDateString('fr-FR',{day:'numeric',month:'long'}),'success');
-  }
 };
 
 // Sauvegarder étape + remarque dans un shadow contact Supabase
@@ -8273,7 +8270,18 @@ pages.prm = async function(subTab) {
                 var prio = getPrmField(c, 'priorite');
                 var score = getPrmField(c, 'score');
                 var cat = getPrmField(c, 'categorie');
+                var stageSince = getPrmField(c, 'stage_since');
                 var prioCol = prio==='A'?'#e53935':prio==='B'?'#fb8c00':'#43a047';
+                var daysIn = '';
+                if (stageSince) {
+                  var d0 = new Date(stageSince);
+                  if (!isNaN(d0)) {
+                    var nb = Math.max(0, Math.floor((Date.now() - d0.getTime()) / 86400000));
+                    var ageCol = nb >= 7 ? '#e53935' : nb >= 3 ? '#fb8c00' : '#888';
+                    var lbl = nb === 0 ? 'aujourd\'hui' : nb === 1 ? 'depuis 1 jour' : 'depuis ' + nb + ' jours';
+                    daysIn = '<div style="font-size:0.68rem;color:' + ageCol + ';margin-top:4px;font-weight:600"><i class="far fa-clock"></i> ' + lbl + '</div>';
+                  }
+                }
                 return '<div class="deal-card" draggable="true" data-prm-id="' + c.id + '" onclick="window.prmView(\'' + c.id + '\')" style="position:relative;cursor:pointer">' +
                   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
                     '<div class="avatar-sm" style="width:28px;height:28px;font-size:0.65rem">' + avatarHtml(c) + '</div>' +
@@ -8285,6 +8293,7 @@ pages.prm = async function(subTab) {
                   '</div>' +
                   (cat ? '<div style="font-size:0.72rem;color:var(--text-light);margin-top:3px"><i class="fas fa-tag"></i> ' + escHtml(cat) + '</div>' : '') +
                   (score ? '<div style="font-size:0.78rem;font-weight:700;color:var(--primary);margin-top:4px">Score : ' + escHtml(score) + '</div>' : '') +
+                  daysIn +
                   '<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--text-light);margin-top:6px">' +
                     (c.phone ? '<a href="tel:' + c.phone.replace(/\s/g,'') + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-phone"></i></a>' : '<span></span>') +
                     (c.email ? '<a href="mailto:' + escHtml(c.email) + '" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-envelope"></i></a>' : '<span></span>') +
@@ -8320,8 +8329,15 @@ pages.prm = async function(subTab) {
         if (!cId || !newStage) return;
         var c = prmContacts.find(function(x){ return x.id === cId; });
         if (!c) return;
+        var todayIso = new Date().toISOString().substring(0,10);
         var newNotes = (c.notes||'').replace(/^prm_stage:\s*\S+/m, 'prm_stage: '+newStage);
         if (!(c.notes||'').match(/^prm_stage:/m)) newNotes = 'prm_stage: '+newStage+'\n'+(c.notes||'');
+        // Mettre à jour stage_since à chaque changement de colonne
+        if (newNotes.match(/^stage_since:/m)) {
+          newNotes = newNotes.replace(/^stage_since:\s*\S+/m, 'stage_since: '+todayIso);
+        } else {
+          newNotes = newNotes.replace(/^prm_stage:\s*\S+\s*\n?/m, function(m){ return m + 'stage_since: '+todayIso+'\n'; });
+        }
         await dbUpdate('contacts', cId, { notes: newNotes });
         c.notes = newNotes;
         toast('Déplacé vers ' + newStage.replace(/_/g,' '));
