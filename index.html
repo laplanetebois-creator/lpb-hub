@@ -3792,7 +3792,7 @@ window.prospectView = async function(idx) {
   var existingContactId = existing ? existing.id : null;
   var existingNotes = existing ? (existing.notes||'') : '';
   var etapeMatch = existingNotes.match(/etape_prospect:\s*(\S+)/);
-  var existingEtape = etapeMatch ? etapeMatch[1] : 'nrp1';
+  var existingEtape = etapeMatch ? etapeMatch[1] : 'a_appeler';
   var remarqueMatch = existingNotes.match(/remarque_prospect:\s*([\s\S]*?)(?=\n\w|$)/);
   var existingRemarque = remarqueMatch ? remarqueMatch[1].trim() : '';
   var rappels = [];
@@ -3802,6 +3802,7 @@ window.prospectView = async function(idx) {
     rappels.sort(function(a,b){ return (a.start_date||'') < (b.start_date||'') ? -1 : 1; });
   }
   var ETAPE_OPTIONS = [
+    {key:'a_appeler',     label:'À appeler',           color:'#3498db'},
     {key:'nrp1',          label:'NRP 1',               color:'#e67e22'},
     {key:'nrp2',          label:'NRP 2',               color:'#e74c3c'},
     {key:'contacte',      label:'Contacté',            color:'#9b59b6'},
@@ -4240,22 +4241,25 @@ window._prospectEtapeChange = async function(etape, idx) {
     return header + base.trim();
   }
 
+  // a_appeler = reste dans Leads consolidés (pas de doublon avec PRM)
+  var targetSource = (etape === 'a_appeler') ? 'prospect_consolide' : 'prm';
+
   var cid;
   if (ex) {
-    await dbUpdate('contacts', ex.id, { source:'prm', notes: buildNotes(ex.notes) });
+    await dbUpdate('contacts', ex.id, { source: targetSource, notes: buildNotes(ex.notes) });
     cid = ex.id;
   } else {
     var np = (l.contact||l.entreprise||'Prospect').split(' ');
     var r = await dbInsert('contacts',{
       first_name:np[0]||'Prospect', last_name:np.slice(1).join(' ')||'',
       company:l.entreprise||'', phone:l.telephone||'', email:l.email||'',
-      city:l.ville||'', source:'prm', status:'prospect',
+      city:l.ville||'', source: targetSource, status:'prospect',
       notes: buildNotes('')
     });
     cid = r && r.id ? r.id : null;
   }
 
-  toast('📌 Ajouté au PRM — étape : '+etape,'success');
+  toast(etape === 'a_appeler' ? '📋 Lead marqué « À appeler »' : '📌 Ajouté au PRM — étape : '+etape, 'success');
 };
 
 // Sauvegarder étape + remarque dans un shadow contact Supabase
@@ -4299,7 +4303,7 @@ window._prospectAddRappel = async function(idx) {
   var contactId = existing ? existing.id : null;
   if (!contactId) {
     var np = (l.contact||l.entreprise||'Prospect').split(' ');
-    var r = await dbInsert('contacts',{first_name:np[0]||'Prospect',last_name:np.slice(1).join(' ')||'',company:l.entreprise||'',phone:l.telephone||'',email:l.email||'',city:l.ville||'',source:'prospect_consolide',status:'prospect',notes:(l.siret?'siret: '+l.siret+'\n':'')+'etape_prospect: nrp1'});
+    var r = await dbInsert('contacts',{first_name:np[0]||'Prospect',last_name:np.slice(1).join(' ')||'',company:l.entreprise||'',phone:l.telephone||'',email:l.email||'',city:l.ville||'',source:'prospect_consolide',status:'prospect',notes:(l.siret?'siret: '+l.siret+'\n':'')+'etape_prospect: a_appeler'});
     contactId = r && r.id ? r.id : null;
   }
   if (!contactId) { toast('Erreur','error'); return; }
