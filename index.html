@@ -3739,7 +3739,20 @@ async function renderLeadsConsolides(content, context) {
 
     // Filters
     var srch = content.querySelector('#lc-search');
-    if (srch) srch.addEventListener('input', function(){ searchQ=srch.value; render(); });
+    if (srch) {
+      // Restaure focus et position curseur après chaque re-render
+      if (searchQ) {
+        srch.focus();
+        var vv = srch.value;
+        srch.setSelectionRange(vv.length, vv.length);
+      }
+      var _tLc;
+      srch.addEventListener('input', function(){
+        var val = srch.value;
+        clearTimeout(_tLc);
+        _tLc = setTimeout(function(){ searchQ = val; render(); }, 150);
+      });
+    }
     var catSel = content.querySelector('#lc-cat');
     if (catSel) catSel.addEventListener('change', function(){ filterCat=catSel.value; render(); });
     var statSel = content.querySelector('#lc-statut');
