@@ -3931,97 +3931,99 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
   var cat = (categorie||'').toLowerCase();
   var sig = '\n\nCordialement,\nYoann — La Planète Bois\n📞 06 47 61 69 19\n🌐 www.laplanetebois.fr';
 
+  var p = prenom.split(' ')[0];
+
   var generiques = [
     {
       id:'g_premier',
       emoji:'👋',
-      nom:'Premier contact',
-      sujet:'La Planète Bois — Fourniture bois pour vos chantiers',
-      corps:'Bonjour '+prenom.split(' ')[0]+',\n\nJe me permets de vous contacter car nous accompagnons de nombreux professionnels du bâtiment dans leur approvisionnement en bois (charpente, bardage, ossature, panneaux...).\n\nLa Planète Bois, c\'est :\n• Des prix compétitifs et un stock disponible immédiatement\n• La livraison sur chantier possible\n• Un interlocuteur dédié à votre service\n\nSeriez-vous disponible cette semaine pour un échange rapide de 10 min ?' + sig
+      nom:'Premier contact — Partenariat',
+      sujet:'La Planète Bois — Partenariat terrasses, pergolas & extensions bois',
+      corps:'Bonjour '+p+',\n\nJe me permets de vous contacter car votre activité nous semble complémentaire à la nôtre.\n\nLa Planète Bois conçoit et installe pour des particuliers :\n• Terrasses bois (pin CL4, cumaru, ipé, composite)\n• Pergolas (bois et aluminium)\n• Extensions, surélévations, chalets et maisons bois\n\nNous travaillons déjà avec plusieurs partenaires qui nous confient leurs clients sur ces prestations, et je pense qu\'un échange rapide pourrait être utile à nos deux activités.\n\nAuriez-vous 10 minutes cette semaine ?' + sig
     },
     {
       id:'g_relance1',
       emoji:'🔔',
       nom:'Relance douce',
-      sujet:'Suite à notre prise de contact — La Planète Bois',
-      corps:'Bonjour '+prenom.split(' ')[0]+',\n\nJe reviens vers vous suite à mon précédent message.\n\nSi vous avez des chantiers en cours ou à venir nécessitant de la fourniture bois, nous serions ravis d\'échanger avec vous. Je peux vous préparer un devis rapidement.\n\nUn appel de quelques minutes suffit. À votre convenance ?' + sig
+      sujet:'Suite à mon message — La Planète Bois',
+      corps:'Bonjour '+p+',\n\nJe me permets de revenir vers vous suite à mon précédent message.\n\nSi vos clients expriment parfois un besoin de terrasse, pergola ou extension bois, nous pouvons intervenir en sous-traitance ou en apporteur d\'affaires réciproque.\n\nUn simple appel de quelques minutes suffit pour en discuter. À votre convenance ?' + sig
     },
     {
       id:'g_devis',
       emoji:'📋',
-      nom:'Proposition devis',
-      sujet:'Devis fourniture bois — La Planète Bois',
-      corps:'Bonjour '+prenom.split(' ')[0]+',\n\nSuite à notre échange, je vous transmets ci-joint notre proposition tarifaire pour votre prochain approvisionnement.\n\nN\'hésitez pas à me faire part de vos retours ou à me contacter si vous souhaitez ajuster la commande.' + sig
+      nom:'Chiffrage projet client',
+      sujet:'Chiffrage terrasse / pergola — La Planète Bois',
+      corps:'Bonjour '+p+',\n\nSuite à notre échange, je reviens vers vous pour le projet de votre client.\n\nPouvez-vous me transmettre les éléments suivants afin que je prépare le devis :\n• Surface approximative\n• Essence souhaitée (pin CL4, cumaru, composite…)\n• Accessibilité du chantier et délai envisagé\n\nJe vous reviens avec une proposition sous 48h.' + sig
     }
   ];
 
   var parMetier = {
-    charpent: [
+    paysag: [
       {
-        id:'c_offre_charpente',
-        emoji:'🪵',
-        nom:'Offre bois de charpente',
-        sujet:'Bois de charpente — Stocks disponibles | La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous disposons en permanence d\'un large stock de bois de charpente : sapin/épicéa C24, Douglas, bois lamellé-collé, fermettes sur mesure...\n\nNos avantages pour les charpentiers :\n• Bois séché en chambre, humidité garantie < 18%\n• Sciage sur mesure disponible\n• Livraison sur chantier dans un délai de 48h\n• Tarifs chantier adaptés aux professionnels\n\nUn prochain chantier en vue ? Envoyez-moi vos métrés, je vous fais une offre dans la journée.' + sig
+        id:'pa_partenariat',
+        emoji:'🌿',
+        nom:'Partenariat paysagiste',
+        sujet:'Partenariat paysagiste — Terrasses & pergolas bois',
+        corps:'Bonjour '+p+',\n\nEn tant que paysagiste, vous êtes régulièrement sollicité par des clients pour des terrasses bois ou des pergolas — des prestations que nous réalisons quotidiennement chez La Planète Bois.\n\nNous proposons aux paysagistes :\n• Sous-traitance clé en main de la partie terrasse/pergola\n• Commission sur apport d\'affaires si vous préférez transmettre\n• Intervention rapide, chantier propre, garantie décennale\n\nNotre ticket moyen se situe entre 4k€ et 15k€. Un échange rapide pour voir si ça vous intéresse ?' + sig
       },
       {
-        id:'c_tarif_saison',
-        emoji:'📅',
-        nom:'Tarifs saison charpente',
-        sujet:'Tarifs bois charpente saison '+new Date().getFullYear()+' — La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous actualisons nos tarifs pour la saison et je souhaitais vous en informer en priorité.\n\nPour vos approvisionnements en bois de charpente cette année, nous proposons :\n• Tarif professionnel dégressif selon volume\n• Commande groupée possible pour optimiser vos coûts\n• Carte d\'abonnement chantier disponible\n\nJe reste disponible pour en discuter à votre convenance.' + sig
-      }
-    ],
-    menuiser: [
-      {
-        id:'m_panneaux',
-        emoji:'🪵',
-        nom:'Offre panneaux & bois d\'œuvre',
-        sujet:'Panneaux & bois d\'œuvre | La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous proposons une gamme complète pour la menuiserie :\n• Panneaux MDF, aggloméré, contreplaqué (toutes épaisseurs)\n• Bois massif rabotés : chêne, pin, hêtre, peuplier\n• Bois d\'ossature et de structure\n• Découpe sur mesure possible sur devis\n\nNous livrons directement en atelier ou sur chantier.\nUn devis en 24h sur présentation de vos besoins.' + sig
-      },
-      {
-        id:'m_essences',
-        emoji:'🌳',
-        nom:'Catalogue essences disponibles',
-        sujet:'Nos essences de bois disponibles — La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nJe me permets de vous partager nos essences disponibles en stock :\n\nBOIS RÉSINEUX : Pin sylvestre · Épicéa · Sapin · Douglas\nBOIS FEUILLUS : Chêne · Hêtre · Frêne · Peuplier · Châtaignier\nBOIS EXOTIQUES : Merbau · Ipé · Padouk (sur commande)\n\nTous nos bois sont traçables et issus de forêts gérées durablement (PEFC/FSC).\n\nSouhaitez-vous recevoir notre tarif professionnel ?' + sig
-      }
-    ],
-    couvreur: [
-      {
-        id:'cv_volige',
-        emoji:'🏠',
-        nom:'Offre volige & liteaux',
-        sujet:'Volige, liteaux, chevrons | La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nPour vos chantiers de toiture, nous proposons :\n• Volige sapin/épicéa (18/22 mm) — en stock\n• Liteaux et contre-liteaux (toutes sections)\n• Chevrons traités autoclave CL2\n• Bois de sous-face et habillage\n\nExpédition ou livraison sur chantier possible rapidement.\nDites-moi vos besoins, je vous fais un devis immédiatement.' + sig
-      }
-    ],
-    construct: [
-      {
-        id:'cn_partenariat',
+        id:'pa_cotraitance',
         emoji:'🤝',
-        nom:'Partenariat approvisionnement',
-        sujet:'Partenariat fourniture bois — La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous accompagnons plusieurs constructeurs dans leur approvisionnement bois sur l\'ensemble de leurs chantiers.\n\nCe que nous pouvons vous proposer :\n• Un compte professionnel dédié avec tarifs négociés\n• Appro régulier planifié selon votre carnet de commandes\n• Interlocuteur commercial unique pour tous vos sites\n• Délais de paiement adaptés\n\nUn échange de 20 min suffit pour voir si nous pouvons travailler ensemble.' + sig
+        nom:'Co-traitance chantier',
+        sujet:'Co-traitance sur vos projets extérieurs',
+        corps:'Bonjour '+p+',\n\nNous cherchons à développer des partenariats avec quelques paysagistes sérieux dans votre secteur.\n\nConcrètement, vous gardez la relation client et la partie aménagement végétal, nous prenons en charge la terrasse bois, la pergola ou l\'abri. Le client a un seul interlocuteur (vous) et un chantier coordonné.\n\nSi cette logique vous parle, un café ou un appel de 15 min pour se présenter ?' + sig
       }
     ],
     architect: [
       {
-        id:'a_solutions',
+        id:'ar_projet',
         emoji:'📐',
-        nom:'Solutions bois pour vos projets',
-        sujet:'Fourniture bois pour vos projets — La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nLa Planète Bois accompagne des architectes sur la fourniture bois de leurs projets :\n• Bois structurel (GL, BLC, CLT sur devis)\n• Bardage bois (douglas, mélèze, thermotraité)\n• Terrasse bois (ipé, pin traité, composite bois)\n• Bois d\'habillage intérieur\n\nNous pouvons intervenir dès la phase APD pour vous aider à chiffrer les matériaux. Seriez-vous disponible pour en discuter ?' + sig
+        nom:'Entreprise bois partenaire',
+        sujet:'Entreprise de pose bois pour vos projets — La Planète Bois',
+        corps:'Bonjour '+p+',\n\nJe me permets de me présenter : La Planète Bois, entreprise spécialisée dans la construction bois :\n• Extensions et surélévations (MOB, poteau-poutre)\n• Chalets et petites maisons bois\n• Terrasses et pergolas haut de gamme\n\nNous pouvons intervenir dès la phase APD pour chiffrer précisément le lot bois de vos projets, ou en entreprise générale sur la part construction bois.\n\nSeriez-vous disponible pour échanger sur vos projets en cours ?' + sig
+      },
+      {
+        id:'ar_chiffrage',
+        emoji:'📊',
+        nom:'Chiffrage lot bois',
+        sujet:'Chiffrage lot construction bois — La Planète Bois',
+        corps:'Bonjour '+p+',\n\nSi vous avez un projet en cours nécessitant un chiffrage sur la partie construction bois (extension, terrasse structurelle, pergola, ossature…), je peux vous transmettre une estimation sous 48h à 72h.\n\nEnvoyez-moi simplement les plans ou l\'esquisse, je m\'occupe du reste.' + sig
       }
     ],
-    agricult: [
+    construct: [
       {
-        id:'ag_hangar',
-        emoji:'🚜',
-        nom:'Offre charpente hangar agricole',
-        sujet:'Bois pour hangar & bâtiment agricole | La Planète Bois',
-        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nPour la construction ou la réfection de vos bâtiments agricoles, nous proposons :\n• Bois de charpente grande portée\n• Poteaux et traverses traités CL4\n• Bardage bois pour façades agricoles\n• Panneaux de contreventement\n\nNous livrons sur l\'exploitation. Envoyez-moi vos dimensions, je vous prépare un devis complet.' + sig
+        id:'cn_soustraitance',
+        emoji:'🏗️',
+        nom:'Sous-traitance lot bois',
+        sujet:'Sous-traitance terrasses & extensions bois',
+        corps:'Bonjour '+p+',\n\nEn tant que constructeur, vous avez probablement des clients qui demandent une terrasse, une pergola ou une extension bois en plus de leur maison.\n\nNous intervenons en sous-traitance pour plusieurs constructeurs :\n• Terrasses bois livrées avec la maison\n• Pergolas adossées\n• Extensions et surélévations en ossature bois\n\nTravail propre, délais tenus, assurance décennale. Un échange pour voir comment on pourrait travailler ensemble ?' + sig
+      }
+    ],
+    piscin: [
+      {
+        id:'pi_terrasse',
+        emoji:'🏊',
+        nom:'Plages de piscine bois',
+        sujet:'Plages de piscine & terrasses bois — Partenariat',
+        corps:'Bonjour '+p+',\n\nVos clients piscine ont presque systématiquement besoin d\'une plage ou d\'une terrasse bois autour du bassin — c\'est notre cœur de métier.\n\nNous réalisons des plages de piscine en :\n• Pin CL4 (entrée de gamme)\n• Cumaru / ipé (haut de gamme, longue durée)\n• Composite bois (sans entretien)\n\nLambourdes aluminium, plots réglables, saturateur, finitions pro. Moyenne 30m² → 4k-5k€ TTC.\n\nOn peut se caler un échange rapide pour voir comment travailler ensemble ?' + sig
+      }
+    ],
+    immob: [
+      {
+        id:'im_valorisation',
+        emoji:'🏡',
+        nom:'Valorisation bien immobilier',
+        sujet:'Valorisation vos biens — Terrasse & extension bois',
+        corps:'Bonjour '+p+',\n\nUne terrasse bois ou une extension peut faire gagner 5 à 15 % sur la valeur d\'un bien — c\'est un argument de vente puissant pour vos clients vendeurs ou acquéreurs.\n\nNous proposons aux agents immobiliers :\n• Chiffrage rapide et gratuit d\'un projet terrasse/extension\n• Visite sur place avec votre client si besoin\n• Commission d\'apport sur chaque chantier signé\n\nSouhaitez-vous qu\'on échange là-dessus ?' + sig
+      }
+    ],
+    decor: [
+      {
+        id:'de_terrasse',
+        emoji:'✨',
+        nom:'Terrasses & pergolas haut de gamme',
+        sujet:'Partenariat décoration extérieure — La Planète Bois',
+        corps:'Bonjour '+p+',\n\nVos clients en rénovation ou aménagement demandent souvent une terrasse bois, une pergola ou un espace extérieur design.\n\nNous réalisons ces prestations sur mesure avec des matériaux haut de gamme (cumaru, ipé, aluminium structurel) et un vrai soin des finitions.\n\nJe serais ravi d\'échanger sur une collaboration — apport d\'affaires, sous-traitance ou simplement mise en relation au coup par coup.' + sig
       }
     ]
   };
