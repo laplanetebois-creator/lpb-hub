@@ -3833,7 +3833,18 @@ window.prospectView = async function(idx) {
   var statutCol = STATUT_COLORS[l.statut] || '#78909c';
   var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
 
+  var total = (window._lcAllLeads||[]).length;
+  var prevIdx = (idx - 1 + total) % total;
+  var nextIdx = (idx + 1) % total;
+
   body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <div style="font-size:0.78rem;color:var(--text-light);font-weight:600"><i class="fas fa-list"></i> Lead ${idx+1} / ${total}</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="window.prospectView(${prevIdx})" class="btn btn-sm btn-outline" title="Lead précédent"${total<=1?' disabled':''}><i class="fas fa-chevron-left"></i> Précédent</button>
+        <button onclick="window.prospectView(${nextIdx})" class="btn btn-sm btn-primary" title="Lead suivant"${total<=1?' disabled':''}>Suivant <i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap">
       <!-- LEFT -->
       <div style="flex:1;min-width:280px">
