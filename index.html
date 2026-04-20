@@ -2334,7 +2334,7 @@ function autoSyncWindsor() {
 // ============================================
 // EMAIL COMPOSE
 // ============================================
-window.emailCompose = function(to, contactName, dealId, contactId) {
+window.emailCompose = function(to, contactName, dealId, contactId, tplSubject, tplBody) {
   var overlay = document.getElementById('email-compose-overlay');
   if (!overlay) return;
 
@@ -2346,8 +2346,8 @@ window.emailCompose = function(to, contactName, dealId, contactId) {
   var logCheck = document.getElementById('ec-log-activity');
 
   if (toInput) toInput.value = to || '';
-  if (subjectInput) subjectInput.value = contactName ? 'La Planète Bois — ' + contactName : 'La Planète Bois';
-  if (bodyInput) bodyInput.value = (contactName ? 'Bonjour ' + contactName.split(' ')[0] + ',\n\n' : 'Bonjour,\n\n') + '\n\nCordialement,\nL\'équipe La Planète Bois\n+33 3 23 53 17 78\nwww.laplanetebois.fr';
+  if (subjectInput) subjectInput.value = tplSubject || (contactName ? 'La Planète Bois — ' + contactName : 'La Planète Bois');
+  if (bodyInput) bodyInput.value = tplBody || ((contactName ? 'Bonjour ' + contactName.split(' ')[0] + ',\n\n' : 'Bonjour,\n\n') + '\n\nCordialement,\nL\'équipe La Planète Bois\n+33 3 23 53 17 78\nwww.laplanetebois.fr');
 
   overlay.style.display = 'flex';
 
@@ -3894,6 +3894,20 @@ window.prospectView = async function(idx) {
           </div>
           <div id="prospect-rappels-list">${rappelsHtml}</div>
         </div>
+
+        <!-- MAILS TYPES -->
+        ${l.email ? `<div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-paper-plane"></i> Mails types</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${(window._getMailTemplates(l.categorie||'', l.contact||l.entreprise||'', l.entreprise||'')).map(function(t){
+              return '<button onclick="window._prospectOpenMailTpl('+idx+',\''+t.id+'\')" style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;transition:background 0.15s" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'var(--bg)\'">'
+                +'<span style="font-size:1rem">'+t.emoji+'</span>'
+                +'<div style="flex:1;min-width:0"><div style="font-size:0.85rem;font-weight:600;color:var(--text)">'+escHtml(t.nom)+'</div><div style="font-size:0.75rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(t.sujet)+'</div></div>'
+                +'<i class="fas fa-chevron-right" style="color:var(--text-light);font-size:0.75rem;flex-shrink:0"></i>'
+              +'</button>';
+            }).join('')}
+          </div>
+        </div>` : ''}
 
         <div class="panel" style="padding:14px">
           <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:12px"><i class="fas fa-rocket"></i> Actions</div>
