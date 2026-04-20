@@ -3911,6 +3911,128 @@ window.prospectView = async function(idx) {
   popup.onclick = function(e) { if (e.target === popup) popup.style.display = 'none'; };
 };
 
+// NRP1 → crée automatiquement un rappel à J+5
+window._prospectEtapeChange = async function(etape, idx) {
+  var sel = document.querySelector('#prospect-etape-select');
+  var ETAPE_COLORS = {a_identifier:'#78909c',a_contacter:'#3498db',contacte:'#9b59b6',nrp1:'#e67e22',nrp2:'#e74c3c',en_discussion:'#2ecc71',qualifie:'#1abc9c',converti:'#27ae60',perdu:'#78909c'};
+  if (sel) sel.style.borderColor = ETAPE_COLORS[etape] || '#3498db';
+  if (etape === 'nrp1') {
+    var l = (window._lcAllLeads || [])[idx];
+    if (!l) return;
+    var d = new Date(); d.setDate(d.getDate()+5);
+    var dateJ5 = d.toISOString().substring(0,10);
+    var allC = await dbSelect('contacts');
+    var ex = allC.find(function(c){
+      if (c.source !== 'prospect_consolide' && c.source !== 'prm') return false;
+      if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+      return c.company === l.entreprise && c.city === (l.ville||'');
+    });
+    var cid = ex ? ex.id : null;
+    if (!cid) {
+      var np = (l.contact||l.entreprise||'Prospect').split(' ');
+      var r = await dbInsert('contacts',{first_name:np[0]||'Prospect',last_name:np.slice(1).join(' ')||'',company:l.entreprise||'',phone:l.telephone||'',email:l.email||'',city:l.ville||'',source:'prospect_consolide',status:'prospect',notes:(l.siret?'siret: '+l.siret+'\n':'')+'etape_prospect: nrp1'});
+      cid = r && r.id ? r.id : null;
+    }
+    if (cid) {
+      await dbInsert('planning',{title:'Relance NRP1 — '+(l.entreprise||l.contact||'Prospect'),start_date:dateJ5,type:'rappel',status:'planifie',contact_id:cid,notes:'Relance automatique NRP1'});
+      toast('📅 Rappel de relance créé pour le '+new Date(dateJ5).toLocaleDateString('fr-FR',{day:'numeric',month:'long'}),'success');
+    }
+  }
+};
+
+// Sauvegarder étape + remarque dans un shadow contact Supabase
+window._prospectSaveExtras = async function(idx) {
+  var l = (window._lcAllLeads||[])[idx]; if (!l) return;
+  var btn = document.querySelector('#prospect-save-btn');
+  var ta  = document.querySelector('#prospect-remarque-ta');
+  var sel = document.querySelector('#prospect-etape-select');
+  if (!ta||!sel) return;
+  var remarque = ta.value.trim(), etape = sel.value;
+  if (btn) { btn.disabled=true; btn.textContent='Enregistrement...'; }
+  var allContacts = await dbSelect('contacts');
+  var existing = allContacts.find(function(c){
+    if (c.source !== 'prospect_consolide' && c.source !== 'prm') return false;
+    if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+    return c.company === l.entreprise && c.city === (l.ville||'');
+  });
+  function rebuildNotes(base, etape, remarque) {
+    base = (base||'').replace(/etape_prospect:\s*\S+/,'').replace(/remarque_prospect:[\s\S]*?(\n(?=\w)|$)/,'$1').trim();
+    return base + (base?'\n':'') + 'etape_prospect: '+etape + (remarque ? '\nremarque_prospect: '+remarque : '');
+  }
+  if (existing) {
+    await dbUpdate('contacts', existing.id, {notes: rebuildNotes(existing.notes, etape, remarque)});
+  } else {
+    var np = (l.contact||l.entreprise||'Prospect').split(' ');
+    await dbInsert('contacts',{first_name:np[0]||'Prospect',last_name:np.slice(1).join(' ')||'',company:l.entreprise||'',phone:l.telephone||'',email:l.email||'',city:l.ville||'',source:'prospect_consolide',status:'prospect',notes:rebuildNotes(l.siret?'siret: '+l.siret:'', etape, remarque)});
+  }
+  if (btn) { btn.disabled=false; btn.textContent='Enregistré !'; setTimeout(function(){ btn.textContent='Enregistrer'; }, 2000); }
+  toast('✅ Enregistré','success');
+};
+
+// Ouvrir un mini formulaire pour ajouter un rappel
+window._prospectAddRappel = async function(idx) {
+  var l = (window._lcAllLeads||[])[idx]; if (!l) return;
+  var allContacts = await dbSelect('contacts');
+  var existing = allContacts.find(function(c){
+    if (c.source !== 'prospect_consolide' && c.source !== 'prm') return false;
+    if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+    return c.company === l.entreprise && c.city === (l.ville||'');
+  });
+  var contactId = existing ? existing.id : null;
+  if (!contactId) {
+    var np = (l.contact||l.entreprise||'Prospect').split(' ');
+    var r = await dbInsert('contacts',{first_name:np[0]||'Prospect',last_name:np.slice(1).join(' ')||'',company:l.entreprise||'',phone:l.telephone||'',email:l.email||'',city:l.ville||'',source:'prospect_consolide',status:'prospect',notes:(l.siret?'siret: '+l.siret+'\n':'')+'etape_prospect: a_contacter'});
+    contactId = r && r.id ? r.id : null;
+  }
+  if (!contactId) { toast('Erreur','error'); return; }
+  var today = new Date().toISOString().substring(0,10);
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:var(--card);border-radius:16px;padding:28px;width:380px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.3)';
+  card.innerHTML = '<h4 style="margin:0 0 16px"><i class="fas fa-bell" style="color:var(--primary)"></i> Rappel — '+escHtml(l.entreprise||l.contact||'Prospect')+'</h4>'
+    +'<label style="font-size:0.82rem;font-weight:600">Titre</label>'
+    +'<input id="prappel-title" type="text" placeholder="Ex: Rappeler" style="width:100%;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Date</label><input id="prappel-date" type="date" value="'+today+'" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'<div><label style="font-size:0.82rem;font-weight:600">Heure</label><input id="prappel-time" type="time" style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.85rem;background:var(--bg);color:var(--text);box-sizing:border-box"></div>'
+    +'</div>'
+    +'<label style="font-size:0.82rem;font-weight:600">Type</label>'
+    +'<select id="prappel-type" style="width:100%;margin:4px 0 14px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    +'<option value="rappel">Rappel</option><option value="tache">Tâche</option><option value="rdv">RDV</option><option value="autre">Autre</option>'
+    +'</select>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="prappel-save" onclick="window._prospectSaveRappel('+idx+',\''+contactId+'\')" class="btn btn-primary" style="flex:1"><i class="fas fa-check"></i> Créer</button>'
+    +'<button onclick="this.closest(\'[style*=z-index]\').remove()" class="btn btn-outline" style="flex:1">Annuler</button>'
+    +'</div>';
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  ov.onclick = function(e){ if(e.target===ov) ov.remove(); };
+  setTimeout(function(){ var t=document.getElementById('prappel-title'); if(t) t.focus(); }, 50);
+  window._currentRappelOverlay = ov;
+};
+
+window._prospectSaveRappel = async function(idx, contactId) {
+  var title = (document.getElementById('prappel-title')||{}).value||'';
+  var date  = (document.getElementById('prappel-date')||{}).value||'';
+  var time  = (document.getElementById('prappel-time')||{}).value||'';
+  var type  = (document.getElementById('prappel-type')||{}).value||'rappel';
+  if (!title.trim()) { toast('Titre requis','error'); return; }
+  if (!date) { toast('Date requise','error'); return; }
+  var btn = document.getElementById('prappel-save');
+  if (btn) { btn.disabled=true; }
+  await dbInsert('planning',{title:title.trim(),start_date:date,start_time:time||null,type:type,status:'planifie',contact_id:contactId});
+  if (window._currentRappelOverlay) window._currentRappelOverlay.remove();
+  toast('✅ Rappel créé !','success');
+  window.prospectView(idx);
+};
+
+window._prospectPlanDone = async function(evId, idx) {
+  await dbUpdate('planning', evId, {status:'termine'});
+  toast('✅ Rappel terminé','success');
+  window.prospectView(idx);
+};
+
 window._prospectToPRM = async function(idx) {
   var l = (window._lcAllLeads || [])[idx];
   if (!l) return;
