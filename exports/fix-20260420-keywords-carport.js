@@ -19,7 +19,7 @@
 // CONFIG
 // =========================================================
 var CAMPAIGN_NAME = 'LPB - Search - Soissons 60km';
-var AD_GROUP_NAME = 'Carport';
+var AD_GROUP_NAME = 'Carport Bois';
 
 var KEYWORDS_EXACT = [
   'carport bois soissons',
