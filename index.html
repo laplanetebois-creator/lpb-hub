@@ -6365,6 +6365,31 @@ pages.seo = async function() {
     else if (activeTab === 'rapports') {
       const rapports = [
         {
+          date: '2026-04-20',
+          status: 'green',
+          title: 'Rapport Jour J — Fix Ads Carport + Post GMB Chateau-Thierry',
+          summary: 'Double action marketing le 2026-04-20 : activation de 15 mots-cles sur l\'ad group Carport Bois (score d\'optimisation 50.1 % -> 76.5 %) et publication d\'un post GMB sur le chantier Chateau-Thierry. Les deux canaux envoient le meme signal geographique a Google au meme moment.',
+          metrics: [
+            { label: 'Score Ads (Carport)', value: '76.5 %', icon: 'fa-gauge-high', color: 'var(--success)' },
+            { label: 'Mots-cles ajoutes', value: '15', icon: 'fa-key', color: 'var(--success)' },
+            { label: 'Negatifs ajoutes', value: '8', icon: 'fa-ban', color: 'var(--info)' },
+            { label: 'Post GMB publie', value: '1', icon: 'fa-bullhorn', color: 'var(--success)' }
+          ],
+          quickWins: [
+            'Correlation paye + organique : memes requetes locales ("carport bois Chateau-Thierry") activees sur les deux canaux le meme jour',
+            'Post GMB axe SEO local (758 caracteres, densite geo optimisee, CTA homepage laplanetebois.fr)',
+            'Bid strategy Carport Bois passee de Maximize clicks (TARGET_SPEND) a CPC manuel pour reprendre le controle des encheres',
+            'Recommandation Maximize Conversions rejetee (zero historique de conversions) : choix defendu par les chiffres, pas par l\'algorithme'
+          ],
+          actions: [
+            { priority: 'P0', text: '[Fait] Ajouter 15 mots-cles (5 exact / 6 phrase / 4 broad) et 8 negatifs sur l\'ad group Carport Bois' },
+            { priority: 'P0', text: '[Fait] Passer la strategie d\'enchere de Maximize clicks a CPC manuel' },
+            { priority: 'P1', text: '[Fait] Publier le post GMB chantier Chateau-Thierry avec photo et bouton En savoir plus' },
+            { priority: 'P1', text: 'Suivi J+7 programme automatiquement le 2026-04-27 a 03h00 (Jordan)' },
+            { priority: 'P2', text: 'Preparer un 2eme post GMB hebdomadaire (candidats : terrasse ou pergola)' }
+          ]
+        },
+        {
           date: '2026-04-16',
           status: 'red',
           title: 'Rapport SEO Hebdo — Semaine du 10 au 16 avril 2026',
