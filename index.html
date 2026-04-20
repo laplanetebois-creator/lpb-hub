@@ -3927,13 +3927,35 @@ window.prospectView = async function(idx) {
 // ================================================
 // MAILS TYPES PROSPECTS (par métier)
 // ================================================
+// Photos publiques par métier — remplacer par les vraies URLs LPB quand dispo.
+// Gmail auto-prévisualise les URLs se terminant par .jpg / .png (doit être public).
+window._LPB_PHOTOS = {
+  paysag:    'https://www.laplanetebois.fr/photos/terrasse-paysagiste.jpg',
+  architect: 'https://www.laplanetebois.fr/photos/extension-bois.jpg',
+  construct: 'https://www.laplanetebois.fr/photos/ossature-bois.jpg',
+  piscin:    'https://www.laplanetebois.fr/photos/plage-piscine.jpg',
+  immob:     'https://www.laplanetebois.fr/photos/terrasse-valorisation.jpg',
+  decor:     'https://www.laplanetebois.fr/photos/pergola-design.jpg',
+  generique: 'https://www.laplanetebois.fr/photos/realisations-lpb.jpg'
+};
+window._LPB_GALERIE = 'https://www.laplanetebois.fr/realisations';
+
 window._getMailTemplates = function(categorie, prenom, entreprise) {
   var cat = (categorie||'').toLowerCase();
   var sig = '\n\nCordialement,\nYoann — La Planète Bois\n📞 06 47 61 69 19\n🌐 www.laplanetebois.fr';
+  var PH = window._LPB_PHOTOS || {};
+  var GAL = window._LPB_GALERIE || 'https://www.laplanetebois.fr';
 
   var p = prenom.split(' ')[0];
 
   var generiques = [
+    {
+      id:'g_apres_appel',
+      emoji:'📞',
+      nom:'Après appel — Récap partenariat',
+      sujet:'Suite à notre échange — La Planète Bois',
+      corps:'Bonjour '+p+',\n\nMerci pour notre échange téléphonique, content d\'avoir pu faire connaissance.\n\nComme convenu, je vous laisse un récapitulatif de ce que nous proposons chez La Planète Bois :\n\n• Terrasses bois & composite (pin CL4, cumaru, ipé, NINA)\n• Pergolas bois et aluminium\n• Extensions, surélévations, chalets et maisons ossature bois\n• Intervention propre, chantier tenu, garantie décennale\n\nUn aperçu de nos réalisations récentes :\n'+(PH.generique||GAL)+'\n\nGalerie complète : '+GAL+'\n\nJe reste à votre disposition pour avancer dès que vous avez un projet concret. N\'hésitez pas à me transmettre plans, photos ou simple brief — je reviens sous 48h avec une estimation.' + sig
+    },
     {
       id:'g_premier',
       emoji:'👋',
@@ -3960,6 +3982,13 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
   var parMetier = {
     paysag: [
       {
+        id:'pa_apres_appel',
+        emoji:'📞',
+        nom:'Après appel — Paysagiste',
+        sujet:'Suite à notre échange — Partenariat terrasses & pergolas',
+        corps:'Bonjour '+p+',\n\nMerci pour notre échange, ravi d\'en savoir plus sur votre activité de paysagiste et vos chantiers en cours.\n\nComme convenu, je vous fais un point écrit sur ce qu\'on peut faire ensemble :\n\n• Sous-traitance clé en main sur la partie terrasse bois / pergola / abri\n• Commission apporteur si vous préférez transmettre le client directement\n• Ticket moyen terrasse 30m² : ~4 200 € TTC (pin CL4, composite NINA, cumaru…)\n• Délai d\'intervention : 2 à 4 semaines selon planning\n• Chantier propre, équipe tenue, garantie décennale\n\nVoici un aperçu d\'une réalisation récente :\n'+(PH.paysag||GAL)+'\n\nGalerie complète : '+GAL+'\n\nSi vous avez un projet client en cours à chiffrer, envoyez-moi les infos (surface, essence souhaitée, accès chantier), je reviens sous 48h avec une estimation précise.' + sig
+      },
+      {
         id:'pa_partenariat',
         emoji:'🌿',
         nom:'Partenariat paysagiste',
@@ -3975,6 +4004,13 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
       }
     ],
     architect: [
+      {
+        id:'ar_apres_appel',
+        emoji:'📞',
+        nom:'Après appel — Architecte',
+        sujet:'Suite à notre échange — Entreprise de pose bois partenaire',
+        corps:'Bonjour '+p+',\n\nMerci pour notre échange téléphonique, très intéressant de discuter de vos projets et de votre approche.\n\nComme convenu, je récapitule ici ce que nous pouvons apporter sur vos dossiers :\n\n• Chiffrage lot construction bois dès la phase APD (plans ou esquisse suffisent)\n• Réalisation : extensions MOB, surélévations, chalets, terrasses structurelles, pergolas haut de gamme\n• Estimation transmise sous 48 à 72h\n• Accompagnement jusqu\'à la réception, garantie décennale\n• Assurance RC pro à jour (je peux vous transmettre les attestations)\n\nUn exemple de réalisation récente (extension bois) :\n'+(PH.architect||GAL)+'\n\nGalerie complète : '+GAL+'\n\nSi vous avez un projet en cours pour lequel un chiffrage lot bois serait utile, envoyez-moi les plans — je traite la demande en priorité.' + sig
+      },
       {
         id:'ar_projet',
         emoji:'📐',
@@ -3992,6 +4028,13 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
     ],
     construct: [
       {
+        id:'cn_apres_appel',
+        emoji:'📞',
+        nom:'Après appel — Constructeur',
+        sujet:'Suite à notre échange — Sous-traitance lot bois',
+        corps:'Bonjour '+p+',\n\nMerci pour notre échange, content d\'avoir pu discuter de vos chantiers et de votre organisation.\n\nPour résumer ce qu\'on peut faire pour vos clients :\n\n• Terrasses bois livrées en même temps que la maison\n• Pergolas adossées et carports\n• Extensions et surélévations en ossature bois\n• Coordination avec votre planning chantier, équipes tenues\n• Assurance décennale à jour, kbis et attestations disponibles sur demande\n\nUne réalisation type (extension ossature bois) :\n'+(PH.construct||GAL)+'\n\nGalerie complète : '+GAL+'\n\nDès que vous avez un premier dossier à tester, transmettez-moi les plans ou juste le brief — je chiffre sous 48h et on voit si les prix et délais rentrent dans votre modèle.' + sig
+      },
+      {
         id:'cn_soustraitance',
         emoji:'🏗️',
         nom:'Sous-traitance lot bois',
@@ -4000,6 +4043,13 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
       }
     ],
     piscin: [
+      {
+        id:'pi_apres_appel',
+        emoji:'📞',
+        nom:'Après appel — Pisciniste',
+        sujet:'Suite à notre échange — Plages de piscine bois',
+        corps:'Bonjour '+p+',\n\nMerci pour notre échange téléphonique, sympa d\'avoir pu discuter de votre activité piscine.\n\nComme convenu, voici ce qu\'on propose autour du bassin :\n\n• Plages de piscine en pin CL4, cumaru, ipé ou composite (NINA)\n• Lambourdes aluminium DURALU (longévité maximale près de l\'eau)\n• Plots réglables Jouplast, vis inox A4, saturateur fini\n• Intervention dès que la piscine est posée, coordination simple avec vos équipes\n• Ticket moyen 30m² : ~4 500 € TTC (pose incluse)\n\nUn exemple de plage récente :\n'+(PH.piscin||GAL)+'\n\nGalerie complète : '+GAL+'\n\nDès que vous avez un client qui a besoin d\'une plage, transmettez-moi la surface et l\'essence souhaitée — je chiffre sous 48h et je me cale sur votre planning de livraison.' + sig
+      },
       {
         id:'pi_terrasse',
         emoji:'🏊',
@@ -4010,6 +4060,13 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
     ],
     immob: [
       {
+        id:'im_apres_appel',
+        emoji:'📞',
+        nom:'Après appel — Agent immobilier',
+        sujet:'Suite à notre échange — Valorisation de vos biens',
+        corps:'Bonjour '+p+',\n\nMerci pour notre échange, intéressant de discuter de votre portefeuille et de vos clients.\n\nPour rappel, voici ce qu\'on propose aux agents immobiliers :\n\n• Chiffrage gratuit et rapide (48h) d\'un projet terrasse, pergola ou extension\n• Visite sur place avec votre client vendeur ou acquéreur si besoin\n• Devis à transmettre pour appuyer une négociation ou rassurer un acheteur\n• Commission apporteur sur chaque chantier signé via votre mise en relation\n• Un argument de vente concret : +5 à 15 % sur la valeur perçue d\'un bien\n\nUne réalisation récente qui a boosté la valeur du bien :\n'+(PH.immob||GAL)+'\n\nGalerie complète : '+GAL+'\n\nDès qu\'un client évoque un besoin d\'aménagement extérieur ou d\'extension, passez-moi l\'info — je chiffre sous 48h et je vous transmets le devis pour que vous le partagiez au propriétaire.' + sig
+      },
+      {
         id:'im_valorisation',
         emoji:'🏡',
         nom:'Valorisation bien immobilier',
@@ -4018,6 +4075,13 @@ window._getMailTemplates = function(categorie, prenom, entreprise) {
       }
     ],
     decor: [
+      {
+        id:'de_apres_appel',
+        emoji:'📞',
+        nom:'Après appel — Décorateur',
+        sujet:'Suite à notre échange — Collaboration extérieur haut de gamme',
+        corps:'Bonjour '+p+',\n\nMerci pour notre échange, ravi d\'avoir pu découvrir votre univers et vos projets en cours.\n\nComme convenu, je vous résume ici ce qu\'on peut faire ensemble :\n\n• Terrasses et pergolas sur-mesure en matériaux haut de gamme (cumaru, ipé, alu structurel)\n• Soin particulier sur les finitions : éclairage LED intégré, claire-voie, garde-corps design\n• Co-conception avec vous sur les projets où l\'esthétique prime (moodboard, visuels 3D possibles)\n• Sous-traitance discrète ou apport d\'affaires, selon votre préférence\n• Respect de votre positionnement auprès du client final\n\nUne réalisation récente dans l\'esprit design :\n'+(PH.decor||GAL)+'\n\nGalerie complète : '+GAL+'\n\nDès qu\'un client exprime un besoin extérieur (terrasse, pergola, espace détente), faites tourner — je viens avec vous en visite si ça peut aider à vendre le projet.' + sig
+      },
       {
         id:'de_terrasse',
         emoji:'✨',
