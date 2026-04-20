@@ -5532,6 +5532,21 @@ pages['google-ads'] = async function() {
       `;
 
       const rapportHtml = activeAdsTab !== 'rapport' ? '' : `
+        <div class="panel" style="margin-bottom:16px;background:linear-gradient(135deg,#2d6a4f 0%,#1b4332 100%);color:white">
+          <div class="panel-body" style="padding:18px 20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+              <div>
+                <h3 style="margin:0 0 4px;color:white"><i class="fas fa-bolt"></i> Executer le fix (2-3 min)</h3>
+                <div style="font-size:0.88rem;opacity:0.9">Copie le script &rarr; colle dans Google Ads &rarr; Preview &rarr; Run</div>
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button id="btn-copy-jordan-script" class="btn" style="background:white;color:#2d6a4f;border:none;padding:10px 18px;border-radius:6px;font-weight:600;cursor:pointer"><i class="fas fa-copy"></i> Copier le script</button>
+                <a href="https://ads.google.com/aw/bulk/scripts/new" target="_blank" class="btn" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);padding:10px 18px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px"><i class="fab fa-google"></i> Google Ads Scripts <i class="fas fa-external-link-alt" style="font-size:0.75rem"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="panel" style="margin-bottom:20px">
           <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
             <div>
@@ -5667,6 +5682,30 @@ carport kit</pre>
           render();
         });
       });
+
+      const copyBtn = content.querySelector('#btn-copy-jordan-script');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async function() {
+          try {
+            const resp = await fetch('exports/fix-20260420-keywords-carport.js');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const scriptText = await resp.text();
+            await navigator.clipboard.writeText(scriptText);
+            const original = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copie dans le presse-papier';
+            copyBtn.style.background = '#d4edda';
+            copyBtn.style.color = '#155724';
+            toast('Script copie. Colle dans Google Ads > Scripts > Nouveau.', 'success');
+            setTimeout(function() {
+              copyBtn.innerHTML = original;
+              copyBtn.style.background = 'white';
+              copyBtn.style.color = '#2d6a4f';
+            }, 3000);
+          } catch (e) {
+            toast('Erreur copie : ' + e.message, 'error');
+          }
+        });
+      }
 
       if (activeAdsTab === 'performance') {
       content.querySelector('#btn-refresh-ads')?.addEventListener('click', async () => {

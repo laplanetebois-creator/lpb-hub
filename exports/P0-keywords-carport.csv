@@ -1,0 +1,16 @@
+Campaign,Ad group,Keyword,Match type,Status,Max CPC
+LPB - Search - Soissons 60km,Carport,carport bois soissons,Exact,Enabled,1.20
+LPB - Search - Soissons 60km,Carport,carport bois sur mesure,Exact,Enabled,1.20
+LPB - Search - Soissons 60km,Carport,carport bois 2 voitures,Exact,Enabled,1.20
+LPB - Search - Soissons 60km,Carport,carport bois aisne,Exact,Enabled,1.20
+LPB - Search - Soissons 60km,Carport,abri voiture bois soissons,Exact,Enabled,1.20
+LPB - Search - Soissons 60km,Carport,carport bois,Phrase,Enabled,1.00
+LPB - Search - Soissons 60km,Carport,carport bois sur mesure,Phrase,Enabled,1.00
+LPB - Search - Soissons 60km,Carport,abri voiture bois,Phrase,Enabled,1.00
+LPB - Search - Soissons 60km,Carport,carport bois 1 voiture,Phrase,Enabled,1.00
+LPB - Search - Soissons 60km,Carport,carport bois 2 voitures,Phrase,Enabled,1.00
+LPB - Search - Soissons 60km,Carport,carport bois adosse,Phrase,Enabled,1.00
+LPB - Search - Soissons 60km,Carport,+carport +bois +soissons,Broad,Enabled,0.80
+LPB - Search - Soissons 60km,Carport,+carport +bois +aisne,Broad,Enabled,0.80
+LPB - Search - Soissons 60km,Carport,+abri +voiture +bois,Broad,Enabled,0.80
+LPB - Search - Soissons 60km,Carport,+carport +bois +artisan,Broad,Enabled,0.80
