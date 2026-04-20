@@ -3924,6 +3924,129 @@ window.prospectView = async function(idx) {
   popup.onclick = function(e) { if (e.target === popup) popup.style.display = 'none'; };
 };
 
+// ================================================
+// MAILS TYPES PROSPECTS (par métier)
+// ================================================
+window._getMailTemplates = function(categorie, prenom, entreprise) {
+  var cat = (categorie||'').toLowerCase();
+  var sig = '\n\nCordialement,\nYoann Londes — La Planète Bois\n📞 +33 3 23 53 17 78\n🌐 www.laplanetebois.fr';
+
+  var generiques = [
+    {
+      id:'g_premier',
+      emoji:'👋',
+      nom:'Premier contact',
+      sujet:'La Planète Bois — Fourniture bois pour vos chantiers',
+      corps:'Bonjour '+prenom.split(' ')[0]+',\n\nJe me permets de vous contacter car nous accompagnons de nombreux professionnels du bâtiment dans leur approvisionnement en bois (charpente, bardage, ossature, panneaux...).\n\nLa Planète Bois, c\'est :\n• Des prix compétitifs et un stock disponible immédiatement\n• La livraison sur chantier possible\n• Un interlocuteur dédié à votre service\n\nSeriez-vous disponible cette semaine pour un échange rapide de 10 min ?' + sig
+    },
+    {
+      id:'g_relance1',
+      emoji:'🔔',
+      nom:'Relance douce',
+      sujet:'Suite à notre prise de contact — La Planète Bois',
+      corps:'Bonjour '+prenom.split(' ')[0]+',\n\nJe reviens vers vous suite à mon précédent message.\n\nSi vous avez des chantiers en cours ou à venir nécessitant de la fourniture bois, nous serions ravis d\'échanger avec vous. Je peux vous préparer un devis rapidement.\n\nUn appel de quelques minutes suffit. À votre convenance ?' + sig
+    },
+    {
+      id:'g_devis',
+      emoji:'📋',
+      nom:'Proposition devis',
+      sujet:'Devis fourniture bois — La Planète Bois',
+      corps:'Bonjour '+prenom.split(' ')[0]+',\n\nSuite à notre échange, je vous transmets ci-joint notre proposition tarifaire pour votre prochain approvisionnement.\n\nN\'hésitez pas à me faire part de vos retours ou à me contacter si vous souhaitez ajuster la commande.' + sig
+    }
+  ];
+
+  var parMetier = {
+    charpent: [
+      {
+        id:'c_offre_charpente',
+        emoji:'🪵',
+        nom:'Offre bois de charpente',
+        sujet:'Bois de charpente — Stocks disponibles | La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous disposons en permanence d\'un large stock de bois de charpente : sapin/épicéa C24, Douglas, bois lamellé-collé, fermettes sur mesure...\n\nNos avantages pour les charpentiers :\n• Bois séché en chambre, humidité garantie < 18%\n• Sciage sur mesure disponible\n• Livraison sur chantier dans un délai de 48h\n• Tarifs chantier adaptés aux professionnels\n\nUn prochain chantier en vue ? Envoyez-moi vos métrés, je vous fais une offre dans la journée.' + sig
+      },
+      {
+        id:'c_tarif_saison',
+        emoji:'📅',
+        nom:'Tarifs saison charpente',
+        sujet:'Tarifs bois charpente saison '+new Date().getFullYear()+' — La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous actualisons nos tarifs pour la saison et je souhaitais vous en informer en priorité.\n\nPour vos approvisionnements en bois de charpente cette année, nous proposons :\n• Tarif professionnel dégressif selon volume\n• Commande groupée possible pour optimiser vos coûts\n• Carte d\'abonnement chantier disponible\n\nJe reste disponible pour en discuter à votre convenance.' + sig
+      }
+    ],
+    menuiser: [
+      {
+        id:'m_panneaux',
+        emoji:'🪵',
+        nom:'Offre panneaux & bois d\'œuvre',
+        sujet:'Panneaux & bois d\'œuvre | La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous proposons une gamme complète pour la menuiserie :\n• Panneaux MDF, aggloméré, contreplaqué (toutes épaisseurs)\n• Bois massif rabotés : chêne, pin, hêtre, peuplier\n• Bois d\'ossature et de structure\n• Découpe sur mesure possible sur devis\n\nNous livrons directement en atelier ou sur chantier.\nUn devis en 24h sur présentation de vos besoins.' + sig
+      },
+      {
+        id:'m_essences',
+        emoji:'🌳',
+        nom:'Catalogue essences disponibles',
+        sujet:'Nos essences de bois disponibles — La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nJe me permets de vous partager nos essences disponibles en stock :\n\nBOIS RÉSINEUX : Pin sylvestre · Épicéa · Sapin · Douglas\nBOIS FEUILLUS : Chêne · Hêtre · Frêne · Peuplier · Châtaignier\nBOIS EXOTIQUES : Merbau · Ipé · Padouk (sur commande)\n\nTous nos bois sont traçables et issus de forêts gérées durablement (PEFC/FSC).\n\nSouhaitez-vous recevoir notre tarif professionnel ?' + sig
+      }
+    ],
+    couvreur: [
+      {
+        id:'cv_volige',
+        emoji:'🏠',
+        nom:'Offre volige & liteaux',
+        sujet:'Volige, liteaux, chevrons | La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nPour vos chantiers de toiture, nous proposons :\n• Volige sapin/épicéa (18/22 mm) — en stock\n• Liteaux et contre-liteaux (toutes sections)\n• Chevrons traités autoclave CL2\n• Bois de sous-face et habillage\n\nExpédition ou livraison sur chantier possible rapidement.\nDites-moi vos besoins, je vous fais un devis immédiatement.' + sig
+      }
+    ],
+    construct: [
+      {
+        id:'cn_partenariat',
+        emoji:'🤝',
+        nom:'Partenariat approvisionnement',
+        sujet:'Partenariat fourniture bois — La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nNous accompagnons plusieurs constructeurs dans leur approvisionnement bois sur l\'ensemble de leurs chantiers.\n\nCe que nous pouvons vous proposer :\n• Un compte professionnel dédié avec tarifs négociés\n• Appro régulier planifié selon votre carnet de commandes\n• Interlocuteur commercial unique pour tous vos sites\n• Délais de paiement adaptés\n\nUn échange de 20 min suffit pour voir si nous pouvons travailler ensemble.' + sig
+      }
+    ],
+    architect: [
+      {
+        id:'a_solutions',
+        emoji:'📐',
+        nom:'Solutions bois pour vos projets',
+        sujet:'Fourniture bois pour vos projets — La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nLa Planète Bois accompagne des architectes sur la fourniture bois de leurs projets :\n• Bois structurel (GL, BLC, CLT sur devis)\n• Bardage bois (douglas, mélèze, thermotraité)\n• Terrasse bois (ipé, pin traité, composite bois)\n• Bois d\'habillage intérieur\n\nNous pouvons intervenir dès la phase APD pour vous aider à chiffrer les matériaux. Seriez-vous disponible pour en discuter ?' + sig
+      }
+    ],
+    agricult: [
+      {
+        id:'ag_hangar',
+        emoji:'🚜',
+        nom:'Offre charpente hangar agricole',
+        sujet:'Bois pour hangar & bâtiment agricole | La Planète Bois',
+        corps:'Bonjour '+prenom.split(' ')[0]+',\n\nPour la construction ou la réfection de vos bâtiments agricoles, nous proposons :\n• Bois de charpente grande portée\n• Poteaux et traverses traités CL4\n• Bardage bois pour façades agricoles\n• Panneaux de contreventement\n\nNous livrons sur l\'exploitation. Envoyez-moi vos dimensions, je vous prépare un devis complet.' + sig
+      }
+    ]
+  };
+
+  // Trouver les templates du métier
+  var metierTpls = [];
+  Object.keys(parMetier).forEach(function(k){
+    if (cat.includes(k)) metierTpls = metierTpls.concat(parMetier[k]);
+  });
+
+  // Génériques toujours présents, métier en premier si dispo
+  return metierTpls.concat(generiques);
+};
+
+window._prospectOpenMailTpl = function(idx, tplId) {
+  var l = (window._lcAllLeads || [])[idx];
+  if (!l || !l.email) { toast('Aucun email pour ce prospect', 'error'); return; }
+  var prenom = l.contact || l.entreprise || 'Prospect';
+  var entreprise = l.entreprise || '';
+  var tpls = window._getMailTemplates(l.categorie||'', prenom, entreprise);
+  var tpl = tpls.find(function(t){ return t.id === tplId; });
+  if (!tpl) return;
+  window.emailCompose(l.email, prenom, null, null, tpl.sujet, tpl.corps);
+};
+
 // NRP1 → crée automatiquement un rappel à J+5
 window._prospectEtapeChange = async function(etape, idx) {
   var sel = document.querySelector('#prospect-etape-select');
