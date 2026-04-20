@@ -3295,6 +3295,7 @@ async function renderPipeline(content) {
               var dateStr = d.created_at ? formatDate(d.created_at) : '';
               var cCity = c && c.city ? c.city : '';
               var cSource = c && c.source ? c.source : '';
+              if (['meta','fb','instagram','ig'].indexOf(cSource) !== -1) cSource = 'facebook';
               var cSourceUrl = c ? (function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? m[1].trim() : ''; })() : '';
               var srcClass = '';
               if (cSource === 'travaux.com') srcClass = 'src-travaux';
@@ -7073,7 +7074,7 @@ pages.suivi = async function() {
   });
 
   // Source colors
-  var SRC_COLORS = { 'travaux.com':'#2e7d32','helloartisan':'#1976d2','website':'#c62828','facebook':'#e65100' };
+  var SRC_COLORS = { 'travaux.com':'#2e7d32','helloartisan':'#1976d2','website':'#c62828','facebook':'#e65100','meta':'#e65100','fb':'#e65100','instagram':'#e65100','ig':'#e65100' };
 
   function renderKanban() {
     var byStage = {};
