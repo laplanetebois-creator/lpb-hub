@@ -8451,7 +8451,7 @@ window.prmView = async function(contactId) {
         '</div>' +
 
         (c.email ? (function(){
-          var prenomM = c.first_name || c.company || 'Prospect';
+          var prenomM = c.last_name || c.first_name || c.company || 'Prospect';
           var tpls = (window._getMailTemplates ? window._getMailTemplates(cat||'', prenomM, c.company||'') : []);
           var tplBtns = tpls.map(function(t){
             return '<button onclick="window._prmOpenMailTpl(\''+c.id+'\',\''+t.id+'\')" class="btn" style="width:100%;margin-bottom:6px;text-align:left;font-size:0.82rem;padding:8px 10px">'+t.emoji+' '+escHtml(t.nom)+'</button>';
@@ -8514,7 +8514,7 @@ window._prmOpenMailTpl = async function(contactId, tplId) {
   if (!c || !c.email) { toast('Aucun email', 'error'); return; }
   var m = (c.notes||'').match(/^categorie:\s*(.+)$/m);
   var cat = m ? m[1].trim() : '';
-  var prenom = c.first_name || c.company || 'Prospect';
+  var prenom = c.last_name || c.first_name || c.company || 'Prospect';
   var tpls = window._getMailTemplates(cat, prenom, c.company||'');
   var tpl = tpls.find(function(t){ return t.id === tplId; });
   if (!tpl) return;
