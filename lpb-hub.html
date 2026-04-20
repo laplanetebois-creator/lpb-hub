@@ -3642,6 +3642,8 @@ async function renderLeadsConsolides(content, context) {
 
   function render() {
     var rows = getRows();
+    // Mémorise les indices filtrés pour navigation Prev/Next dans la fiche prospect
+    window._lcFilteredIdxs = rows.map(function(l){ return allLeads.indexOf(l); }).filter(function(i){ return i >= 0; });
     var nbA = rows.filter(function(l){ return l.priorite==='A'; }).length;
     var nbB = rows.filter(function(l){ return l.priorite==='B'; }).length;
     var nbC = rows.filter(function(l){ return l.priorite==='C'; }).length;
@@ -3864,13 +3866,18 @@ window.prospectView = async function(idx) {
   var statutCol = STATUT_COLORS[l.statut] || '#78909c';
   var mapsUrl = l.ville ? 'https://www.google.com/maps/dir/Soissons,02200/'+encodeURIComponent((l.ville||'')+(l.cp?' '+l.cp:'')+' France') : '';
 
-  var total = (window._lcAllLeads||[]).length;
-  var prevIdx = (idx - 1 + total) % total;
-  var nextIdx = (idx + 1) % total;
+  // Navigation restreinte à la liste filtrée (catégorie, priorité, recherche…) si disponible
+  var navList = (window._lcFilteredIdxs && window._lcFilteredIdxs.length) ? window._lcFilteredIdxs : (window._lcAllLeads||[]).map(function(_,i){ return i; });
+  var pos = navList.indexOf(idx);
+  if (pos === -1) { navList = (window._lcAllLeads||[]).map(function(_,i){ return i; }); pos = idx; }
+  var total = navList.length;
+  var prevIdx = navList[(pos - 1 + total) % total];
+  var nextIdx = navList[(pos + 1) % total];
+  var displayNum = pos + 1;
 
   body.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-      <div style="font-size:0.78rem;color:var(--text-light);font-weight:600"><i class="fas fa-list"></i> Lead ${idx+1} / ${total}</div>
+      <div style="font-size:0.78rem;color:var(--text-light);font-weight:600"><i class="fas fa-list"></i> Lead ${displayNum} / ${total}${navList.length < (window._lcAllLeads||[]).length ? ' (filtrés)' : ''}</div>
       <div style="display:flex;gap:6px">
         <button onclick="window.prospectView(${prevIdx})" class="btn btn-sm btn-outline" title="Lead précédent"${total<=1?' disabled':''}><i class="fas fa-chevron-left"></i> Précédent</button>
         <button onclick="window.prospectView(${nextIdx})" class="btn btn-sm btn-primary" title="Lead suivant"${total<=1?' disabled':''}>Suivant <i class="fas fa-chevron-right"></i></button>
