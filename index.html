@@ -3756,12 +3756,58 @@ async function renderLeadsConsolides(content, context) {
 // ============================================
 // PROSPECT FICHE (Leads consolidés popup)
 // ============================================
-window.prospectView = function(idx) {
+window.prospectView = async function(idx) {
   var l = (window._lcAllLeads || [])[idx];
   if (!l) return;
   var popup = $('#deal-popup-overlay');
   var body = $('#deal-popup-body');
   popup.style.display = 'flex';
+
+  // Load existing extras (remarque, etape, rappels) from Supabase
+  var allContacts = await dbSelect('contacts');
+  var existing = allContacts.find(function(c){
+    if (c.source !== 'prospect_consolide' && c.source !== 'prm') return false;
+    if (l.siret && c.notes && c.notes.includes('siret: '+l.siret)) return true;
+    return c.company === l.entreprise && c.city === (l.ville||'');
+  });
+  var existingContactId = existing ? existing.id : null;
+  var existingNotes = existing ? (existing.notes||'') : '';
+  var etapeMatch = existingNotes.match(/etape_prospect:\s*(\S+)/);
+  var existingEtape = etapeMatch ? etapeMatch[1] : 'a_contacter';
+  var remarqueMatch = existingNotes.match(/remarque_prospect:\s*([\s\S]*?)(?=\n\w|$)/);
+  var existingRemarque = remarqueMatch ? remarqueMatch[1].trim() : '';
+  var rappels = [];
+  if (existingContactId) {
+    var planEvents = await dbSelect('planning');
+    rappels = planEvents.filter(function(ev){ return ev.contact_id === existingContactId && ev.status !== 'annule'; });
+    rappels.sort(function(a,b){ return (a.start_date||'') < (b.start_date||'') ? -1 : 1; });
+  }
+  var ETAPE_OPTIONS = [
+    {key:'a_identifier',label:'À identifier',color:'#78909c'},
+    {key:'a_contacter',label:'À contacter',color:'#3498db'},
+    {key:'contacte',label:'Contacté',color:'#9b59b6'},
+    {key:'nrp1',label:'NRP 1 — Relance J+5',color:'#e67e22'},
+    {key:'nrp2',label:'NRP 2',color:'#e74c3c'},
+    {key:'en_discussion',label:'En discussion',color:'#2ecc71'},
+    {key:'qualifie',label:'Qualifié',color:'#1abc9c'},
+    {key:'converti',label:'Converti',color:'#27ae60'},
+    {key:'perdu',label:'Perdu',color:'#78909c'}
+  ];
+  var currentEtape = ETAPE_OPTIONS.find(function(e){ return e.key===existingEtape; }) || ETAPE_OPTIONS[1];
+  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
+  var rappelsHtml = rappels.length === 0 ? '<div style="color:var(--text-light);font-size:0.85rem;padding:8px 0">Aucun rappel</div>' :
+    rappels.map(function(ev){
+      var icon = TYPE_ICONS[ev.type] || 'fa-calendar-day';
+      var done = ev.status === 'termine';
+      var dateStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '?';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border-radius:8px;margin-bottom:6px">'
+        + '<i class="fas '+icon+'" style="color:'+(done?'#27ae60':'#e67e22')+';width:18px"></i>'
+        + '<div style="flex:1;min-width:0"><div style="font-size:0.88rem;font-weight:600">'+escHtml(ev.title||'Rappel')+'</div>'
+        + '<div style="font-size:0.75rem;color:var(--text-light)">'+dateStr+(ev.start_time?' · '+ev.start_time.substring(0,5):'')+'</div></div>'
+        + (done ? '<span style="background:#27ae60;color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:10px">Fait</span>'
+          : '<button onclick="window._prospectPlanDone(\''+ev.id+'\','+idx+')" style="background:#27ae60;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:0.75rem;cursor:pointer"><i class="fas fa-check"></i></button>')
+        + '</div>';
+    }).join('');
 
   var PRIO_COLORS = { A: '#e53935', B: '#fb8c00', C: '#43a047' };
   var STATUT_COLORS = { Nouveau: '#3498db', Contacté: '#9b59b6', Qualifié: '#1abc9c', Converti: '#2d6a4f', Perdu: '#e74c3c' };
@@ -3825,6 +3871,30 @@ window.prospectView = function(idx) {
           <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:8px"><i class="fas fa-sticky-note"></i> Notes</div>
           <div style="font-size:0.85rem;white-space:pre-wrap;line-height:1.5">${escHtml(l.notes)}</div>
         </div>` : ''}
+
+        <!-- ÉTAPE -->
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-flag"></i> Étape prospect</div>
+          <select id="prospect-etape-select" onchange="window._prospectEtapeChange(this.value,${idx})" style="width:100%;border:2px solid ${currentEtape.color};border-radius:8px;padding:8px 10px;font-size:0.88rem;background:var(--bg);color:var(--text);font-weight:600;box-sizing:border-box">
+            ${ETAPE_OPTIONS.map(function(e){ return '<option value="'+e.key+'"'+(existingEtape===e.key?' selected':'')+'>'+e.label+'</option>'; }).join('')}
+          </select>
+        </div>
+
+        <!-- REMARQUE -->
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-comment-alt"></i> Remarque</div>
+          <textarea id="prospect-remarque-ta" rows="4" placeholder="Notes internes, observations, suite à donner..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;background:var(--bg);color:var(--text);resize:vertical;line-height:1.5;box-sizing:border-box">${escHtml(existingRemarque)}</textarea>
+          <button id="prospect-save-btn" onclick="window._prospectSaveExtras(${idx})" class="btn btn-primary" style="width:100%;margin-top:8px;font-size:0.85rem"><i class="fas fa-save"></i> Enregistrer</button>
+        </div>
+
+        <!-- RAPPELS -->
+        <div class="panel" style="padding:14px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light)"><i class="fas fa-bell"></i> Rappels</div>
+            <button onclick="window._prospectAddRappel(${idx})" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.78rem;cursor:pointer;font-weight:600"><i class="fas fa-plus"></i> Ajouter</button>
+          </div>
+          <div id="prospect-rappels-list">${rappelsHtml}</div>
+        </div>
 
         <div class="panel" style="padding:14px">
           <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:12px"><i class="fas fa-rocket"></i> Actions</div>
