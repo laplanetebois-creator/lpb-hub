@@ -3262,11 +3262,15 @@ function classifySource(rawSource) {
   if (!s) return { key: 'inconnu', label: 'Inconnu', color: '#95a5a6' };
   // Meta famille : fb, instagram, meta, meta_ads, ig
   if (['facebook','fb','meta','meta_ads','instagram','ig'].indexOf(s) !== -1) {
-    return { key: 'facebook', label: 'Facebook / Meta', color: '#e65100' };
+    return { key: 'facebook', label: 'Facebook Ads', color: '#1877f2' };
   }
-  // Web: site + google (organique + SEA)
-  if (['website','web','site','google','google_ads','googleads'].indexOf(s) !== -1) {
-    return { key: 'web', label: 'Web (site + Google)', color: '#c62828' };
+  // Google Ads (SEA payant) — distinct du web organique
+  if (['google','google_ads','googleads','sea','adwords'].indexOf(s) !== -1) {
+    return { key: 'google_ads', label: 'Google Ads', color: '#4285f4' };
+  }
+  // Web organique : site web, SEO
+  if (['website','web','site','seo','organic'].indexOf(s) !== -1) {
+    return { key: 'web', label: 'Web (organique)', color: '#c62828' };
   }
   if (s === 'helloartisan')   return { key: 'helloartisan', label: 'helloArtisan',   color: '#1976d2' };
   if (s === 'travaux.com')    return { key: 'travaux',      label: 'Travaux.com',    color: '#2e7d32' };
@@ -3342,16 +3346,16 @@ async function renderStatsLeads(content) {
     var key = null;
     // Priorite : platform (plus fiable que source pour fb/insta/google)
     if (['facebook','instagram','meta'].indexOf(platform) !== -1) key = 'facebook';
-    else if (platform === 'google') key = 'web';
+    else if (platform === 'google') key = 'google_ads';
     // Fallback sur source
     else if (src.indexOf('facebook') !== -1 || src.indexOf('meta') !== -1 || src.indexOf('instagram') !== -1) key = 'facebook';
-    else if (src.indexOf('google') !== -1) key = 'web';
+    else if (src.indexOf('google') !== -1 || src.indexOf('adwords') !== -1 || src.indexOf('sea') !== -1) key = 'google_ads';
     else if (src.indexOf('travaux') !== -1) key = 'travaux';
     else if (src.indexOf('helloartisan') !== -1) key = 'helloartisan';
     if (key) spendByKey[key] = (spendByKey[key] || 0) + spend;
   });
-  fbAds.forEach(function(r){ spendByKey['facebook'] = (spendByKey['facebook']||0) + (parseFloat(r.spend||0)||0); });
-  googleAds.forEach(function(r){ spendByKey['web']  = (spendByKey['web']||0)      + (parseFloat(r.spend||0)||0); });
+  fbAds.forEach(function(r){ spendByKey['facebook']  = (spendByKey['facebook']||0)   + (parseFloat(r.spend||0)||0); });
+  googleAds.forEach(function(r){ spendByKey['google_ads'] = (spendByKey['google_ads']||0) + (parseFloat(r.spend||0)||0); });
 
   var now = Date.now();
   var MS_DAY = 86400000;
@@ -3407,10 +3411,11 @@ async function renderStatsLeads(content) {
   // Forcer la creation d'une entree pour chaque cle ayant du spend, meme sans leads directs
   // (ex: FB Ads tourne mais aucun contact rattache via c.source -> on veut quand meme la voir dans le panel ROI)
   var KEY_DEFAULTS = {
-    'facebook':     { label: 'Facebook / Meta',      color: '#e65100' },
-    'web':          { label: 'Web (site + Google)',  color: '#c62828' },
-    'helloartisan': { label: 'helloArtisan',         color: '#1976d2' },
-    'travaux':      { label: 'Travaux.com',          color: '#2e7d32' }
+    'facebook':     { label: 'Facebook Ads',     color: '#1877f2' },
+    'google_ads':   { label: 'Google Ads',       color: '#4285f4' },
+    'web':          { label: 'Web (organique)',  color: '#c62828' },
+    'helloartisan': { label: 'helloArtisan',     color: '#1976d2' },
+    'travaux':      { label: 'Travaux.com',      color: '#2e7d32' }
   };
   Object.keys(spendByKey).forEach(function(k){
     if (!bySource[k] && spendByKey[k] > 0 && KEY_DEFAULTS[k]) {
