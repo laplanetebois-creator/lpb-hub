@@ -6296,117 +6296,126 @@ carport kit</pre>
 // ============================================
 pages['fb-ads'] = async function() {
   const content = $('#content');
-  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const paintHtml = (el, html) => { el.replaceChildren(); el.insertAdjacentHTML('beforeend', html); };
 
-  let campaigns = await dbSelect('ad_campaigns', { order: ['created_at', false] });
-  let filterPlatform = 'all';
+  paintHtml(content, '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
 
-  function render() {
-    let filtered = campaigns;
-    if (filterPlatform !== 'all') filtered = filtered.filter(c => c.platform === filterPlatform);
-    const totalBudget = campaigns.reduce((s, c) => s + (parseFloat(c.budget_total) || 0), 0);
-    const totalSpent = campaigns.reduce((s, c) => s + (parseFloat(c.spent) || 0), 0);
-    const activeCount = campaigns.filter(c => c.status === 'actif').length;
+  const CPL_TARGET = 17;
+  const CAMPAIGN = 'la planete bois V1 19/04/26';
 
-    content.innerHTML = `
-      <div class="stats-grid" style="margin-bottom:20px">
-        <div class="stat-card">
-          <div class="stat-icon blue"><i class="fas fa-bullhorn"></i></div>
-          <div class="stat-info"><h3>${campaigns.length}</h3><p>Campagnes totales</p></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon green"><i class="fas fa-play-circle"></i></div>
-          <div class="stat-info"><h3>${activeCount}</h3><p>Actives</p></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon gold"><i class="fas fa-wallet"></i></div>
-          <div class="stat-info"><h3>${formatCurrency(totalBudget)}</h3><p>Budget total</p></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon red"><i class="fas fa-receipt"></i></div>
-          <div class="stat-info">
-            <h3>${formatCurrency(totalSpent)}</h3><p>Total depense</p>
-            ${totalBudget > 0 ? `<div class="progress-bar mt-8" style="width:120px"><div class="progress-bar-fill ${(totalSpent/totalBudget)>0.9?'danger':(totalSpent/totalBudget)>0.7?'warning':''}" style="width:${Math.min(100,totalSpent/totalBudget*100)}%"></div></div>` : ''}
+  let rows = [];
+  try {
+    rows = await dbSelect('fbads_daily_data', { eq: [['campaign', CAMPAIGN]], order: ['date', false], limit: 500 });
+  } catch(e) { rows = []; }
+
+  const totals = { spend:0, impressions:0, clicks:0, leads:0, reach:0 };
+  rows.forEach(r => {
+    totals.spend += parseFloat(r.spend) || 0;
+    totals.impressions += r.impressions || 0;
+    totals.clicks += r.clicks || 0;
+    totals.leads += r.leads || 0;
+    totals.reach += r.reach || 0;
+  });
+  const cpl = totals.leads > 0 ? totals.spend / totals.leads : 0;
+  const cpm = totals.impressions > 0 ? (totals.spend / totals.impressions * 1000) : 0;
+  const cplColor = cpl === 0 ? 'gold' : cpl <= CPL_TARGET ? 'green' : cpl <= CPL_TARGET*1.3 ? 'gold' : 'red';
+  const cplBadge = cpl > 0 ? (cpl <= CPL_TARGET ? ' \u2713' : ' \u25B2') : '';
+
+  const adsetMap = {};
+  rows.forEach(r => {
+    const key = r.adset || 'Inconnu';
+    if (!adsetMap[key]) adsetMap[key] = { spend:0, leads:0, impressions:0, clicks:0, reach:0, ads: {} };
+    const a = adsetMap[key];
+    a.spend += parseFloat(r.spend) || 0;
+    a.leads += r.leads || 0;
+    a.impressions += r.impressions || 0;
+    a.clicks += r.clicks || 0;
+    a.reach += r.reach || 0;
+    const adName = r.ad_name || '--';
+    if (!a.ads[adName]) a.ads[adName] = { spend:0, leads:0, impressions:0 };
+    a.ads[adName].spend += parseFloat(r.spend) || 0;
+    a.ads[adName].leads += r.leads || 0;
+    a.ads[adName].impressions += r.impressions || 0;
+  });
+
+  const latestDate = rows.length > 0 ? rows.map(r => r.date).sort().slice(-1)[0] : null;
+  const syncInfo = latestDate ? `Derniere sync : ${formatDate(latestDate)}` : 'Aucune donnee synchronisee';
+
+  const html = `
+    <div class="page-header" style="margin-bottom:12px">
+      <div>
+        <h2 style="margin:0"><i class="fab fa-facebook" style="color:#1877f2"></i> Facebook Ads</h2>
+        <div class="text-small text-muted">Campagne : <strong>${esc(CAMPAIGN)}</strong> &middot; ${esc(syncInfo)}</div>
+      </div>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:20px">
+      <div class="stat-card">
+        <div class="stat-icon blue"><i class="fas fa-wallet"></i></div>
+        <div class="stat-info"><h3>${esc(formatCurrency(totals.spend))}</h3><p>Depense totale</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-user-plus"></i></div>
+        <div class="stat-info"><h3>${totals.leads}</h3><p>Leads</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon ${cplColor}"><i class="fas fa-euro-sign"></i></div>
+        <div class="stat-info"><h3>${cpl > 0 ? cpl.toFixed(2) + ' \u20AC' + cplBadge : '--'}</h3><p>CPL (cible ${CPL_TARGET}\u20AC)</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange"><i class="fas fa-eye"></i></div>
+        <div class="stat-info"><h3>${cpm.toFixed(2)} \u20AC</h3><p>CPM &middot; ${totals.impressions.toLocaleString()} imp.</p></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h3>Ensembles de publicites actifs</h3></div>
+      <div class="panel-body" style="padding:0">
+        ${Object.keys(adsetMap).length === 0 ? `
+          <div class="empty-state">
+            <i class="fab fa-facebook"></i>
+            <h4>Aucune donnee</h4>
+            <p>Lance <code>/fb</code> dans Claude pour synchroniser les donnees Meta</p>
           </div>
-        </div>
+        ` : `
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Ensemble</th>
+                <th>Publicite</th>
+                <th class="text-right">Depense</th>
+                <th class="text-right">Leads</th>
+                <th class="text-right">CPL</th>
+                <th class="text-right">Impressions</th>
+                <th class="text-right">Reach</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.entries(adsetMap).sort((a,b) => b[1].spend - a[1].spend).map(([name, a]) => {
+                const acpl = a.leads > 0 ? a.spend / a.leads : 0;
+                const acplStyle = acpl === 0 ? '' : acpl <= CPL_TARGET ? 'color:#27ae60;font-weight:600' : acpl <= CPL_TARGET*1.3 ? 'color:#f39c12;font-weight:600' : 'color:#e74c3c;font-weight:600';
+                const adLines = Object.entries(a.ads).map(([n]) => esc(n)).join('<br>');
+                return `<tr>
+                  <td><strong>${esc(name)}</strong></td>
+                  <td class="text-small text-muted">${adLines}</td>
+                  <td class="text-right nowrap">${esc(formatCurrency(a.spend))}</td>
+                  <td class="text-right">${a.leads}</td>
+                  <td class="text-right nowrap" style="${acplStyle}">${acpl > 0 ? acpl.toFixed(2) + ' \u20AC' : '--'}</td>
+                  <td class="text-right">${a.impressions.toLocaleString()}</td>
+                  <td class="text-right">${a.reach.toLocaleString()}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        `}
       </div>
-
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <div class="filter-group">
-            <button class="${filterPlatform === 'all' ? 'active' : ''}" data-pf="all">Toutes</button>
-            <button class="${filterPlatform === 'facebook' ? 'active' : ''}" data-pf="facebook"><i class="fab fa-facebook"></i> Facebook</button>
-            <button class="${filterPlatform === 'instagram' ? 'active' : ''}" data-pf="instagram"><i class="fab fa-instagram"></i> Instagram</button>
-          </div>
-        </div>
-        <div class="toolbar-right">
-          <button class="btn btn-primary" id="btn-add-campaign"><i class="fas fa-plus"></i> Nouvelle campagne</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-body" style="padding:0">
-          ${filtered.length === 0 ? `
-            <div class="empty-state">
-              <i class="fab fa-facebook"></i>
-              <h4>Aucune campagne</h4>
-              <p>Creez votre premiere campagne Facebook / Instagram</p>
-            </div>
-          ` : `
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Campagne</th>
-                  <th>Plateforme</th>
-                  <th>Statut</th>
-                  <th>Budget</th>
-                  <th>Depense</th>
-                  <th>Progression</th>
-                  <th>Periode</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filtered.map(c => {
-                  const pct = c.budget_total > 0 ? Math.round((parseFloat(c.spent) || 0) / c.budget_total * 100) : 0;
-                  return `
-                    <tr>
-                      <td>
-                        <strong>${c.name}</strong>
-                        ${c.objective ? `<br><span class="text-small text-muted">${c.objective}</span>` : ''}
-                      </td>
-                      <td><span class="badge-platform ${c.platform}"><i class="fab fa-${c.platform}"></i> ${c.platform}</span></td>
-                      <td><span class="badge-status ${c.status}">${c.status}</span></td>
-                      <td class="nowrap">${formatCurrency(c.budget_total)}</td>
-                      <td class="nowrap">${formatCurrency(c.spent)}</td>
-                      <td>
-                        <div class="progress-bar" style="width:100px">
-                          <div class="progress-bar-fill ${pct > 90 ? 'danger' : pct > 70 ? 'warning' : ''}" style="width:${Math.min(100, pct)}%"></div>
-                        </div>
-                        <span class="text-small text-muted">${pct}%</span>
-                      </td>
-                      <td class="text-small text-muted nowrap">${formatDate(c.start_date)} - ${formatDate(c.end_date)}</td>
-                      <td class="text-right nowrap">
-                        <button class="btn-ghost" title="Metriques" onclick="adMetrics('${c.id}','${c.name}')"><i class="fas fa-chart-bar"></i></button>
-                        <button class="btn-ghost" title="Modifier" onclick="adEdit('${c.id}')"><i class="fas fa-pen"></i></button>
-                        <button class="btn-ghost" title="Supprimer" onclick="adDelete('${c.id}','${c.name}')"><i class="fas fa-trash"></i></button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          `}
-        </div>
-      </div>
-    `;
-
-    content.querySelectorAll('.filter-group button[data-pf]').forEach(btn => {
-      btn.addEventListener('click', () => { filterPlatform = btn.dataset.pf; render(); });
-    });
-    content.querySelector('#btn-add-campaign')?.addEventListener('click', () => adForm());
-  }
-  render();
+    </div>
+    <div class="text-small text-muted text-center" style="margin-top:12px">
+      Source : Meta Marketing API via Agent Marc &middot; Table <code>fbads_daily_data</code>
+    </div>
+  `;
+  paintHtml(content, html);
 };
 
 function adForm(campaign = null) {
