@@ -2008,6 +2008,10 @@ function formatDateTime(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
+function formatDateTimeFull(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 function timeAgo(d) {
   if (!d) return '';
   const diff = Date.now() - new Date(d).getTime();
@@ -4883,8 +4887,8 @@ window.dealView = async function(id) {
           <div class="sc-body">
             <div class="sc-row"><span class="sc-label">Probabilite</span><span class="sc-val">${d.probability || 0}%</span></div>
             <div class="sc-row"><span class="sc-label">Cloture prevue</span><span class="sc-val">${d.expected_close ? formatDate(d.expected_close) : '—'}</span></div>
-            <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDate(d.created_at)}</span></div>
-            <div class="sc-row"><span class="sc-label">Mis a jour</span><span class="sc-val">${formatDate(d.updated_at)}</span></div>
+            <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDateTimeFull(d.created_at)}</span></div>
+            <div class="sc-row"><span class="sc-label">Mis a jour</span><span class="sc-val">${formatDateTimeFull(d.updated_at)}</span></div>
           </div>
         </div>
 
