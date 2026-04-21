@@ -5002,10 +5002,50 @@ window._prospectPlanDone = async function(evId, idx) {
   window.prospectView(idx);
 };
 
+// Normalisation utilitaire pour dedup PRM
+function _normPhone(p) {
+  var d = String(p||'').replace(/\D/g,'');
+  if (d.length === 11 && d.indexOf('33') === 0) d = '0' + d.slice(2);
+  return d.length >= 9 ? d : '';
+}
+function _normText(s) {
+  return String(s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+}
+
+// Cherche un contact PRM potentiellement doublon du lead a ajouter.
+// Retourne le contact existant ou null.
+async function _findPrmDuplicate(lead) {
+  var prmContacts = await dbSelect('contacts', { eq: [['source','prm']] });
+  var ph = _normPhone(lead.telephone);
+  var em = String(lead.email||'').trim().toLowerCase();
+  var nm = _normText(lead.entreprise);
+  var ci = _normText(lead.ville);
+  for (var i=0;i<prmContacts.length;i++) {
+    var c = prmContacts[i];
+    if (ph && _normPhone(c.phone) === ph) return c;
+    if (em && String(c.email||'').trim().toLowerCase() === em) return c;
+    if (nm && ci && _normText(c.company) === nm && _normText(c.city) === ci) return c;
+  }
+  return null;
+}
+
 window._prospectToPRM = async function(idx) {
   var l = (window._lcAllLeads || [])[idx];
   if (!l) return;
   try {
+    // Verification doublon prealable
+    var existing = await _findPrmDuplicate(l);
+    if (existing) {
+      var info = (existing.company || ((existing.first_name||'')+' '+(existing.last_name||'')).trim() || 'contact existant');
+      var tel = existing.phone ? ' (tel '+existing.phone+')' : '';
+      var ok = window.confirm(
+        '⚠ Doublon probable dans le PRM :\n\n' +
+        '  ' + info + tel + '\n\n' +
+        'Ce lead ressemble a un contact deja present (meme telephone, email ou nom+ville).\n\n' +
+        'Ajouter quand meme ?'
+      );
+      if (!ok) { toast('Ajout annule (doublon detecte)', 'info'); return; }
+    }
     var nameParts = (l.contact || l.entreprise || 'Inconnu').split(' ');
     var firstName = nameParts[0] || 'Inconnu';
     var lastName = nameParts.slice(1).join(' ') || '';

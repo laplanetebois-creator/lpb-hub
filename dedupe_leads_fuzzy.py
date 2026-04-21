@@ -30,11 +30,15 @@ from dedupe_leads import UF, pick_winner, norm_phone, norm_text, SRC
 
 
 def fuzzy_groups(records, min_len=8):
+    """On strippe la ville du nom normalise pour eviter les faux positifs
+    type 'Immo Laon' vs 'Quentimmo Laon' ou la ville sert de matching fortuit."""
     uf = UF(len(records))
     by_city = defaultdict(list)
     for i, r in enumerate(records):
         ci = norm_text(r.get("ville"))
         nm = norm_text(r.get("entreprise"))
+        if ci and nm:
+            nm = nm.replace(ci, "")
         if ci and nm and len(nm) >= min_len:
             by_city[ci].append((i, nm))
 
