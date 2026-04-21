@@ -1839,7 +1839,7 @@ async function gcalApi(method, path, body) {
   return resp.json();
 }
 
-var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', autre: '8' };
+var GCAL_COLOR_MAP = { rdv: '10', chantier: '6', tache: '7', livraison: '3', devis: '2', suivi: '9', autre: '8' };
 
 function planningToGcalEvent(ev, contact) {
   var startDate = (ev.start_date || '').substring(0, 10);
@@ -4383,7 +4383,7 @@ window.prospectView = async function(idx) {
     {key:'perdu',         label:'Perdu',               color:'#95a5a6'}
   ];
   var currentEtape = ETAPE_OPTIONS.find(function(e){ return e.key===existingEtape; }) || ETAPE_OPTIONS[0];
-  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
+  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',devis:'fa-file-invoice-dollar',suivi:'fa-phone',rappel:'fa-bell',autre:'fa-calendar-day'};
   var rappelsHtml = rappels.length === 0 ? '<div style="color:var(--text-light);font-size:0.85rem;padding:8px 0">Aucun rappel</div>' :
     rappels.map(function(ev){
       var icon = TYPE_ICONS[ev.type] || 'fa-calendar-day';
@@ -8335,15 +8335,15 @@ pages.planning = async function() {
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  var typeLabels = { tache: 'Tache', rdv: 'RDV', chantier: 'Chantier', livraison: 'Livraison', autre: 'Autre' };
+  var typeLabels = { tache: 'Tache', rdv: 'RDV', chantier: 'Chantier', livraison: 'Livraison', devis: 'Devis', suivi: 'Suivi', autre: 'Autre' };
 
   // Rappels du jour
   var todayKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
   var todayEvents = events.filter(function(ev){ return ev.start_date && ev.start_date.substring(0,10) === todayKey && ev.status !== 'termine' && ev.status !== 'annule'; });
   todayEvents.sort(function(a,b){ return (a.start_time||'').localeCompare(b.start_time||''); });
 
-  var typeIcons = { tache: 'fa-check-square', rdv: 'fa-handshake', chantier: 'fa-hard-hat', livraison: 'fa-truck', rappel: 'fa-bell', autre: 'fa-calendar-day' };
-  var typeColors = { tache: '#3498db', rdv: '#2ecc71', chantier: '#2d6a4f', livraison: '#9b59b6', rappel: '#e67e22', autre: '#78909c' };
+  var typeIcons = { tache: 'fa-check-square', rdv: 'fa-handshake', chantier: 'fa-hard-hat', livraison: 'fa-truck', devis: 'fa-file-invoice-dollar', suivi: 'fa-phone', rappel: 'fa-bell', autre: 'fa-calendar-day' };
+  var typeColors = { tache: '#3498db', rdv: '#2ecc71', chantier: '#2d6a4f', livraison: '#9b59b6', devis: '#27ae60', suivi: '#2980b9', rappel: '#e67e22', autre: '#78909c' };
 
   var rappelsDuJourHtml = todayEvents.length === 0
     ? ''
@@ -8499,7 +8499,7 @@ function planForm(ev, contacts) {
       <div class="form-group">
         <label>Type</label>
         <select id="f-evtype">
-          ${['tache','rdv','chantier','livraison','autre'].map(function(s) { return '<option value="' + s + '"' + (d.type === s ? ' selected' : '') + '>' + s + '</option>'; }).join('')}
+          ${['tache','rdv','chantier','livraison','devis','suivi','autre'].map(function(s) { return '<option value="' + s + '"' + (d.type === s ? ' selected' : '') + '>' + s + '</option>'; }).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -8632,9 +8632,9 @@ function planForm(ev, contacts) {
 window.planningClientView = async function(ev, contactMapArg) {
   if (!ev) return;
 
-  var TYPE_ICONS  = { tache:'fa-check-square', rdv:'fa-handshake', chantier:'fa-hard-hat', livraison:'fa-truck', rappel:'fa-bell', autre:'fa-calendar-day' };
-  var TYPE_COLORS = { tache:'#3498db', rdv:'#2ecc71', chantier:'#2d6a4f', livraison:'#9b59b6', rappel:'#e67e22', autre:'#78909c' };
-  var TYPE_LABELS = { tache:'Tâche', rdv:'RDV', chantier:'Chantier', livraison:'Livraison', rappel:'Rappel', autre:'Autre' };
+  var TYPE_ICONS  = { tache:'fa-check-square', rdv:'fa-handshake', chantier:'fa-hard-hat', livraison:'fa-truck', devis:'fa-file-invoice-dollar', suivi:'fa-phone', rappel:'fa-bell', autre:'fa-calendar-day' };
+  var TYPE_COLORS = { tache:'#3498db', rdv:'#2ecc71', chantier:'#2d6a4f', livraison:'#9b59b6', devis:'#27ae60', suivi:'#2980b9', rappel:'#e67e22', autre:'#78909c' };
+  var TYPE_LABELS = { tache:'Tâche', rdv:'RDV', chantier:'Chantier', livraison:'Livraison', devis:'Devis', suivi:'Suivi', rappel:'Rappel', autre:'Autre' };
 
   var evColor   = ev.color || TYPE_COLORS[ev.type] || '#3498db';
   var evIcon    = TYPE_ICONS[ev.type]  || 'fa-calendar-day';
@@ -9521,7 +9521,7 @@ window.prmView = async function(contactId) {
   var allPlanning = await dbSelect('planning');
   var rappels = allPlanning.filter(function(e){ return e.contact_id === c.id; })
     .sort(function(a,b){ return new Date(a.start_date||0) - new Date(b.start_date||0); });
-  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',rappel:'fa-bell',autre:'fa-calendar-day'};
+  var TYPE_ICONS = {tache:'fa-check-square',rdv:'fa-handshake',chantier:'fa-hard-hat',livraison:'fa-truck',devis:'fa-file-invoice-dollar',suivi:'fa-phone',rappel:'fa-bell',autre:'fa-calendar-day'};
   var rappelsHtml = rappels.length === 0
     ? '<div style="color:var(--text-light);font-size:0.85rem;padding:8px 0">Aucun rappel</div>'
     : rappels.map(function(ev){
