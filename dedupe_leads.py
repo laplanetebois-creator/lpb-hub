@@ -117,9 +117,20 @@ def pick_winner(group, records):
 
     Retournez (winner_index, winner_record).
     """
-    raise NotImplementedError(
-        "Implémentez pick_winner() dans dedupe_leads.py avant de lancer --apply"
+    prio_rank = {"A": 0, "B": 1, "C": 2, "": 3, None: 3}
+    base_idx = min(
+        group,
+        key=lambda i: (
+            prio_rank.get(records[i].get("priorite"), 3),
+            -int(records[i].get("score") or 0),
+        ),
     )
+    merged = dict(records[base_idx])
+    for i in group:
+        for k, v in records[i].items():
+            if not merged.get(k) and v:
+                merged[k] = v
+    return base_idx, merged
 
 
 # ---------- pipeline ----------
@@ -175,7 +186,7 @@ def main(apply_changes=False):
     # Écriture
     with open(SRC, "w", encoding="utf-8") as f:
         json.dump(kept, f, ensure_ascii=False, indent=2)
-    print(f"Écrit  : {SRC.name}  ({len(records)} → {len(kept)} lignes, "
+    print(f"Ecrit  : {SRC.name}  ({len(records)} -> {len(kept)} lignes, "
           f"-{len(records) - len(kept)})")
 
 
