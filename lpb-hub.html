@@ -3262,6 +3262,16 @@ function getLeadCost(sourceKey) {
   return LEAD_COSTS[sourceKey] || 0;
 }
 
+// Cumul preleve reel par plateforme (EUR) — depuis debut contrat.
+// Utilise EN PRIORITE sur LEAD_COSTS quand renseigne (source : facture / prelevement bancaire).
+// Mettre a jour ici quand une nouvelle facture arrive.
+// Laisse vide (non-cle) si on veut utiliser le forfait par lead LEAD_COSTS[key].
+var CHANNEL_TOTAL_COSTS = {
+  'travaux':       1699,  // cumul preleve travaux.com depuis debut
+  'habitatpresto': 322    // cumul preleve habitatpresto depuis debut
+  // 'helloartisan': X    // a renseigner
+};
+
 // Classification des sources (regroupement business).
 // Modifier cette fonction pour changer le mapping affiche.
 function classifySource(rawSource) {
@@ -3472,12 +3482,22 @@ async function renderStatsLeads(content) {
   });
 
   // Injecter la depense reelle (sync) dans chaque source + prefere au cout fixe
+  // CASCADE 3 NIVEAUX (du plus fiable au moins fiable) :
+  //   1. spendReal > 0       -> sync API (FB Ads, Google Ads : depense exacte)
+  //   2. CHANNEL_TOTAL_COSTS -> cumul preleve facture (travaux, helloartisan, habitatpresto)
+  //   3. total * costUnit    -> forfait par lead (fallback LEAD_COSTS)
   Object.keys(bySource).forEach(function(k){
     bySource[k].spendReal = spendByKey[k] || 0;
-    // Cout effectif = sync si dispo, sinon forfait LEAD_COSTS
-    bySource[k].costTotal = bySource[k].spendReal > 0
-      ? bySource[k].spendReal
-      : (bySource[k].total * bySource[k].costUnit);
+    if (bySource[k].spendReal > 0) {
+      bySource[k].costTotal = bySource[k].spendReal;
+      bySource[k].costSource = 'sync';
+    } else if (CHANNEL_TOTAL_COSTS[k]) {
+      bySource[k].costTotal = CHANNEL_TOTAL_COSTS[k];
+      bySource[k].costSource = 'facture';
+    } else {
+      bySource[k].costTotal = bySource[k].total * bySource[k].costUnit;
+      bySource[k].costSource = 'forfait';
+    }
   });
 
   // Globaux
@@ -3681,9 +3701,14 @@ async function renderStatsLeads(content) {
               var col = v >= 3 ? '#27ae60' : (v >= 1 ? '#e0a030' : '#e74c3c');
               return '<span style="color:'+col+';font-weight:700">x'+v.toFixed(2)+'</span>';
             }
-            var origine = r.spendReal > 0
-              ? '<span style="color:#27ae60;font-size:0.75rem"><i class="fas fa-check-circle"></i> Sync</span>'
-              : '<span style="color:var(--text-light);font-size:0.75rem"><i class="fas fa-calculator"></i> Forfait ' + formatCurrency(r.costUnit) + '</span>';
+            var origine;
+            if (r.spendReal > 0) {
+              origine = '<span style="color:#27ae60;font-size:0.75rem"><i class="fas fa-check-circle"></i> Sync API</span>';
+            } else if (r.costSource === 'facture') {
+              origine = '<span style="color:#6a1b9a;font-size:0.75rem"><i class="fas fa-file-invoice-dollar"></i> Facture reelle</span>';
+            } else {
+              origine = '<span style="color:var(--text-light);font-size:0.75rem"><i class="fas fa-calculator"></i> Forfait ' + formatCurrency(r.costUnit) + '</span>';
+            }
             return '<tr>' +
               '<td><div style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:'+r.color+';display:inline-block"></span><strong>'+r.label+'</strong></div></td>' +
               '<td style="text-align:right;font-weight:700">'+r.total+'</td>' +
@@ -3708,7 +3733,7 @@ async function renderStatsLeads(content) {
             '<td></td>' +
           '</tr>' +
           '</tbody></table></div>' +
-        '<div class="text-small text-muted" style="margin-top:10px"><i class="fas fa-info-circle"></i> <strong>Sync</strong> = depense reelle recuperee des APIs (FB/Google). <strong>Forfait</strong> = cout moyen hardcode dans <code>LEAD_COSTS</code>. CPL = cout/nb leads, CAC = cout/nb valides ou devis, ROAS = CA/cout (objectif ≥ x3).</div>' +
+        '<div class="text-small text-muted" style="margin-top:10px"><i class="fas fa-info-circle"></i> <strong>Sync API</strong> = depense reelle (FB/Google). <strong>Facture reelle</strong> = cumul preleve depuis debut contrat (<code>CHANNEL_TOTAL_COSTS</code>). <strong>Forfait</strong> = cout moyen estime (<code>LEAD_COSTS</code>). CPL = cout/nb leads, CAC = cout/nb valides ou devis, ROAS = CA/cout (objectif ≥ x3).</div>' +
       '</div>';
     })() +
 
