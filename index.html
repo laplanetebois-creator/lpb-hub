@@ -1564,7 +1564,6 @@ a.att-item { position: relative; display: block; }
       <div class="section-label">Principal</div>
       <a data-page="dashboard" class="active"><i class="fas fa-chart-pie"></i> Tableau de bord</a>
       <a data-page="crm"><i class="fas fa-users"></i> CRM</a>
-      <a data-page="crm-stats"><i class="fas fa-chart-bar"></i> Statistiques CRM</a>
       <a data-page="prm"><i class="fas fa-briefcase"></i> PRM Pro</a>
       <a data-page="google-ads"><i class="fab fa-google"></i> Google Ads</a>
       <a data-page="fb-ads"><i class="fab fa-facebook"></i> FB Ads</a>
@@ -1724,7 +1723,6 @@ a.att-item { position: relative; display: block; }
       <a data-page="planning"><i class="fas fa-calendar-alt"></i>Planning</a>
       <a data-page="fb-ads"><i class="fab fa-facebook"></i>FB Ads</a>
       <a data-page="seo"><i class="fas fa-search"></i>SEO</a>
-      <a data-page="crm-stats"><i class="fas fa-chart-bar"></i>Stats CRM</a>
       <a data-page="analytics"><i class="fas fa-chart-line"></i>Analytics</a>
       <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
       <a data-page="commandes"><i class="fas fa-box"></i>Commandes</a>
@@ -2485,7 +2483,7 @@ window.navigate = function navigate(page) {
   currentPage = page;
   $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
   const titles = {
-    dashboard: 'Tableau de bord', crm: 'CRM', 'crm-stats': 'Statistiques CRM',
+    dashboard: 'Tableau de bord', crm: 'CRM',
     'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
     devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client', prm: 'PRM Professionnels',
@@ -3262,8 +3260,8 @@ function getLeadCost(sourceKey) {
 function classifySource(rawSource) {
   var s = (rawSource || '').toString().toLowerCase().trim();
   if (!s) return { key: 'inconnu', label: 'Inconnu', color: '#95a5a6' };
-  // Meta famille : fb, instagram, meta, ig
-  if (['facebook','fb','meta','instagram','ig'].indexOf(s) !== -1) {
+  // Meta famille : fb, instagram, meta, meta_ads, ig
+  if (['facebook','fb','meta','meta_ads','instagram','ig'].indexOf(s) !== -1) {
     return { key: 'facebook', label: 'Facebook / Meta', color: '#e65100' };
   }
   // Web: site + google (organique + SEA)
@@ -3295,15 +3293,29 @@ async function renderStatsLeads(content) {
 
   var results = await Promise.all([
     dbSelect('contacts', { order: ['created_at', false] }),
-    dbSelect('deals')
+    dbSelect('deals'),
+    dbSelect('ad_campaigns').catch(function(){ return []; }),
+    dbSelect('fbads_daily_data').catch(function(){ return []; }),
+    dbSelect('google_ads_data').catch(function(){ return []; })
   ]);
-  var contacts = results[0];
-  var deals = results[1];
+  var contacts   = results[0];
+  var deals      = results[1];
+  var adCampaigns = results[2] || [];
+  var fbAds      = results[3] || [];
+  var googleAds  = results[4] || [];
 
   // Exclure les shadow contacts techniques du PRM (pas de vrais leads entrants)
   var leads = contacts.filter(function(c) {
     var src = (c.source || '').toLowerCase();
     return src !== 'prm' && src !== 'prospect_consolide';
+  });
+
+  // Index des deals par contact
+  var dealsByContact = {};
+  deals.forEach(function(d) {
+    if (!d.contact_id) return;
+    if (!dealsByContact[d.contact_id]) dealsByContact[d.contact_id] = [];
+    dealsByContact[d.contact_id].push(d);
   });
 
   // Set des contact_ids qui ont AU MOINS un deal en stage devis/attente/r2/gagne
@@ -3315,6 +3327,23 @@ async function renderStatsLeads(content) {
     }
   });
   function hasDevis(c) { return !!contactsWithDevis[c.id]; }
+
+  // Depense synchronisee par cle de classification
+  // FB Ads -> 'facebook'  |  Google Ads -> 'web' (Google + site sont fusionnes dans classifySource)
+  var spendByKey = {};
+  adCampaigns.forEach(function(c) {
+    var src = String(c.source || '').toLowerCase();
+    var spend = parseFloat(c.spend || c.cost || 0) || 0;
+    if (!spend) return;
+    var key = 'inconnu';
+    if (src.indexOf('facebook') !== -1 || src.indexOf('meta') !== -1) key = 'facebook';
+    else if (src.indexOf('google') !== -1) key = 'web';
+    else if (src.indexOf('travaux') !== -1) key = 'travaux';
+    else if (src.indexOf('helloartisan') !== -1) key = 'helloartisan';
+    spendByKey[key] = (spendByKey[key] || 0) + spend;
+  });
+  fbAds.forEach(function(r){ spendByKey['facebook'] = (spendByKey['facebook']||0) + (parseFloat(r.spend||0)||0); });
+  googleAds.forEach(function(r){ spendByKey['web']  = (spendByKey['web']||0)      + (parseFloat(r.spend||0)||0); });
 
   var now = Date.now();
   var MS_DAY = 86400000;
@@ -3344,11 +3373,21 @@ async function renderStatsLeads(content) {
   leads.forEach(function(c) {
     var klass = classifySource(c.source);
     if (!bySource[klass.key]) {
-      bySource[klass.key] = { label: klass.label, color: klass.color, total: 0, mois: 0, j30: 0, j7: 0, valid: 0, devis: 0, costUnit: getLeadCost(klass.key) };
+      bySource[klass.key] = { label: klass.label, color: klass.color, total: 0, mois: 0, j30: 0, j7: 0, valid: 0, devis: 0, won: 0, lost: 0, value: 0, costUnit: getLeadCost(klass.key) };
     }
     bySource[klass.key].total += 1;
     if (isValidatedLead(c)) bySource[klass.key].valid += 1;
     if (hasDevis(c))        bySource[klass.key].devis += 1;
+    // Gagnes / Perdus / CA signe
+    var cDeals = dealsByContact[c.id] || [];
+    var wonDeals  = cDeals.filter(function(d){ return d.stage === 'gagne'; });
+    var lostDeals = cDeals.filter(function(d){ return d.stage === 'perdu'; });
+    if (wonDeals.length > 0) {
+      bySource[klass.key].won += 1;
+      bySource[klass.key].value += wonDeals.reduce(function(s,d){ return s + (parseFloat(d.value)||0); }, 0);
+    } else if (lostDeals.length > 0) {
+      bySource[klass.key].lost += 1;
+    }
     if (c.created_at) {
       var t = new Date(c.created_at).getTime();
       if (t >= startOfMonth.getTime()) bySource[klass.key].mois += 1;
@@ -3357,17 +3396,37 @@ async function renderStatsLeads(content) {
     }
   });
 
-  // Calcul investissement total (uniquement sources payantes)
-  var totalInvestment = 0;
+  // Injecter la depense reelle (sync) dans chaque source + prefere au cout fixe
   Object.keys(bySource).forEach(function(k){
-    totalInvestment += bySource[k].total * bySource[k].costUnit;
+    bySource[k].spendReal = spendByKey[k] || 0;
+    // Cout effectif = sync si dispo, sinon forfait LEAD_COSTS
+    bySource[k].costTotal = bySource[k].spendReal > 0
+      ? bySource[k].spendReal
+      : (bySource[k].total * bySource[k].costUnit);
   });
+
+  // Globaux
+  var totalWon    = 0, totalLost = 0, totalCA = 0, totalSpendSync = 0;
+  Object.keys(bySource).forEach(function(k){
+    totalWon        += bySource[k].won;
+    totalLost       += bySource[k].lost;
+    totalCA         += bySource[k].value;
+    totalSpendSync  += bySource[k].spendReal;
+  });
+  var pctConvGlobal  = totalAll > 0 ? ((totalWon / totalAll) * 100).toFixed(1) : '0.0';
+
+  // Investissement total = somme costTotal (sync si dispo, sinon forfait)
+  var totalInvestment = 0;
+  Object.keys(bySource).forEach(function(k){ totalInvestment += bySource[k].costTotal; });
   var totalInvestmentMois = 0;
   Object.keys(bySource).forEach(function(k){
-    totalInvestmentMois += bySource[k].mois * bySource[k].costUnit;
+    // Pour les sources au forfait, on applique sur leads du mois. Pour le sync, on ne peut pas filtrer par mois sans la date de spend -> on fallback sur le forfait.
+    var costMois = bySource[k].spendReal > 0 ? 0 : (bySource[k].mois * bySource[k].costUnit);
+    totalInvestmentMois += costMois;
   });
   var cacValidGlobal = totalValid > 0 ? Math.round(totalInvestment / totalValid) : 0;
   var cacDevisGlobal = totalDevis > 0 ? Math.round(totalInvestment / totalDevis) : 0;
+  var roasGlobal     = totalInvestment > 0 ? (totalCA / totalInvestment) : null;
 
   // Trier par total desc
   var rows = Object.keys(bySource).map(function(k){
@@ -3422,12 +3481,32 @@ async function renderStatsLeads(content) {
       statCard('Devis emis',           totalDevis + ' <span style="font-size:1rem;color:var(--text-light);font-weight:500">(' + pctDevisGlobal + '%)</span>', 'fas fa-file-invoice-dollar', '#8e44ad') +
     '</div>' +
 
-    // Stat cards - ligne 3 : cout / ROI
+    // Stat cards - ligne 3 : conversion finale
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">' +
+      statCard('Deals signes',            totalWon,                                           'fas fa-trophy',          '#f39c12') +
+      statCard('Taux conversion',         pctConvGlobal + '%',                                'fas fa-percentage',      '#9b59b6') +
+      statCard('CA signe',                formatCurrency(totalCA),                            'fas fa-euro-sign',       '#2980b9') +
+      statCard('ROAS global',             roasGlobal !== null ? 'x' + roasGlobal.toFixed(2) : '—', 'fas fa-chart-line',      '#00b894') +
+    '</div>' +
+
+    // Stat cards - ligne 4 : cout / ROI
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">' +
       statCard('Investissement total',    formatCurrency(totalInvestment),     'fas fa-euro-sign',       '#c0392b') +
       statCard('Investissement ce mois',  formatCurrency(totalInvestmentMois), 'fas fa-calendar-alt',    '#d35400') +
       statCard('Cout par lead valide',    totalValid > 0 ? formatCurrency(cacValidGlobal) : '—',        'fas fa-user-check',      '#16a085') +
       statCard('Cout par devis',          totalDevis > 0 ? formatCurrency(cacDevisGlobal) : '—',        'fas fa-file-invoice',    '#6c5ce7') +
+    '</div>' +
+
+    // Graphiques : donut repartition + bar chart conversion
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">' +
+      '<div class="panel" style="padding:16px">' +
+        '<h3 style="margin:0 0 12px 0;font-size:1rem;display:flex;align-items:center;gap:8px"><i class="fas fa-chart-pie" style="color:var(--primary)"></i> Repartition des leads par source</h3>' +
+        '<div style="height:280px;position:relative"><canvas id="chart-stats-repartition"></canvas></div>' +
+      '</div>' +
+      '<div class="panel" style="padding:16px">' +
+        '<h3 style="margin:0 0 12px 0;font-size:1rem;display:flex;align-items:center;gap:8px"><i class="fas fa-chart-bar" style="color:var(--primary)"></i> Taux de conversion par source</h3>' +
+        '<div style="height:280px;position:relative"><canvas id="chart-stats-conversion"></canvas></div>' +
+      '</div>' +
     '</div>' +
 
     // Repartition par source
