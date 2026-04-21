@@ -2481,7 +2481,8 @@ window.navigate = function navigate(page) {
   currentPage = page;
   $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
   const titles = {
-    dashboard: 'Tableau de bord', crm: 'CRM', 'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
+    dashboard: 'Tableau de bord', crm: 'CRM', 'crm-stats': 'Statistiques CRM',
+    'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
     devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client', prm: 'PRM Professionnels',
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
@@ -8125,6 +8126,231 @@ window.planDelete = async function(id) {
   await dbDelete('planning', id);
   toast('Evenement supprime');
   pages.planning();
+};
+
+// ============================================
+// STATISTIQUES CRM — Performance leads par source + ROI (FB/Google Ads)
+// ============================================
+pages['crm-stats'] = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var dfCreated = getDateFilters('created_at');
+  const [contacts, deals, adCampaigns] = await Promise.all([
+    dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
+    dbSelect('deals', Object.assign({}, dfCreated)),
+    dbSelect('ad_campaigns')
+  ]);
+
+  const SOURCE_GROUPS = {
+    facebook:      { label: 'Facebook Ads', emoji: '🎯', color: '#3b5998', icon: 'fab fa-facebook',    sources: ['facebook','meta','meta_ads'] },
+    'travaux-com': { label: 'Travaux.com',  emoji: '🔨', color: '#d4a04a', icon: 'fas fa-hammer',       sources: ['travaux.com','src-travaux'] },
+    helloartisan:  { label: 'HelloArtisan', emoji: '👋', color: '#e67e22', icon: 'fas fa-hands-helping',sources: ['helloartisan'] },
+    website:       { label: 'Site web',     emoji: '🌐', color: '#2d6a4f', icon: 'fas fa-globe',        sources: ['website'] }
+  };
+
+  const dealsByContact = {};
+  deals.forEach(d => {
+    if (!dealsByContact[d.contact_id]) dealsByContact[d.contact_id] = [];
+    dealsByContact[d.contact_id].push(d);
+  });
+
+  function categorize(src) {
+    const s = String(src || '').toLowerCase().trim();
+    for (const key in SOURCE_GROUPS) {
+      if (SOURCE_GROUPS[key].sources.indexOf(s) !== -1) return key;
+    }
+    return 'other';
+  }
+
+  const spendByGroup = { facebook: 0, 'travaux-com': 0, helloartisan: 0, website: 0, other: 0 };
+  adCampaigns.forEach(c => {
+    const src = String(c.source || '').toLowerCase();
+    const spend = parseFloat(c.spend || c.cost || 0) || 0;
+    if (src.indexOf('facebook') !== -1 || src.indexOf('meta') !== -1) spendByGroup.facebook += spend;
+    else if (src.indexOf('google') !== -1) spendByGroup.website += spend;
+    else spendByGroup.other += spend;
+  });
+
+  const stats = {};
+  Object.keys(SOURCE_GROUPS).forEach(k => { stats[k] = { leads:0, won:0, lost:0, openDeals:0, value:0 }; });
+  stats.other = { leads:0, won:0, lost:0, openDeals:0, value:0 };
+
+  contacts.forEach(c => {
+    const k = categorize(c.source);
+    stats[k].leads++;
+    const cd = dealsByContact[c.id] || [];
+    const won = cd.filter(d => d.stage === 'gagne');
+    const lost = cd.filter(d => d.stage === 'perdu');
+    if (won.length > 0) {
+      stats[k].won++;
+      stats[k].value += won.reduce((s, d) => s + (parseFloat(d.value) || 0), 0);
+    } else if (lost.length > 0) {
+      stats[k].lost++;
+    } else if (cd.length > 0) {
+      stats[k].openDeals++;
+    }
+  });
+
+  const totalLeads = contacts.length;
+  const totalWon = Object.values(stats).reduce((s, g) => s + g.won, 0);
+  const totalValue = Object.values(stats).reduce((s, g) => s + g.value, 0);
+  const totalSpend = Object.values(spendByGroup).reduce((a, b) => a + b, 0);
+  const overallConv = totalLeads > 0 ? (totalWon / totalLeads * 100).toFixed(1) : '0.0';
+  const overallROAS = totalSpend > 0 ? (totalValue / totalSpend).toFixed(2) : null;
+
+  function fmtPct(n) { return (n||0).toFixed(1) + '%'; }
+  function convRate(s) { return s.leads > 0 ? (s.won / s.leads * 100) : 0; }
+  function cpl(k) { return stats[k].leads > 0 && spendByGroup[k] > 0 ? (spendByGroup[k] / stats[k].leads) : null; }
+  function roas(k) { return spendByGroup[k] > 0 ? (stats[k].value / spendByGroup[k]) : null; }
+
+  const html = `
+    <div class="stats-grid" style="margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon green"><i class="fas fa-users"></i></div><div class="stat-info"><h3>${formatNumber(totalLeads)}</h3><p>Leads totaux</p></div></div>
+      <div class="stat-card"><div class="stat-icon gold"><i class="fas fa-trophy"></i></div><div class="stat-info"><h3>${formatNumber(totalWon)}</h3><p>Deals signés</p></div></div>
+      <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-percentage"></i></div><div class="stat-info"><h3>${overallConv}%</h3><p>Taux de conversion global</p></div></div>
+      <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-euro-sign"></i></div><div class="stat-info"><h3>${formatCurrency(totalValue)}</h3><p>CA signé</p></div></div>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:20px">
+      ${Object.keys(SOURCE_GROUPS).map(k => {
+        const g = SOURCE_GROUPS[k];
+        const s = stats[k];
+        const c = convRate(s);
+        return `
+          <div class="stat-card" style="border-left:4px solid ${g.color}">
+            <div class="stat-icon" style="background:${g.color};color:#fff"><i class="${g.icon}"></i></div>
+            <div class="stat-info">
+              <h3>${formatNumber(s.leads)}</h3>
+              <p>${g.label}</p>
+              <span class="trend ${s.won > 0 ? 'up' : ''}">
+                <i class="fas fa-trophy"></i> ${s.won} signés · ${fmtPct(c)}
+              </span>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-pie"></i> Répartition des leads par source</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-crmstats-repartition"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-bar"></i> Taux de conversion par source</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-crmstats-conversion"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="panel mt-24">
+      <div class="panel-header">
+        <h3><i class="fas fa-table"></i> Détail par source</h3>
+        <button class="btn btn-sm btn-outline" id="btn-crmstats-refresh"><i class="fas fa-sync-alt"></i> Actualiser</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table">
+          <thead><tr>
+            <th>Source</th><th>Leads</th><th>Ouverts</th><th>Gagnés</th><th>Perdus</th>
+            <th>Conversion</th><th>CA signé</th><th>Dépense</th><th>CPL</th><th>ROAS</th>
+          </tr></thead>
+          <tbody>
+            ${Object.keys(SOURCE_GROUPS).concat(['other']).map(k => {
+              const g = k === 'other'
+                ? { label: 'Autres (PRM, manuels, nocrm…)', emoji: '📥', color: '#95a5a6' }
+                : SOURCE_GROUPS[k];
+              const s = stats[k];
+              const c = convRate(s);
+              const sp = spendByGroup[k] || 0;
+              const cplVal = cpl(k);
+              const roasVal = roas(k);
+              return `<tr>
+                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${g.color};margin-right:8px"></span><strong>${g.emoji} ${g.label}</strong></td>
+                <td>${formatNumber(s.leads)}</td>
+                <td>${formatNumber(s.openDeals)}</td>
+                <td style="color:#27ae60"><strong>${formatNumber(s.won)}</strong></td>
+                <td style="color:#e74c3c">${formatNumber(s.lost)}</td>
+                <td><div class="progress-bar" style="width:80px;display:inline-block;vertical-align:middle"><div class="progress-bar-fill" style="width:${Math.min(c,100)}%;background:${g.color}"></div></div> <span class="text-small">${fmtPct(c)}</span></td>
+                <td>${formatCurrency(s.value)}</td>
+                <td>${sp > 0 ? formatCurrency(sp) : '<span class="text-muted">—</span>'}</td>
+                <td>${cplVal !== null ? formatCurrency(cplVal) : '<span class="text-muted">—</span>'}</td>
+                <td>${roasVal !== null ? '<strong>x' + roasVal.toFixed(2) + '</strong>' : '<span class="text-muted">—</span>'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f8f9fa;font-weight:600">
+              <td>TOTAL</td>
+              <td>${formatNumber(totalLeads)}</td>
+              <td>—</td>
+              <td style="color:#27ae60">${formatNumber(totalWon)}</td>
+              <td style="color:#e74c3c">${Object.values(stats).reduce((s,g)=>s+g.lost,0)}</td>
+              <td>${overallConv}%</td>
+              <td>${formatCurrency(totalValue)}</td>
+              <td>${totalSpend > 0 ? formatCurrency(totalSpend) : '—'}</td>
+              <td>${totalSpend > 0 ? formatCurrency(totalSpend/totalLeads) : '—'}</td>
+              <td>${overallROAS !== null ? 'x' + overallROAS : '—'}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel mt-24">
+      <div class="panel-header">
+        <h3><i class="fas fa-euro-sign"></i> Coûts publicitaires &amp; ROI</h3>
+        <div>
+          <button class="btn btn-sm btn-outline" id="btn-crmstats-sync-fb"><i class="fab fa-facebook"></i> Sync FB Ads</button>
+          <button class="btn btn-sm btn-outline" id="btn-crmstats-sync-google"><i class="fab fa-google"></i> Sync Google Ads</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        ${totalSpend > 0 ? `
+          <div class="text-small text-muted">Dépense totale synchronisée : <strong>${formatCurrency(totalSpend)}</strong> — ROAS global : <strong>x${overallROAS}</strong></div>
+        ` : `
+          <div class="empty-state">
+            <i class="fas fa-plug"></i>
+            <h4>Sync FB &amp; Google Ads à brancher</h4>
+            <p>La table <code>ad_campaigns</code> est vide. Va dans <strong>Parametres → Intégrations</strong> pour connecter FB Marketing API et Google Ads API. Une fois branché, les colonnes <strong>Dépense / CPL / ROAS</strong> ci-dessus se rempliront automatiquement.</p>
+          </div>
+        `}
+      </div>
+    </div>
+
+    <div class="text-small text-muted mt-16" style="text-align:right">
+      <i class="fas fa-info-circle"></i> Conversion = contact devenu deal <code>gagne</code> / total leads de la source.
+    </div>
+  `;
+  content.innerHTML = html;
+
+  content.querySelector('#btn-crmstats-refresh')?.addEventListener('click', () => pages['crm-stats']());
+  content.querySelector('#btn-crmstats-sync-fb')?.addEventListener('click', () => { toast('Configure la Marketing API dans Parametres', 'warning'); navigate('settings'); });
+  content.querySelector('#btn-crmstats-sync-google')?.addEventListener('click', () => { toast('Configure Google Ads API dans Parametres', 'warning'); navigate('settings'); });
+
+  if (document.getElementById('chart-crmstats-repartition')) {
+    const labels = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].label).concat(['Autres']);
+    const data = Object.keys(SOURCE_GROUPS).map(k => stats[k].leads).concat([stats.other.leads]);
+    const colors = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].color).concat(['#95a5a6']);
+    new Chart($('#chart-crmstats-repartition'), {
+      type: 'doughnut',
+      data: { labels: labels, datasets: [{ data: data, backgroundColor: colors }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+
+  if (document.getElementById('chart-crmstats-conversion')) {
+    const labels = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].label);
+    const data = Object.keys(SOURCE_GROUPS).map(k => parseFloat(convRate(stats[k]).toFixed(1)));
+    const colors = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].color);
+    new Chart($('#chart-crmstats-conversion'), {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ label: 'Taux de conversion (%)', data: data, backgroundColor: colors }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } } }
+      }
+    });
+  }
 };
 
 // ============================================
