@@ -2764,6 +2764,7 @@ pages.crm = async function(subTab) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   if (subTab === 'pipeline') { return renderPipeline(content); }
+  if (subTab === 'stats')    { return renderStatsLeads(content); }
 
   let contacts = await dbSelect('contacts', { order: ['created_at', false] });
   let filterStatus = 'all';
@@ -2791,6 +2792,7 @@ pages.crm = async function(subTab) {
       <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
         <button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>
         <button class="tab-btn active" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-users"></i> Contacts</button>
+        <button class="tab-btn" data-crm-tab="stats" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-chart-pie"></i> Statistiques leads</button>
       </div>
     ` + `
       <div class="toolbar">
@@ -3240,6 +3242,185 @@ function crmImportHelloArtisan() {
 }
 
 // ============================================
+// STATISTIQUES LEADS MODULE
+// ============================================
+// Classification des sources (regroupement business).
+// Modifier cette fonction pour changer le mapping affiche.
+function classifySource(rawSource) {
+  var s = (rawSource || '').toString().toLowerCase().trim();
+  if (!s) return { key: 'inconnu', label: 'Inconnu', color: '#95a5a6' };
+  // Meta famille : fb, instagram, meta, ig
+  if (['facebook','fb','meta','instagram','ig'].indexOf(s) !== -1) {
+    return { key: 'facebook', label: 'Facebook / Meta', color: '#e65100' };
+  }
+  // Web: site + google (organique + SEA)
+  if (['website','web','site','google','google_ads','googleads'].indexOf(s) !== -1) {
+    return { key: 'web', label: 'Web (site + Google)', color: '#c62828' };
+  }
+  if (s === 'helloartisan')   return { key: 'helloartisan', label: 'helloArtisan',   color: '#1976d2' };
+  if (s === 'travaux.com')    return { key: 'travaux',      label: 'Travaux.com',    color: '#2e7d32' };
+  if (s === 'linkedin')       return { key: 'linkedin',     label: 'LinkedIn',       color: '#0277bd' };
+  if (s === 'referral')       return { key: 'referral',     label: 'Bouche a oreille',color: '#7b1fa2' };
+  // Fallback : source brute conservee
+  return { key: s, label: s, color: '#95a5a6' };
+}
+
+async function renderStatsLeads(content) {
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var contacts = await dbSelect('contacts', { order: ['created_at', false] });
+
+  // Exclure les shadow contacts techniques du PRM (pas de vrais leads entrants)
+  var leads = contacts.filter(function(c) {
+    var src = (c.source || '').toLowerCase();
+    return src !== 'prm' && src !== 'prospect_consolide';
+  });
+
+  var now = Date.now();
+  var MS_DAY = 86400000;
+  var t7  = now - 7  * MS_DAY;
+  var t30 = now - 30 * MS_DAY;
+  var startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0);
+
+  function count(filter) {
+    return leads.filter(function(c) {
+      if (!c.created_at) return false;
+      var t = new Date(c.created_at).getTime();
+      return filter(t);
+    }).length;
+  }
+
+  var totalAll   = leads.length;
+  var totalMois  = count(function(t){ return t >= startOfMonth.getTime(); });
+  var total30j   = count(function(t){ return t >= t30; });
+  var total7j    = count(function(t){ return t >= t7; });
+
+  // Regroupement par classification
+  var bySource = {};
+  leads.forEach(function(c) {
+    var klass = classifySource(c.source);
+    if (!bySource[klass.key]) {
+      bySource[klass.key] = { label: klass.label, color: klass.color, total: 0, mois: 0, j30: 0, j7: 0 };
+    }
+    bySource[klass.key].total += 1;
+    if (c.created_at) {
+      var t = new Date(c.created_at).getTime();
+      if (t >= startOfMonth.getTime()) bySource[klass.key].mois += 1;
+      if (t >= t30) bySource[klass.key].j30 += 1;
+      if (t >= t7)  bySource[klass.key].j7  += 1;
+    }
+  });
+
+  // Trier par total desc
+  var rows = Object.keys(bySource).map(function(k){
+    return Object.assign({ key: k }, bySource[k]);
+  }).sort(function(a,b){ return b.total - a.total; });
+
+  // Evolution mensuelle : 12 derniers mois
+  var monthly = [];
+  for (var i = 11; i >= 0; i--) {
+    var d = new Date(); d.setDate(1); d.setHours(0,0,0,0); d.setMonth(d.getMonth() - i);
+    var dNext = new Date(d); dNext.setMonth(dNext.getMonth() + 1);
+    var label = d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+    var c = leads.filter(function(x){
+      if (!x.created_at) return false;
+      var t = new Date(x.created_at).getTime();
+      return t >= d.getTime() && t < dNext.getTime();
+    }).length;
+    monthly.push({ label: label, count: c });
+  }
+  var maxMonthly = Math.max.apply(null, monthly.map(function(m){ return m.count; }).concat([1]));
+
+  var statCard = function(label, value, icon, color) {
+    return '<div class="panel" style="padding:20px;flex:1;min-width:160px;border-left:4px solid '+color+'">' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<div style="width:44px;height:44px;border-radius:10px;background:'+color+'22;color:'+color+';display:flex;align-items:center;justify-content:center;font-size:1.2rem"><i class="'+icon+'"></i></div>' +
+        '<div>' +
+          '<div style="font-size:0.72rem;text-transform:uppercase;color:var(--text-light);font-weight:600;letter-spacing:0.3px">'+label+'</div>' +
+          '<div style="font-size:1.8rem;font-weight:700;color:var(--text);line-height:1">'+value+'</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  };
+
+  content.innerHTML =
+    '<div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">' +
+      '<button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>' +
+      '<button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>' +
+      '<button class="tab-btn active" data-crm-tab="stats" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-chart-pie"></i> Statistiques leads</button>' +
+    '</div>' +
+
+    // Stat cards
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">' +
+      statCard('Total leads',          totalAll,   'fas fa-users',           '#3498db') +
+      statCard('Ce mois',              totalMois,  'fas fa-calendar-alt',    '#2ecc71') +
+      statCard('30 derniers jours',    total30j,   'fas fa-calendar',        '#e0a030') +
+      statCard('7 derniers jours',     total7j,    'fas fa-bolt',            '#e65100') +
+    '</div>' +
+
+    // Repartition par source
+    '<div class="panel" style="padding:20px;margin-bottom:20px">' +
+      '<h3 style="margin:0 0 14px 0;font-size:1rem;display:flex;align-items:center;gap:8px"><i class="fas fa-chart-bar" style="color:var(--primary)"></i> Repartition par source</h3>' +
+      (rows.length === 0
+        ? '<div class="empty-state"><i class="fas fa-inbox"></i><h4>Aucun lead</h4></div>'
+        : '<table class="data-table" style="width:100%">' +
+            '<thead><tr>' +
+              '<th>Source</th>' +
+              '<th style="text-align:right">Total</th>' +
+              '<th style="text-align:right">Ce mois</th>' +
+              '<th style="text-align:right">30j</th>' +
+              '<th style="text-align:right">7j</th>' +
+              '<th>%</th>' +
+            '</tr></thead>' +
+            '<tbody>' +
+            rows.map(function(r){
+              var pct = totalAll > 0 ? Math.round((r.total / totalAll) * 100) : 0;
+              return '<tr>' +
+                '<td><div style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:'+r.color+';display:inline-block"></span><strong>'+r.label+'</strong></div></td>' +
+                '<td style="text-align:right;font-weight:700;font-size:1rem">'+r.total+'</td>' +
+                '<td style="text-align:right">'+r.mois+'</td>' +
+                '<td style="text-align:right">'+r.j30+'</td>' +
+                '<td style="text-align:right">'+r.j7+'</td>' +
+                '<td style="min-width:180px">' +
+                  '<div style="display:flex;align-items:center;gap:8px">' +
+                    '<div style="flex:1;height:8px;background:#eef2f6;border-radius:4px;overflow:hidden">' +
+                      '<div style="height:100%;width:'+pct+'%;background:'+r.color+';border-radius:4px;transition:width 0.3s"></div>' +
+                    '</div>' +
+                    '<span style="font-size:0.75rem;color:var(--text-light);min-width:35px;text-align:right">'+pct+'%</span>' +
+                  '</div>' +
+                '</td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody></table>'
+      ) +
+    '</div>' +
+
+    // Evolution mensuelle (12 mois)
+    '<div class="panel" style="padding:20px;margin-bottom:20px">' +
+      '<h3 style="margin:0 0 14px 0;font-size:1rem;display:flex;align-items:center;gap:8px"><i class="fas fa-chart-line" style="color:var(--primary)"></i> Evolution sur 12 mois</h3>' +
+      '<div style="display:flex;align-items:flex-end;gap:6px;height:180px;padding:10px 0;border-bottom:1px solid var(--border)">' +
+        monthly.map(function(m){
+          var h = maxMonthly > 0 ? Math.max(2, Math.round((m.count / maxMonthly) * 150)) : 2;
+          return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
+            '<div style="font-size:0.72rem;font-weight:700;color:var(--text)">'+m.count+'</div>' +
+            '<div style="width:100%;height:'+h+'px;background:linear-gradient(180deg,var(--primary),#2980b9);border-radius:4px 4px 0 0;min-height:2px" title="'+m.label+': '+m.count+' leads"></div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<div style="display:flex;gap:6px;margin-top:6px">' +
+        monthly.map(function(m){
+          return '<div style="flex:1;text-align:center;font-size:0.7rem;color:var(--text-light)">'+m.label+'</div>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+
+  // CRM sub-tabs
+  content.querySelectorAll('[data-crm-tab]').forEach(function(btn) {
+    btn.addEventListener('click', function() { pages.crm(btn.dataset.crmTab); });
+  });
+}
+
+// ============================================
 // PIPELINE MODULE
 // ============================================
 async function renderPipeline(content) {
@@ -3272,6 +3453,7 @@ async function renderPipeline(content) {
     <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
       <button class="tab-btn active" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-stream"></i> Pipeline</button>
       <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
+      <button class="tab-btn" data-crm-tab="stats" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-chart-pie"></i> Statistiques leads</button>
     </div>
     <div class="toolbar">
       <div class="toolbar-left">
@@ -8140,10 +8322,13 @@ pages['crm-stats'] = async function() {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   var dfCreated = getDateFilters('created_at');
-  const [contacts, deals, adCampaigns] = await Promise.all([
+  var dfDate = getDateFilters('date');
+  const [contacts, deals, adCampaigns, googleAds, fbAds] = await Promise.all([
     dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
     dbSelect('deals', Object.assign({}, dfCreated)),
-    dbSelect('ad_campaigns')
+    dbSelect('ad_campaigns'),
+    dbSelect('google_ads_data', Object.assign({}, dfDate)),
+    dbSelect('fbads_daily_data', Object.assign({}, dfDate))
   ]);
 
   const SOURCE_GROUPS = {
@@ -8175,6 +8360,8 @@ pages['crm-stats'] = async function() {
     else if (src.indexOf('google') !== -1) spendByGroup.website += spend;
     else spendByGroup.other += spend;
   });
+  fbAds.forEach(r => { spendByGroup.facebook += parseFloat(r.spend || 0) || 0; });
+  googleAds.forEach(r => { spendByGroup.website += parseFloat(r.spend || 0) || 0; });
 
   const stats = {};
   Object.keys(SOURCE_GROUPS).forEach(k => { stats[k] = { leads:0, won:0, lost:0, openDeals:0, value:0 }; });
