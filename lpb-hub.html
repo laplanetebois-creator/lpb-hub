@@ -9204,11 +9204,11 @@ $('#global-search')?.addEventListener('keydown', async (e) => {
         <div class="panel-header"><h3><i class="fas fa-users"></i> Contacts (${matchContacts.length})</h3></div>
         <div class="panel-body" style="padding:0">
           <table class="data-table"><tbody>
-            ${matchContacts.slice(0, 10).map(c => `<tr>
+            ${matchContacts.slice(0, 10).map(c => `<tr style="cursor:pointer" onclick="crmEdit('${c.id}')">
               <td><div class="avatar-sm" style="display:inline-flex">${avatarHtml(c)}</div> ${c.first_name} ${c.last_name}</td>
               <td>${c.email || '—'}</td>
               <td><span class="badge-status ${c.status}">${c.status}</span></td>
-              <td><button class="btn btn-xs btn-outline" onclick="crmEdit('${c.id}')">Voir</button></td>
+              <td><button class="btn btn-xs btn-outline" onclick="event.stopPropagation();crmEdit('${c.id}')">Voir</button></td>
             </tr>`).join('')}
           </tbody></table>
         </div>
@@ -9219,7 +9219,7 @@ $('#global-search')?.addEventListener('keydown', async (e) => {
         <div class="panel-header"><h3><i class="fas fa-handshake"></i> Deals (${matchDeals.length})</h3></div>
         <div class="panel-body" style="padding:0">
           <table class="data-table"><tbody>
-            ${matchDeals.map(d => `<tr><td>${d.title}</td><td>${formatCurrency(d.value)}</td><td>${d.stage}</td><td><button class="btn btn-xs btn-outline" onclick="dealView('${d.id}')">Voir</button></td></tr>`).join('')}
+            ${matchDeals.map(d => `<tr style="cursor:pointer" onclick="dealView('${d.id}')"><td>${d.title}</td><td>${formatCurrency(d.value)}</td><td>${d.stage}</td><td><button class="btn btn-xs btn-outline" onclick="event.stopPropagation();dealView('${d.id}')">Voir</button></td></tr>`).join('')}
           </tbody></table>
         </div>
       </div>
