@@ -1516,6 +1516,12 @@ window.closeDealPopup = function() {
 $('#deal-popup-close')?.addEventListener('click', closeDealPopup);
 $('#deal-popup-overlay')?.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeDealPopup(); });
 
+window.contactView = async function(contactId) {
+  const deals = await dbSelect('deals', { eq: [['contact_id', contactId]], order: ['created_at', false] });
+  if (deals && deals[0]) return dealView(deals[0].id);
+  return crmEdit(contactId);
+};
+
 window.dealView = async function(id) {
   var popup = $('#deal-popup-overlay');
   var popupBody = $('#deal-popup-body');
@@ -4608,11 +4614,11 @@ $('#global-search')?.addEventListener('keydown', async (e) => {
         <div class="panel-header"><h3><i class="fas fa-users"></i> Contacts (${matchContacts.length})</h3></div>
         <div class="panel-body" style="padding:0">
           <table class="data-table"><tbody>
-            ${matchContacts.slice(0, 10).map(c => `<tr style="cursor:pointer" onclick="crmEdit('${c.id}')">
+            ${matchContacts.slice(0, 10).map(c => `<tr style="cursor:pointer" onclick="contactView('${c.id}')">
               <td><div class="avatar-sm" style="display:inline-flex">${initials(c.first_name, c.last_name)}</div> ${c.first_name} ${c.last_name}</td>
               <td>${c.email || '—'}</td>
               <td><span class="badge-status ${c.status}">${c.status}</span></td>
-              <td><button class="btn btn-xs btn-outline" onclick="event.stopPropagation();crmEdit('${c.id}')">Voir</button></td>
+              <td><button class="btn btn-xs btn-outline" onclick="event.stopPropagation();contactView('${c.id}')">Voir</button></td>
             </tr>`).join('')}
           </tbody></table>
         </div>
