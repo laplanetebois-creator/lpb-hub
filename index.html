@@ -9889,7 +9889,7 @@ pages.rapport = async function() {
   var dfCreated = getDateFilters('created_at');
   var dfStartDate = getDateFilters('start_date');
 
-  var [contacts, deals, planning, activities, ga4, gmbData, adsData, scData] = await Promise.all([
+  var [contactsAll, deals, planning, activities, ga4, gmbData, adsData, scData] = await Promise.all([
     dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
     dbSelect('deals', Object.assign({ order: ['created_at', false] }, dfCreated)),
     dbSelect('planning', Object.assign({ order: ['start_date', false] }, dfStartDate)),
@@ -9899,6 +9899,9 @@ pages.rapport = async function() {
     dbSelect('google_ads_data', Object.assign({ order: ['date', false] }, df)),
     dbSelect('search_console_data', Object.assign({ order: ['date', false] }, df))
   ]);
+
+  // CRM uniquement dans le rapport journalier — les PRM ne sont pas des leads commerciaux
+  var contacts = filterCrmLeads(contactsAll);
 
   // Group data by date for daily reports
   var dailyMap = {};
