@@ -7328,12 +7328,14 @@ pages['dashboard-devis'] = async function() {
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  const [deals, contacts] = await Promise.all([
+  const [deals, contactsAll] = await Promise.all([
     dbSelect('deals', { order: ['created_at', false] }),
     dbSelect('contacts')
   ]);
+  // CRM uniquement pour les calculs stats, mais garder contactMap complet pour les lookups de deals
+  const contacts = filterCrmLeads(contactsAll);
   const contactMap = {};
-  contacts.forEach(c => { contactMap[c.id] = c; });
+  contactsAll.forEach(c => { contactMap[c.id] = c; });
 
   const statusColors = { envoye: '#f39c12', refuse: '#e74c3c', accepte: '#27ae60', attente: '#3498db', autres: '#95a5a6' };
   const statusLabels = { envoye: 'Envoyé (devis)', refuse: 'Refusé', accepte: 'Signé (client)', attente: 'En attente', autres: 'Autres étapes' };
@@ -9889,7 +9891,7 @@ pages.rapport = async function() {
   var dfCreated = getDateFilters('created_at');
   var dfStartDate = getDateFilters('start_date');
 
-  var [contacts, deals, planning, activities, ga4, gmbData, adsData, scData] = await Promise.all([
+  var [contactsAll, deals, planning, activities, ga4, gmbData, adsData, scData] = await Promise.all([
     dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
     dbSelect('deals', Object.assign({ order: ['created_at', false] }, dfCreated)),
     dbSelect('planning', Object.assign({ order: ['start_date', false] }, dfStartDate)),
@@ -9899,6 +9901,9 @@ pages.rapport = async function() {
     dbSelect('google_ads_data', Object.assign({ order: ['date', false] }, df)),
     dbSelect('search_console_data', Object.assign({ order: ['date', false] }, df))
   ]);
+
+  // CRM uniquement dans le rapport journalier — les PRM ne sont pas des leads commerciaux
+  var contacts = filterCrmLeads(contactsAll);
 
   // Group data by date for daily reports
   var dailyMap = {};
