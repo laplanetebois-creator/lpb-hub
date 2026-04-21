@@ -3246,10 +3246,10 @@ function crmImportHelloArtisan() {
 // Les sources absentes sont considerees comme "gratuit" (organique).
 var LEAD_COSTS = {
   'helloartisan': 50,
-  'travaux':      50
-  // 'facebook': 0,   // a remplir avec budget FB Ads / nb leads attendu
-  // 'web':      0,   // SEO organique = 0 par defaut
-  // 'google':   0    // separer de 'web' si Google Ads active (voir classifySource)
+  'travaux':      50,
+  'facebook':     30    // Forfait FB Ads — override automatique si sync 'ad_campaigns.spent' ou 'fbads_daily_data.spend' > 0
+  // 'web':      0,    // SEO organique = 0 par defaut
+  // 'google_ads': 0   // Pur sync depuis 'google_ads_data' (pas de forfait)
 };
 function getLeadCost(sourceKey) {
   return LEAD_COSTS[sourceKey] || 0;
@@ -3345,8 +3345,8 @@ async function renderStatsLeads(content) {
     if (!spend) return;
     var key = null;
     // Priorite : platform (plus fiable que source pour fb/insta/google)
-    if (['facebook','instagram','meta'].indexOf(platform) !== -1) key = 'facebook';
-    else if (platform === 'google') key = 'google_ads';
+    if (['facebook','instagram','meta','fb','ig','meta_ads'].indexOf(platform) !== -1) key = 'facebook';
+    else if (['google','google_ads','googleads','adwords','sea'].indexOf(platform) !== -1) key = 'google_ads';
     // Fallback sur source
     else if (src.indexOf('facebook') !== -1 || src.indexOf('meta') !== -1 || src.indexOf('instagram') !== -1) key = 'facebook';
     else if (src.indexOf('google') !== -1 || src.indexOf('adwords') !== -1 || src.indexOf('sea') !== -1) key = 'google_ads';
