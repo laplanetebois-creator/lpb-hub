@@ -3452,11 +3452,12 @@ async function renderStatsLeads(content) {
   // Forcer la creation d'une entree pour chaque cle ayant du spend, meme sans leads directs
   // (ex: FB Ads tourne mais aucun contact rattache via c.source -> on veut quand meme la voir dans le panel ROI)
   var KEY_DEFAULTS = {
-    'facebook':     { label: 'Facebook Ads',     color: '#1877f2' },
-    'google_ads':   { label: 'Google Ads',       color: '#4285f4' },
-    'web':          { label: 'Web (organique)',  color: '#c62828' },
-    'helloartisan': { label: 'helloArtisan',     color: '#1976d2' },
-    'travaux':      { label: 'Travaux.com',      color: '#2e7d32' }
+    'facebook':      { label: 'Facebook Ads',     color: '#1877f2' },
+    'google_ads':    { label: 'Google Ads',       color: '#4285f4' },
+    'web':           { label: 'Web (organique)',  color: '#c62828' },
+    'helloartisan':  { label: 'helloArtisan',     color: '#1976d2' },
+    'travaux':       { label: 'Travaux.com',      color: '#2e7d32' },
+    'habitatpresto': { label: 'Habitatpresto',    color: '#6a1b9a' }
   };
   Object.keys(spendByKey).forEach(function(k){
     if (!bySource[k] && spendByKey[k] > 0 && KEY_DEFAULTS[k]) {
@@ -3847,16 +3848,18 @@ async function renderPipeline(content) {
               var srcClass = '';
               if (cSource === 'travaux.com') srcClass = 'src-travaux';
               else if (cSource === 'helloartisan') srcClass = 'src-helloartisan';
+              else if (cSource === 'habitatpresto') srcClass = 'src-habitatpresto';
               else if (cSource === 'website') srcClass = 'src-website';
               else if (cSource === 'facebook') srcClass = 'src-facebook';
               var SOURCE_BADGE = {
-                'helloartisan': { bg:'#e3f2fd', color:'#1976d2', border:'#90caf9', label:'hA' },
-                'travaux.com':  { bg:'#e8f5e9', color:'#2e7d32', border:'#a5d6a7', label:'Tv' },
-                'website':      { bg:'#ffebee', color:'#c62828', border:'#ef9a9a', label:'Web' },
-                'facebook':     { bg:'#fff3e0', color:'#e65100', border:'#ffcc80', label:'FB' },
-                'google':       { bg:'#fce4ec', color:'#880e4f', border:'#f48fb1', label:'G' },
-                'linkedin':     { bg:'#e1f5fe', color:'#0277bd', border:'#81d4fa', label:'Li' },
-                'referral':     { bg:'#f3e5f5', color:'#7b1fa2', border:'#ce93d8', label:'Ref' }
+                'helloartisan':  { bg:'#e3f2fd', color:'#1976d2', border:'#90caf9', label:'hA' },
+                'travaux.com':   { bg:'#e8f5e9', color:'#2e7d32', border:'#a5d6a7', label:'Tv' },
+                'habitatpresto': { bg:'#f3e5f5', color:'#6a1b9a', border:'#ce93d8', label:'Hp' },
+                'website':       { bg:'#ffebee', color:'#c62828', border:'#ef9a9a', label:'Web' },
+                'facebook':      { bg:'#fff3e0', color:'#e65100', border:'#ffcc80', label:'FB' },
+                'google':        { bg:'#fce4ec', color:'#880e4f', border:'#f48fb1', label:'G' },
+                'linkedin':      { bg:'#e1f5fe', color:'#0277bd', border:'#81d4fa', label:'Li' },
+                'referral':      { bg:'#f3e5f5', color:'#7b1fa2', border:'#ce93d8', label:'Ref' }
               };
               var badgeConf = SOURCE_BADGE[cSource];
               var sourceTag = badgeConf
@@ -7877,7 +7880,7 @@ pages.suivi = async function() {
   });
 
   // Source colors
-  var SRC_COLORS = { 'travaux.com':'#2e7d32','helloartisan':'#1976d2','website':'#c62828','facebook':'#e65100','meta':'#e65100','fb':'#e65100','instagram':'#e65100','ig':'#e65100' };
+  var SRC_COLORS = { 'travaux.com':'#2e7d32','helloartisan':'#1976d2','habitatpresto':'#6a1b9a','website':'#c62828','facebook':'#e65100','meta':'#e65100','fb':'#e65100','instagram':'#e65100','ig':'#e65100' };
 
   function renderKanban() {
     var byStage = {};
