@@ -5278,7 +5278,7 @@ window.dealView = async function(id) {
           '</span>' +
         '</div>' +
         '<span class="text-small text-muted"><i class="fas fa-clock"></i> ' + formatDate(ev.start_date) + ' ' + timeStr +
-        '<span style="background:' + (ev.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffeb3b',rappel:'#e74c3c',autre:'#78909c'})[ev.type] || '#2d6a4f') + ';color:#fff;padding:1px 8px;border-radius:10px;font-size:0.7rem;margin-left:6px">' + (ev.type || '') + '</span></span>' +
+        '<span style="background:' + (ev.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#a1887f',rappel:'#e74c3c',autre:'#78909c'})[ev.type] || '#2d6a4f') + ';color:#fff;padding:1px 8px;border-radius:10px;font-size:0.7rem;margin-left:6px">' + (ev.type || '') + '</span></span>' +
       '</div>';
     }).join('')) +
     '</div></div>';
@@ -8471,7 +8471,7 @@ pages.planning = async function() {
   todayEvents.sort(function(a,b){ return (a.start_time||'').localeCompare(b.start_time||''); });
 
   var typeIcons = { tache: 'fa-check-square', rdv: 'fa-handshake', chantier: 'fa-hard-hat', livraison: 'fa-truck', devis: 'fa-file-invoice-dollar', suivi: 'fa-phone', rappel: 'fa-bell', autre: 'fa-calendar-day' };
-  var typeColors = { tache: '#3498db', rdv: '#9b59b6', chantier: '#e67e22', livraison: '#f1c40f', devis: '#16a085', suivi: '#ffeb3b', rappel: '#e74c3c', autre: '#78909c' };
+  var typeColors = { tache: '#3498db', rdv: '#9b59b6', chantier: '#e67e22', livraison: '#f1c40f', devis: '#16a085', suivi: '#a1887f', rappel: '#e74c3c', autre: '#78909c' };
 
   var rappelsDuJourHtml = todayEvents.length === 0
     ? ''
@@ -8531,7 +8531,7 @@ pages.planning = async function() {
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px 0;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);font-size:0.78rem;align-items:center">
       <span style="font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;font-size:0.72rem;margin-right:4px">Legende</span>
-      ${['tache','rdv','chantier','livraison','devis','suivi','rappel','autre'].map(function(t){ var col = ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffeb3b',rappel:'#e74c3c',autre:'#78909c'})[t]; return '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:'+col+';border:1px solid rgba(0,0,0,0.15);display:inline-block"></span>'+t+'</span>'; }).join('')}
+      ${['tache','rdv','chantier','livraison','devis','suivi','rappel','autre'].map(function(t){ var col = ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#a1887f',rappel:'#e74c3c',autre:'#78909c'})[t]; return '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:'+col+';border:1px solid rgba(0,0,0,0.15);display:inline-block"></span>'+t+'</span>'; }).join('')}
     </div>
     <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;box-shadow:var(--shadow)">
       <div class="cal-grid" style="height:calc(100vh - var(--topbar-h) - 200px);grid-template-rows:44px repeat(${numRows}, 1fr)">
@@ -8636,7 +8636,7 @@ function planForm(ev, contacts) {
       </div>
       <div class="form-group">
         <label>Couleur</label>
-        <input type="color" id="f-evcolor" value="${d.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffeb3b',rappel:'#e74c3c',autre:'#78909c'})[d.type || 'tache'] || '#3498db'}">
+        <input type="color" id="f-evcolor" value="${d.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#a1887f',rappel:'#e74c3c',autre:'#78909c'})[d.type || 'tache'] || '#3498db'}">
       </div>
     </div>
     <div class="form-row">
@@ -8700,7 +8700,7 @@ function planForm(ev, contacts) {
   `);
 
   $('#f-evtype').addEventListener('change', function() {
-    var map = {tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffeb3b',rappel:'#e74c3c',autre:'#78909c'};
+    var map = {tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#a1887f',rappel:'#e74c3c',autre:'#78909c'};
     $('#f-evcolor').value = map[this.value] || '#3498db';
   });
 
@@ -8770,7 +8770,7 @@ window.planningClientView = async function(ev, contactMapArg) {
   if (!ev) return;
 
   var TYPE_ICONS  = { tache:'fa-check-square', rdv:'fa-handshake', chantier:'fa-hard-hat', livraison:'fa-truck', devis:'fa-file-invoice-dollar', suivi:'fa-phone', rappel:'fa-bell', autre:'fa-calendar-day' };
-  var TYPE_COLORS = { tache:'#3498db', rdv:'#9b59b6', chantier:'#e67e22', livraison:'#f1c40f', devis:'#16a085', suivi:'#ffeb3b', rappel:'#e74c3c', autre:'#78909c' };
+  var TYPE_COLORS = { tache:'#3498db', rdv:'#9b59b6', chantier:'#e67e22', livraison:'#f1c40f', devis:'#16a085', suivi:'#a1887f', rappel:'#e74c3c', autre:'#78909c' };
   var TYPE_LABELS = { tache:'Tâche', rdv:'RDV', chantier:'Chantier', livraison:'Livraison', devis:'Devis', suivi:'Suivi', rappel:'Rappel', autre:'Autre' };
 
   var evColor   = ev.color || TYPE_COLORS[ev.type] || '#3498db';
