@@ -2513,7 +2513,7 @@ pages.dashboard = async function() {
 
   var df = getDateFilters('date');
   var dfCreated = getDateFilters('created_at');
-  const [contacts, deals, campaigns, keywords, activities, ga4, gmbData] = await Promise.all([
+  const [contactsAll, deals, campaigns, keywords, activities, ga4, gmbData] = await Promise.all([
     dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
     dbSelect('deals', Object.assign({}, dfCreated)),
     dbSelect('ad_campaigns'),
@@ -2522,6 +2522,9 @@ pages.dashboard = async function() {
     dbSelect('ga4_data', Object.assign({ order: ['date', false] }, df)),
     dbSelect('gmb_data', Object.assign({ order: ['date', false] }, df))
   ]);
+
+  // CRM uniquement dans les KPI "leads" du dashboard (PRM = collaboration B2B, pas des leads)
+  const contacts = filterCrmLeads(contactsAll);
 
   const totalLeads = contacts.length;
   const totalClients = contacts.filter(c => c.status === 'client').length;
@@ -2764,7 +2767,9 @@ pages.crm = async function(subTab) {
   if (subTab === 'pipeline') { return renderPipeline(content); }
   if (subTab === 'stats')    { return renderStatsLeads(content); }
 
-  let contacts = await dbSelect('contacts', { order: ['created_at', false] });
+  // CRM uniquement — les contacts PRM ont leur propre page (/prm)
+  let contactsAll = await dbSelect('contacts', { order: ['created_at', false] });
+  let contacts = filterCrmLeads(contactsAll);
   let filterStatus = 'all';
   let searchTerm = '';
 
@@ -3292,6 +3297,25 @@ function isValidatedLead(c) {
 // Stages de deals consideres comme "devis emis"
 var DEVIS_STAGES = ['devis','attente_reponse','r2','gagne'];
 
+// ============================================
+// SEPARATION CRM / PRM — source of truth
+// ============================================
+// Les contacts PRM (partenaires professionnels B2B) partagent la table `contacts`
+// avec les leads CRM via le champ `source`. Toutes les stats / KPI / vues "leads"
+// doivent les exclure : ce sont des shadow contacts techniques (pipeline de
+// collaboration B2B), pas de vrais leads entrants commerciaux.
+// Utiliser isCrmLead(c) ou filterCrmLeads(arr) partout — JAMAIS de comparaison
+// inline "source !== 'prm'" pour ne pas diverger si on ajoute un nouveau type.
+var CRM_EXCLUDED_SOURCES = ['prm', 'prospect_consolide'];
+function isCrmLead(c) {
+  if (!c) return false;
+  var src = String(c.source || '').toLowerCase();
+  return CRM_EXCLUDED_SOURCES.indexOf(src) === -1;
+}
+function filterCrmLeads(contacts) {
+  return (contacts || []).filter(isCrmLead);
+}
+
 async function renderStatsLeads(content) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
@@ -3308,11 +3332,8 @@ async function renderStatsLeads(content) {
   var fbAds      = results[3] || [];
   var googleAds  = results[4] || [];
 
-  // Exclure les shadow contacts techniques du PRM (pas de vrais leads entrants)
-  var leads = contacts.filter(function(c) {
-    var src = (c.source || '').toLowerCase();
-    return src !== 'prm' && src !== 'prospect_consolide';
-  });
+  // CRM uniquement — exclut PRM et prospect_consolide (shadow contacts B2B)
+  var leads = filterCrmLeads(contacts);
 
   // Index des deals par contact
   var dealsByContact = {};
@@ -5002,10 +5023,48 @@ window._prospectPlanDone = async function(evId, idx) {
   window.prospectView(idx);
 };
 
+// Normalisation utilitaire pour dedup PRM
+function _normPhone(p) {
+  var d = String(p||'').replace(/\D/g,'');
+  if (d.length === 11 && d.indexOf('33') === 0) d = '0' + d.slice(2);
+  return d.length >= 9 ? d : '';
+}
+function _normText(s) {
+  return String(s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+}
+
+// Cherche un contact PRM potentiellement doublon du lead a ajouter.
+async function _findPrmDuplicate(lead) {
+  var prmContacts = await dbSelect('contacts', { eq: [['source','prm']] });
+  var ph = _normPhone(lead.telephone);
+  var em = String(lead.email||'').trim().toLowerCase();
+  var nm = _normText(lead.entreprise);
+  var ci = _normText(lead.ville);
+  for (var i=0;i<prmContacts.length;i++) {
+    var c = prmContacts[i];
+    if (ph && _normPhone(c.phone) === ph) return c;
+    if (em && String(c.email||'').trim().toLowerCase() === em) return c;
+    if (nm && ci && _normText(c.company) === nm && _normText(c.city) === ci) return c;
+  }
+  return null;
+}
+
 window._prospectToPRM = async function(idx) {
   var l = (window._lcAllLeads || [])[idx];
   if (!l) return;
   try {
+    var existing = await _findPrmDuplicate(l);
+    if (existing) {
+      var info = (existing.company || ((existing.first_name||'')+' '+(existing.last_name||'')).trim() || 'contact existant');
+      var tel = existing.phone ? ' (tel '+existing.phone+')' : '';
+      var ok = window.confirm(
+        '\u26a0 Doublon probable dans le PRM :\n\n' +
+        '  ' + info + tel + '\n\n' +
+        'Ce lead ressemble a un contact deja present (meme telephone, email ou nom+ville).\n\n' +
+        'Ajouter quand meme ?'
+      );
+      if (!ok) { toast('Ajout annule (doublon detecte)', 'info'); return; }
+    }
     var nameParts = (l.contact || l.entreprise || 'Inconnu').split(' ');
     var firstName = nameParts[0] || 'Inconnu';
     var lastName = nameParts.slice(1).join(' ') || '';
