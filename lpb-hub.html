@@ -3252,7 +3252,7 @@ function crmImportHelloArtisan() {
 var LEAD_COSTS = {
   'helloartisan': 50,
   'travaux':      50,
-  'facebook':     7     // Forfait FB Ads temporaire (CPL reel observe) — override automatique si sync 'ad_campaigns.spent' ou 'fbads_daily_data.spend' > 0
+  'facebook':     7     // Fallback si aucune sync dispo. Override auto par (ordre): fbads_data.json > fbads_daily_data.spend > ad_campaigns.spent
   // 'web':      0,    // SEO organique = 0 par defaut
   // 'google_ads': 0   // Pur sync depuis 'google_ads_data' (pas de forfait)
 };
@@ -3319,18 +3319,26 @@ function filterCrmLeads(contacts) {
 async function renderStatsLeads(content) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
+  // fbads_data.json (JSON statique sync par l'agent Marc) : source de verite pour le spend FB Ads
+  // Fetch en parallele avec Supabase pour ne pas bloquer.
+  var fbAdsJsonPromise = fetch('fbads_data.json?t=' + Date.now())
+    .then(function(r){ return r.ok ? r.json() : []; })
+    .catch(function(){ return []; });
+
   var results = await Promise.all([
     dbSelect('contacts', { order: ['created_at', false] }),
     dbSelect('deals'),
     dbSelect('ad_campaigns').catch(function(){ return []; }),
     dbSelect('fbads_daily_data').catch(function(){ return []; }),
-    dbSelect('google_ads_data').catch(function(){ return []; })
+    dbSelect('google_ads_data').catch(function(){ return []; }),
+    fbAdsJsonPromise
   ]);
   var contacts   = results[0];
   var deals      = results[1];
   var adCampaigns = results[2] || [];
   var fbAds      = results[3] || [];
   var googleAds  = results[4] || [];
+  var fbAdsJson  = Array.isArray(results[5]) ? results[5] : [];
 
   // CRM uniquement — exclut PRM et prospect_consolide (shadow contacts B2B)
   var leads = filterCrmLeads(contacts);
@@ -3377,6 +3385,8 @@ async function renderStatsLeads(content) {
   });
   fbAds.forEach(function(r){ spendByKey['facebook']  = (spendByKey['facebook']||0)   + (parseFloat(r.spend||0)||0); });
   googleAds.forEach(function(r){ spendByKey['google_ads'] = (spendByKey['google_ads']||0) + (parseFloat(r.spend||0)||0); });
+  // Source de verite prioritaire : fbads_data.json (sync Meta Marketing API)
+  fbAdsJson.forEach(function(r){ spendByKey['facebook'] = (spendByKey['facebook']||0) + (parseFloat(r.spend||0)||0); });
 
   var now = Date.now();
   var MS_DAY = 86400000;
