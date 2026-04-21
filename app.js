@@ -645,7 +645,8 @@ window.navigate = function navigate(page) {
   currentPage = page;
   $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
   const titles = {
-    dashboard: 'Tableau de bord', crm: 'CRM', 'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
+    dashboard: 'Tableau de bord', crm: 'CRM', 'crm-stats': 'Statistiques CRM',
+    'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
     devis: 'Devis', suivi: 'Suivi client',
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
