@@ -3383,10 +3383,16 @@ async function renderStatsLeads(content) {
     else if (src.indexOf('helloartisan') !== -1) key = 'helloartisan';
     if (key) spendByKey[key] = (spendByKey[key] || 0) + spend;
   });
-  fbAds.forEach(function(r){ spendByKey['facebook']  = (spendByKey['facebook']||0)   + (parseFloat(r.spend||0)||0); });
   googleAds.forEach(function(r){ spendByKey['google_ads'] = (spendByKey['google_ads']||0) + (parseFloat(r.spend||0)||0); });
-  // Source de verite prioritaire : fbads_data.json (sync Meta Marketing API)
-  fbAdsJson.forEach(function(r){ spendByKey['facebook'] = (spendByKey['facebook']||0) + (parseFloat(r.spend||0)||0); });
+  // FB Ads en PRIORITE CASCADE (evite le double comptage) :
+  //   1. Supabase fbads_daily_data (source officielle, alimentee par sync Marc)
+  //   2. Sinon fbads_data.json local (page /fb-ads + fallback)
+  //   3. Sinon forfait via LEAD_COSTS (applique plus bas via costUnit)
+  if (fbAds.length > 0) {
+    fbAds.forEach(function(r){ spendByKey['facebook'] = (spendByKey['facebook']||0) + (parseFloat(r.spend||0)||0); });
+  } else if (fbAdsJson.length > 0) {
+    fbAdsJson.forEach(function(r){ spendByKey['facebook'] = (spendByKey['facebook']||0) + (parseFloat(r.spend||0)||0); });
+  }
 
   var now = Date.now();
   var MS_DAY = 86400000;
