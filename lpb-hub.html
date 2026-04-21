@@ -6378,6 +6378,7 @@ pages['fb-ads'] = async function() {
   paintHtml(content, '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
 
   const CPL_TARGET = 17;
+  const DAILY_BUDGET = 60;
   const CAMPAIGN = 'la planete bois V1 19/04/26';
 
   let rows = [];
@@ -6424,17 +6425,34 @@ pages['fb-ads'] = async function() {
     a.ads[adName].impressions += r.impressions || 0;
   });
 
+  const uniqueDates = [...new Set(rows.map(r => r.date))];
+  const daysActive = Math.max(uniqueDates.length, 1);
+  const theoreticalSpend = daysActive * DAILY_BUDGET;
+  const deliveryRate = theoreticalSpend > 0 ? (totals.spend / theoreticalSpend * 100) : 0;
+  const frequency = totals.reach > 0 ? (totals.impressions / totals.reach) : 0;
+
   const latestDate = rows.length > 0 ? rows.map(r => r.date).sort().slice(-1)[0] : null;
   const syncInfo = latestDate ? `Derniere sync : ${formatDate(latestDate)}` : 'Aucune donnee synchronisee';
 
-  const html = `
+  let activeFbTab = window.__fbAdsTabState || 'performance';
+
+  const headerHtml = `
     <div class="page-header" style="margin-bottom:12px">
       <div>
         <h2 style="margin:0"><i class="fab fa-facebook" style="color:#1877f2"></i> Facebook Ads</h2>
         <div class="text-small text-muted">Campagne : <strong>${esc(CAMPAIGN)}</strong> &middot; ${esc(syncInfo)}</div>
       </div>
     </div>
+  `;
 
+  const buildTabs = () => `
+    <div class="tabs" style="margin-bottom:20px">
+      <button class="tab-btn ${activeFbTab === 'performance' ? 'active' : ''}" data-fb-tab="performance"><i class="fas fa-chart-line"></i> Performance</button>
+      <button class="tab-btn ${activeFbTab === 'rapport' ? 'active' : ''}" data-fb-tab="rapport"><i class="fas fa-file-contract"></i> Rapport <span style="background:var(--warning);color:white;padding:1px 7px;border-radius:10px;font-size:0.7rem;margin-left:4px">1</span></button>
+    </div>
+  `;
+
+  const performanceHtml = `
     <div class="stats-grid" style="margin-bottom:20px">
       <div class="stat-card">
         <div class="stat-icon blue"><i class="fas fa-wallet"></i></div>
@@ -6500,7 +6518,94 @@ pages['fb-ads'] = async function() {
       Source : Meta Marketing API via Agent Marc &middot; Table <code>fbads_daily_data</code>
     </div>
   `;
-  paintHtml(content, html);
+
+  const rapportDate = new Date().toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
+  const deliveryColor = deliveryRate < 50 ? '#dc3545' : deliveryRate < 80 ? '#f39c12' : '#27ae60';
+
+  const rapportHtml = `
+    <div class="panel">
+      <div class="panel-header">
+        <h3><i class="fas fa-file-contract" style="color:#1877f2"></i> Analyse strategique &mdash; Recommandation budget FB</h3>
+        <div class="text-small text-muted">Marc (Opus 4.7) &middot; ${esc(rapportDate)}</div>
+      </div>
+      <div class="panel-body">
+
+        <div style="background:#fff3cd; border-left:4px solid #f39c12; padding:16px; border-radius:8px; margin-bottom:20px">
+          <div style="font-weight:600; color:#856404; margin-bottom:4px"><i class="fas fa-question-circle"></i> Question posee</div>
+          <p style="margin:0">FB suggere d'augmenter le budget (<strong>+14 points</strong> score opportunite). Dois-je appliquer ?</p>
+        </div>
+
+        <div style="background:#f8d7da; border-left:4px solid #dc3545; padding:20px; border-radius:8px; margin-bottom:24px">
+          <div style="font-size:22px; font-weight:700; color:#721c24; margin-bottom:6px">
+            <i class="fas fa-times-circle"></i> NON &mdash; Ne pas appliquer
+          </div>
+          <p style="margin:0; color:#721c24">L'algorithme ne depense deja que <strong>${deliveryRate.toFixed(1)}%</strong> du plafond actuel. Augmenter le budget ne resout rien &mdash; le vrai goulot est la delivrance, pas le plafond.</p>
+        </div>
+
+        <h4 style="margin:24px 0 12px"><i class="fas fa-chart-bar"></i> Le signal qui tue la reco</h4>
+        <table class="data-table" style="margin-bottom:20px">
+          <tbody>
+            <tr><td>Budget quotidien</td><td class="text-right"><strong>${DAILY_BUDGET} \u20AC</strong></td></tr>
+            <tr><td>Jours actifs (donnees)</td><td class="text-right">${daysActive}</td></tr>
+            <tr><td>Theorique sur la periode</td><td class="text-right">${theoreticalSpend.toFixed(2)} \u20AC</td></tr>
+            <tr><td>Depense reelle</td><td class="text-right"><strong>${totals.spend.toFixed(2)} \u20AC</strong></td></tr>
+            <tr><td>Taux de delivrance</td><td class="text-right"><strong style="color:${deliveryColor}; font-size:1.1em">${deliveryRate.toFixed(1)}%</strong></td></tr>
+            <tr><td>Impressions</td><td class="text-right">${totals.impressions.toLocaleString()}</td></tr>
+            <tr><td>Couverture (reach)</td><td class="text-right">${totals.reach.toLocaleString()}</td></tr>
+            <tr><td>Frequence</td><td class="text-right">${frequency.toFixed(2)}</td></tr>
+          </tbody>
+        </table>
+
+        <div style="background:#d1ecf1; border-left:4px solid #0c5460; padding:16px; border-radius:8px; margin-bottom:20px">
+          <div style="font-weight:600; color:#0c5460; margin-bottom:4px"><i class="fas fa-lightbulb"></i> Insight</div>
+          <p style="margin:0">L'opportunity score de FB (+14) est un signal <strong>competitif generique</strong>, pas une analyse de ta performance reelle. Augmenter le budget quand l'algo ne consomme pas le budget actuel = relachement des encheres + degradation du CPL.</p>
+        </div>
+
+        <h4 style="margin:24px 0 12px"><i class="fas fa-search"></i> Causes probables de sous-delivrance</h4>
+        <ol style="padding-left:24px; line-height:1.8">
+          <li><strong>Audience trop etroite</strong> &mdash; Soissons 60km, 3 adsets qui se cannibalisent (overlap d'audience)</li>
+          <li><strong>Phase d'apprentissage non terminee</strong> &mdash; moins de 50 conversions/semaine par adset = signal faible</li>
+          <li><strong>Frequence basse (${frequency.toFixed(2)})</strong> &mdash; l'algo trouve peu d'opportunites nouvelles</li>
+          <li><strong>Deja a ${DAILY_BUDGET}&euro;/j</strong> &mdash; au-dessus de la strategie memorisee (50&euro;/j pour sortir du testing)</li>
+        </ol>
+
+        <h4 style="margin:24px 0 12px"><i class="fas fa-clipboard-list"></i> Plan d'action recommande</h4>
+        <ol style="padding-left:24px; line-height:1.8">
+          <li><strong>Ne PAS toucher au budget</strong> &mdash; laisser ${DAILY_BUDGET}&euro;/j stable</li>
+          <li><strong>Diagnostiquer l'audience</strong> &mdash; verifier taille effective dans Audience Insights</li>
+          <li><strong>Tester l'elargissement geo</strong> (80-100km) sur UN adset avant de toucher le budget</li>
+          <li><strong>Attendre 7j de data stable</strong> avant tout changement</li>
+          <li>Si apres 7j delivrance &lt; 50% &rarr; elargir audience plutot qu'augmenter le budget</li>
+        </ol>
+
+        <div style="background:#e8f4f8; border:1px solid #b8daff; padding:14px; border-radius:8px; margin-top:24px">
+          <div style="font-weight:600; margin-bottom:6px"><i class="fas fa-bookmark"></i> Strategie rappelee (memoire <code>marc_fbads_strategy_v1_3_adsets</code>)</div>
+          <ul style="margin:0; padding-left:24px">
+            <li>Budget campagne : <strong>50 &euro;/jour</strong></li>
+            <li>3 adsets actifs max en meme temps</li>
+            <li>2 adsets restent en brouillon (rotation si perf faible)</li>
+            <li>Ne jamais publier tous les brouillons d'un coup</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  function render() {
+    const fullHtml = headerHtml + buildTabs() + (activeFbTab === 'performance' ? performanceHtml : rapportHtml);
+    paintHtml(content, fullHtml);
+
+    content.querySelectorAll('.tabs .tab-btn[data-fb-tab]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        activeFbTab = btn.dataset.fbTab;
+        window.__fbAdsTabState = activeFbTab;
+        render();
+      });
+    });
+  }
+
+  render();
 };
 
 function adForm(campaign = null) {
