@@ -3265,16 +3265,43 @@ function classifySource(rawSource) {
   return { key: s, label: s, color: '#95a5a6' };
 }
 
+// Definition "lead valide" (modifiable en 1 ligne) :
+//   Option A : status === 'client' (signe)
+//   Option B (defaut) : prospect OU client (qualifie)
+//   Option C : tout sauf lost
+function isValidatedLead(c) {
+  var s = (c && c.status || '').toLowerCase();
+  return s === 'prospect' || s === 'client';
+}
+
+// Stages de deals consideres comme "devis emis"
+var DEVIS_STAGES = ['devis','attente_reponse','r2','gagne'];
+
 async function renderStatsLeads(content) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
-  var contacts = await dbSelect('contacts', { order: ['created_at', false] });
+  var results = await Promise.all([
+    dbSelect('contacts', { order: ['created_at', false] }),
+    dbSelect('deals')
+  ]);
+  var contacts = results[0];
+  var deals = results[1];
 
   // Exclure les shadow contacts techniques du PRM (pas de vrais leads entrants)
   var leads = contacts.filter(function(c) {
     var src = (c.source || '').toLowerCase();
     return src !== 'prm' && src !== 'prospect_consolide';
   });
+
+  // Set des contact_ids qui ont AU MOINS un deal en stage devis/attente/r2/gagne
+  var contactsWithDevis = {};
+  deals.forEach(function(d) {
+    if (!d.contact_id) return;
+    if (DEVIS_STAGES.indexOf(d.stage) !== -1) {
+      contactsWithDevis[d.contact_id] = true;
+    }
+  });
+  function hasDevis(c) { return !!contactsWithDevis[c.id]; }
 
   var now = Date.now();
   var MS_DAY = 86400000;
@@ -3290,19 +3317,25 @@ async function renderStatsLeads(content) {
     }).length;
   }
 
-  var totalAll   = leads.length;
-  var totalMois  = count(function(t){ return t >= startOfMonth.getTime(); });
-  var total30j   = count(function(t){ return t >= t30; });
-  var total7j    = count(function(t){ return t >= t7; });
+  var totalAll    = leads.length;
+  var totalMois   = count(function(t){ return t >= startOfMonth.getTime(); });
+  var total30j    = count(function(t){ return t >= t30; });
+  var total7j     = count(function(t){ return t >= t7; });
+  var totalValid  = leads.filter(isValidatedLead).length;
+  var totalDevis  = leads.filter(hasDevis).length;
+  var pctValidGlobal = totalAll > 0 ? Math.round((totalValid / totalAll) * 100) : 0;
+  var pctDevisGlobal = totalAll > 0 ? Math.round((totalDevis / totalAll) * 100) : 0;
 
   // Regroupement par classification
   var bySource = {};
   leads.forEach(function(c) {
     var klass = classifySource(c.source);
     if (!bySource[klass.key]) {
-      bySource[klass.key] = { label: klass.label, color: klass.color, total: 0, mois: 0, j30: 0, j7: 0 };
+      bySource[klass.key] = { label: klass.label, color: klass.color, total: 0, mois: 0, j30: 0, j7: 0, valid: 0, devis: 0 };
     }
     bySource[klass.key].total += 1;
+    if (isValidatedLead(c)) bySource[klass.key].valid += 1;
+    if (hasDevis(c))        bySource[klass.key].devis += 1;
     if (c.created_at) {
       var t = new Date(c.created_at).getTime();
       if (t >= startOfMonth.getTime()) bySource[klass.key].mois += 1;
@@ -3350,12 +3383,18 @@ async function renderStatsLeads(content) {
       '<button class="tab-btn active" data-crm-tab="stats" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-chart-pie"></i> Statistiques leads</button>' +
     '</div>' +
 
-    // Stat cards
-    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">' +
+    // Stat cards - ligne 1 : volumes
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">' +
       statCard('Total leads',          totalAll,   'fas fa-users',           '#3498db') +
       statCard('Ce mois',              totalMois,  'fas fa-calendar-alt',    '#2ecc71') +
       statCard('30 derniers jours',    total30j,   'fas fa-calendar',        '#e0a030') +
       statCard('7 derniers jours',     total7j,    'fas fa-bolt',            '#e65100') +
+    '</div>' +
+
+    // Stat cards - ligne 2 : qualification
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">' +
+      statCard('Leads valides',        totalValid + ' <span style="font-size:1rem;color:var(--text-light);font-weight:500">(' + pctValidGlobal + '%)</span>', 'fas fa-check-circle', '#27ae60') +
+      statCard('Devis emis',           totalDevis + ' <span style="font-size:1rem;color:var(--text-light);font-weight:500">(' + pctDevisGlobal + '%)</span>', 'fas fa-file-invoice-dollar', '#8e44ad') +
     '</div>' +
 
     // Repartition par source
@@ -3363,25 +3402,40 @@ async function renderStatsLeads(content) {
       '<h3 style="margin:0 0 14px 0;font-size:1rem;display:flex;align-items:center;gap:8px"><i class="fas fa-chart-bar" style="color:var(--primary)"></i> Repartition par source</h3>' +
       (rows.length === 0
         ? '<div class="empty-state"><i class="fas fa-inbox"></i><h4>Aucun lead</h4></div>'
-        : '<table class="data-table" style="width:100%">' +
+        : '<div style="overflow-x:auto"><table class="data-table" style="width:100%;min-width:900px">' +
             '<thead><tr>' +
               '<th>Source</th>' +
               '<th style="text-align:right">Total</th>' +
-              '<th style="text-align:right">Ce mois</th>' +
+              '<th style="text-align:right">Mois</th>' +
               '<th style="text-align:right">30j</th>' +
               '<th style="text-align:right">7j</th>' +
-              '<th>%</th>' +
+              '<th style="text-align:right;background:#e8f8ef">Valides</th>' +
+              '<th style="text-align:right;background:#e8f8ef">% valid</th>' +
+              '<th style="text-align:right;background:#f3e8f8">Devis</th>' +
+              '<th style="text-align:right;background:#f3e8f8">% devis</th>' +
+              '<th style="min-width:140px">% volume</th>' +
             '</tr></thead>' +
             '<tbody>' +
             rows.map(function(r){
-              var pct = totalAll > 0 ? Math.round((r.total / totalAll) * 100) : 0;
+              var pct       = totalAll > 0 ? Math.round((r.total / totalAll) * 100) : 0;
+              var pctValid  = r.total > 0 ? Math.round((r.valid / r.total) * 100) : 0;
+              var pctDevis  = r.total > 0 ? Math.round((r.devis / r.total) * 100) : 0;
+              // Couleur du taux : vert si >=50%, orange 25-49%, rouge <25%
+              function taux(p) {
+                var col = p >= 50 ? '#27ae60' : (p >= 25 ? '#e0a030' : '#e74c3c');
+                return '<span style="color:'+col+';font-weight:700">'+p+'%</span>';
+              }
               return '<tr>' +
                 '<td><div style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:'+r.color+';display:inline-block"></span><strong>'+r.label+'</strong></div></td>' +
                 '<td style="text-align:right;font-weight:700;font-size:1rem">'+r.total+'</td>' +
                 '<td style="text-align:right">'+r.mois+'</td>' +
                 '<td style="text-align:right">'+r.j30+'</td>' +
                 '<td style="text-align:right">'+r.j7+'</td>' +
-                '<td style="min-width:180px">' +
+                '<td style="text-align:right;background:#f5fbf7;font-weight:600">'+r.valid+'</td>' +
+                '<td style="text-align:right;background:#f5fbf7">'+taux(pctValid)+'</td>' +
+                '<td style="text-align:right;background:#faf5fc;font-weight:600">'+r.devis+'</td>' +
+                '<td style="text-align:right;background:#faf5fc">'+taux(pctDevis)+'</td>' +
+                '<td style="min-width:140px">' +
                   '<div style="display:flex;align-items:center;gap:8px">' +
                     '<div style="flex:1;height:8px;background:#eef2f6;border-radius:4px;overflow:hidden">' +
                       '<div style="height:100%;width:'+pct+'%;background:'+r.color+';border-radius:4px;transition:width 0.3s"></div>' +
@@ -3391,7 +3445,7 @@ async function renderStatsLeads(content) {
                 '</td>' +
               '</tr>';
             }).join('') +
-            '</tbody></table>'
+            '</tbody></table></div>'
       ) +
     '</div>' +
 
