@@ -1564,6 +1564,7 @@ a.att-item { position: relative; display: block; }
       <div class="section-label">Principal</div>
       <a data-page="dashboard" class="active"><i class="fas fa-chart-pie"></i> Tableau de bord</a>
       <a data-page="crm"><i class="fas fa-users"></i> CRM</a>
+      <a data-page="crm-stats"><i class="fas fa-chart-bar"></i> Statistiques CRM</a>
       <a data-page="prm"><i class="fas fa-briefcase"></i> PRM Pro</a>
       <a data-page="google-ads"><i class="fab fa-google"></i> Google Ads</a>
       <a data-page="fb-ads"><i class="fab fa-facebook"></i> FB Ads</a>
@@ -1723,6 +1724,7 @@ a.att-item { position: relative; display: block; }
       <a data-page="planning"><i class="fas fa-calendar-alt"></i>Planning</a>
       <a data-page="fb-ads"><i class="fab fa-facebook"></i>FB Ads</a>
       <a data-page="seo"><i class="fas fa-search"></i>SEO</a>
+      <a data-page="crm-stats"><i class="fas fa-chart-bar"></i>Stats CRM</a>
       <a data-page="analytics"><i class="fas fa-chart-line"></i>Analytics</a>
       <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
       <a data-page="commandes"><i class="fas fa-box"></i>Commandes</a>
@@ -2005,6 +2007,10 @@ function formatDate(d) {
 function formatDateTime(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function formatDateTimeFull(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 function timeAgo(d) {
   if (!d) return '';
@@ -2479,7 +2485,8 @@ window.navigate = function navigate(page) {
   currentPage = page;
   $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
   const titles = {
-    dashboard: 'Tableau de bord', crm: 'CRM', 'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
+    dashboard: 'Tableau de bord', crm: 'CRM', 'crm-stats': 'Statistiques CRM',
+    'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
     devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client', prm: 'PRM Professionnels',
     commandes: 'Commandes', planning: 'Planning', presentation: 'Présentation commerciale', settings: 'Parametres',
@@ -2652,7 +2659,7 @@ pages.dashboard = async function() {
         <div class="panel-header"><h3><i class="fas fa-bolt"></i> Actions rapides</h3></div>
         <div class="panel-body">
           <div style="display:flex;flex-direction:column;gap:10px">
-            <button class="btn btn-primary" onclick="navigate('crm'); setTimeout(()=>document.getElementById('btn-add-contact')?.click(),200)"><i class="fas fa-user-plus"></i> Ajouter un contact</button>
+            <button class="btn btn-primary" onclick="navigate('crm'); setTimeout(()=>pages.crm('contacts'),100); setTimeout(()=>document.getElementById('btn-add-contact')?.click(),300)"><i class="fas fa-user-plus"></i> Ajouter un contact</button>
             <button class="btn btn-accent" onclick="navigate('devis')"><i class="fas fa-file-invoice-dollar"></i> Nouveau devis</button>
             <button class="btn btn-outline" onclick="navigate('planning')"><i class="fas fa-calendar-alt"></i> Planning</button>
             <button class="btn btn-outline" onclick="navigate('crm'); setTimeout(()=>pages.crm('pipeline'),100)"><i class="fas fa-stream"></i> Pipeline</button>
@@ -2752,7 +2759,7 @@ pages.dashboard = async function() {
 // CRM MODULE
 // ============================================
 pages.crm = async function(subTab) {
-  subTab = subTab || 'contacts';
+  subTab = subTab || 'pipeline';
   const content = $('#content');
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
@@ -2782,8 +2789,8 @@ pages.crm = async function(subTab) {
 
     content.innerHTML = `
       <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
-        <button class="tab-btn active" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-users"></i> Contacts</button>
         <button class="tab-btn" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-stream"></i> Pipeline</button>
+        <button class="tab-btn active" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-users"></i> Contacts</button>
       </div>
     ` + `
       <div class="toolbar">
@@ -3263,8 +3270,8 @@ async function renderPipeline(content) {
 
   content.innerHTML = `
     <div class="tab-bar" style="margin-bottom:16px;display:flex;gap:0;border-bottom:2px solid var(--border)">
-      <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
       <button class="tab-btn active" data-crm-tab="pipeline" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--primary);margin-bottom:-2px;font-weight:600;cursor:pointer;color:var(--primary)"><i class="fas fa-stream"></i> Pipeline</button>
+      <button class="tab-btn" data-crm-tab="contacts" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;color:var(--text-light)"><i class="fas fa-users"></i> Contacts</button>
     </div>
     <div class="toolbar">
       <div class="toolbar-left">
@@ -4880,8 +4887,8 @@ window.dealView = async function(id) {
           <div class="sc-body">
             <div class="sc-row"><span class="sc-label">Probabilite</span><span class="sc-val">${d.probability || 0}%</span></div>
             <div class="sc-row"><span class="sc-label">Cloture prevue</span><span class="sc-val">${d.expected_close ? formatDate(d.expected_close) : '—'}</span></div>
-            <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDate(d.created_at)}</span></div>
-            <div class="sc-row"><span class="sc-label">Mis a jour</span><span class="sc-val">${formatDate(d.updated_at)}</span></div>
+            <div class="sc-row"><span class="sc-label">Cree le</span><span class="sc-val">${formatDateTimeFull(d.created_at)}</span></div>
+            <div class="sc-row"><span class="sc-label">Mis a jour</span><span class="sc-val">${formatDateTimeFull(d.updated_at)}</span></div>
           </div>
         </div>
 
@@ -5724,6 +5731,30 @@ carport kit</pre>
         });
       });
 
+      const copyBtn = content.querySelector('#btn-copy-jordan-script');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async function() {
+          try {
+            const resp = await fetch('exports/fix-20260420-keywords-carport.js');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const scriptText = await resp.text();
+            await navigator.clipboard.writeText(scriptText);
+            const original = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copie dans le presse-papier';
+            copyBtn.style.background = '#d4edda';
+            copyBtn.style.color = '#155724';
+            toast('Script copie. Colle dans Google Ads > Scripts > Nouveau.', 'success');
+            setTimeout(function() {
+              copyBtn.innerHTML = original;
+              copyBtn.style.background = 'white';
+              copyBtn.style.color = '#2d6a4f';
+            }, 3000);
+          } catch (e) {
+            toast('Erreur copie : ' + e.message, 'error');
+          }
+        });
+      }
+
       if (activeAdsTab === 'performance') {
       content.querySelector('#btn-refresh-ads')?.addEventListener('click', async () => {
         toast('Sync Google Ads...', 'warning');
@@ -6340,6 +6371,31 @@ pages.seo = async function() {
 
     else if (activeTab === 'rapports') {
       const rapports = [
+        {
+          date: '2026-04-20',
+          status: 'green',
+          title: 'Rapport Jour J — Fix Ads Carport + Post GMB Chateau-Thierry',
+          summary: 'Double action marketing le 2026-04-20 : activation de 15 mots-cles sur l\'ad group Carport Bois (score d\'optimisation 50.1 % -> 76.5 %) et publication d\'un post GMB sur le chantier Chateau-Thierry. Les deux canaux envoient le meme signal geographique a Google au meme moment.',
+          metrics: [
+            { label: 'Score Ads (Carport)', value: '76.5 %', icon: 'fa-gauge-high', color: 'var(--success)' },
+            { label: 'Mots-cles ajoutes', value: '15', icon: 'fa-key', color: 'var(--success)' },
+            { label: 'Negatifs ajoutes', value: '8', icon: 'fa-ban', color: 'var(--info)' },
+            { label: 'Post GMB publie', value: '1', icon: 'fa-bullhorn', color: 'var(--success)' }
+          ],
+          quickWins: [
+            'Correlation paye + organique : memes requetes locales ("carport bois Chateau-Thierry") activees sur les deux canaux le meme jour',
+            'Post GMB axe SEO local (758 caracteres, densite geo optimisee, CTA homepage laplanetebois.fr)',
+            'Bid strategy Carport Bois passee de Maximize clicks (TARGET_SPEND) a CPC manuel pour reprendre le controle des encheres',
+            'Recommandation Maximize Conversions rejetee (zero historique de conversions) : choix defendu par les chiffres, pas par l\'algorithme'
+          ],
+          actions: [
+            { priority: 'P0', text: '[Fait] Ajouter 15 mots-cles (5 exact / 6 phrase / 4 broad) et 8 negatifs sur l\'ad group Carport Bois' },
+            { priority: 'P0', text: '[Fait] Passer la strategie d\'enchere de Maximize clicks a CPC manuel' },
+            { priority: 'P1', text: '[Fait] Publier le post GMB chantier Chateau-Thierry avec photo et bouton En savoir plus' },
+            { priority: 'P1', text: 'Suivi J+7 programme automatiquement le 2026-04-27 a 03h00 (Jordan)' },
+            { priority: 'P2', text: 'Preparer un 2eme post GMB hebdomadaire (candidats : terrasse ou pergola)' }
+          ]
+        },
         {
           date: '2026-04-16',
           status: 'red',
@@ -8077,6 +8133,231 @@ window.planDelete = async function(id) {
 };
 
 // ============================================
+// STATISTIQUES CRM — Performance leads par source + ROI (FB/Google Ads)
+// ============================================
+pages['crm-stats'] = async function() {
+  const content = $('#content');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+  var dfCreated = getDateFilters('created_at');
+  const [contacts, deals, adCampaigns] = await Promise.all([
+    dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
+    dbSelect('deals', Object.assign({}, dfCreated)),
+    dbSelect('ad_campaigns')
+  ]);
+
+  const SOURCE_GROUPS = {
+    facebook:      { label: 'Facebook Ads', emoji: '🎯', color: '#3b5998', icon: 'fab fa-facebook',    sources: ['facebook','meta','meta_ads'] },
+    'travaux-com': { label: 'Travaux.com',  emoji: '🔨', color: '#d4a04a', icon: 'fas fa-hammer',       sources: ['travaux.com','src-travaux'] },
+    helloartisan:  { label: 'HelloArtisan', emoji: '👋', color: '#e67e22', icon: 'fas fa-hands-helping',sources: ['helloartisan'] },
+    website:       { label: 'Site web',     emoji: '🌐', color: '#2d6a4f', icon: 'fas fa-globe',        sources: ['website'] }
+  };
+
+  const dealsByContact = {};
+  deals.forEach(d => {
+    if (!dealsByContact[d.contact_id]) dealsByContact[d.contact_id] = [];
+    dealsByContact[d.contact_id].push(d);
+  });
+
+  function categorize(src) {
+    const s = String(src || '').toLowerCase().trim();
+    for (const key in SOURCE_GROUPS) {
+      if (SOURCE_GROUPS[key].sources.indexOf(s) !== -1) return key;
+    }
+    return 'other';
+  }
+
+  const spendByGroup = { facebook: 0, 'travaux-com': 0, helloartisan: 0, website: 0, other: 0 };
+  adCampaigns.forEach(c => {
+    const src = String(c.source || '').toLowerCase();
+    const spend = parseFloat(c.spend || c.cost || 0) || 0;
+    if (src.indexOf('facebook') !== -1 || src.indexOf('meta') !== -1) spendByGroup.facebook += spend;
+    else if (src.indexOf('google') !== -1) spendByGroup.website += spend;
+    else spendByGroup.other += spend;
+  });
+
+  const stats = {};
+  Object.keys(SOURCE_GROUPS).forEach(k => { stats[k] = { leads:0, won:0, lost:0, openDeals:0, value:0 }; });
+  stats.other = { leads:0, won:0, lost:0, openDeals:0, value:0 };
+
+  contacts.forEach(c => {
+    const k = categorize(c.source);
+    stats[k].leads++;
+    const cd = dealsByContact[c.id] || [];
+    const won = cd.filter(d => d.stage === 'gagne');
+    const lost = cd.filter(d => d.stage === 'perdu');
+    if (won.length > 0) {
+      stats[k].won++;
+      stats[k].value += won.reduce((s, d) => s + (parseFloat(d.value) || 0), 0);
+    } else if (lost.length > 0) {
+      stats[k].lost++;
+    } else if (cd.length > 0) {
+      stats[k].openDeals++;
+    }
+  });
+
+  const totalLeads = contacts.length;
+  const totalWon = Object.values(stats).reduce((s, g) => s + g.won, 0);
+  const totalValue = Object.values(stats).reduce((s, g) => s + g.value, 0);
+  const totalSpend = Object.values(spendByGroup).reduce((a, b) => a + b, 0);
+  const overallConv = totalLeads > 0 ? (totalWon / totalLeads * 100).toFixed(1) : '0.0';
+  const overallROAS = totalSpend > 0 ? (totalValue / totalSpend).toFixed(2) : null;
+
+  function fmtPct(n) { return (n||0).toFixed(1) + '%'; }
+  function convRate(s) { return s.leads > 0 ? (s.won / s.leads * 100) : 0; }
+  function cpl(k) { return stats[k].leads > 0 && spendByGroup[k] > 0 ? (spendByGroup[k] / stats[k].leads) : null; }
+  function roas(k) { return spendByGroup[k] > 0 ? (stats[k].value / spendByGroup[k]) : null; }
+
+  const html = `
+    <div class="stats-grid" style="margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon green"><i class="fas fa-users"></i></div><div class="stat-info"><h3>${formatNumber(totalLeads)}</h3><p>Leads totaux</p></div></div>
+      <div class="stat-card"><div class="stat-icon gold"><i class="fas fa-trophy"></i></div><div class="stat-info"><h3>${formatNumber(totalWon)}</h3><p>Deals signés</p></div></div>
+      <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-percentage"></i></div><div class="stat-info"><h3>${overallConv}%</h3><p>Taux de conversion global</p></div></div>
+      <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-euro-sign"></i></div><div class="stat-info"><h3>${formatCurrency(totalValue)}</h3><p>CA signé</p></div></div>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:20px">
+      ${Object.keys(SOURCE_GROUPS).map(k => {
+        const g = SOURCE_GROUPS[k];
+        const s = stats[k];
+        const c = convRate(s);
+        return `
+          <div class="stat-card" style="border-left:4px solid ${g.color}">
+            <div class="stat-icon" style="background:${g.color};color:#fff"><i class="${g.icon}"></i></div>
+            <div class="stat-info">
+              <h3>${formatNumber(s.leads)}</h3>
+              <p>${g.label}</p>
+              <span class="trend ${s.won > 0 ? 'up' : ''}">
+                <i class="fas fa-trophy"></i> ${s.won} signés · ${fmtPct(c)}
+              </span>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-pie"></i> Répartition des leads par source</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-crmstats-repartition"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><i class="fas fa-chart-bar"></i> Taux de conversion par source</h3></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-crmstats-conversion"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="panel mt-24">
+      <div class="panel-header">
+        <h3><i class="fas fa-table"></i> Détail par source</h3>
+        <button class="btn btn-sm btn-outline" id="btn-crmstats-refresh"><i class="fas fa-sync-alt"></i> Actualiser</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table">
+          <thead><tr>
+            <th>Source</th><th>Leads</th><th>Ouverts</th><th>Gagnés</th><th>Perdus</th>
+            <th>Conversion</th><th>CA signé</th><th>Dépense</th><th>CPL</th><th>ROAS</th>
+          </tr></thead>
+          <tbody>
+            ${Object.keys(SOURCE_GROUPS).concat(['other']).map(k => {
+              const g = k === 'other'
+                ? { label: 'Autres (PRM, manuels, nocrm…)', emoji: '📥', color: '#95a5a6' }
+                : SOURCE_GROUPS[k];
+              const s = stats[k];
+              const c = convRate(s);
+              const sp = spendByGroup[k] || 0;
+              const cplVal = cpl(k);
+              const roasVal = roas(k);
+              return `<tr>
+                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${g.color};margin-right:8px"></span><strong>${g.emoji} ${g.label}</strong></td>
+                <td>${formatNumber(s.leads)}</td>
+                <td>${formatNumber(s.openDeals)}</td>
+                <td style="color:#27ae60"><strong>${formatNumber(s.won)}</strong></td>
+                <td style="color:#e74c3c">${formatNumber(s.lost)}</td>
+                <td><div class="progress-bar" style="width:80px;display:inline-block;vertical-align:middle"><div class="progress-bar-fill" style="width:${Math.min(c,100)}%;background:${g.color}"></div></div> <span class="text-small">${fmtPct(c)}</span></td>
+                <td>${formatCurrency(s.value)}</td>
+                <td>${sp > 0 ? formatCurrency(sp) : '<span class="text-muted">—</span>'}</td>
+                <td>${cplVal !== null ? formatCurrency(cplVal) : '<span class="text-muted">—</span>'}</td>
+                <td>${roasVal !== null ? '<strong>x' + roasVal.toFixed(2) + '</strong>' : '<span class="text-muted">—</span>'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f8f9fa;font-weight:600">
+              <td>TOTAL</td>
+              <td>${formatNumber(totalLeads)}</td>
+              <td>—</td>
+              <td style="color:#27ae60">${formatNumber(totalWon)}</td>
+              <td style="color:#e74c3c">${Object.values(stats).reduce((s,g)=>s+g.lost,0)}</td>
+              <td>${overallConv}%</td>
+              <td>${formatCurrency(totalValue)}</td>
+              <td>${totalSpend > 0 ? formatCurrency(totalSpend) : '—'}</td>
+              <td>${totalSpend > 0 ? formatCurrency(totalSpend/totalLeads) : '—'}</td>
+              <td>${overallROAS !== null ? 'x' + overallROAS : '—'}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel mt-24">
+      <div class="panel-header">
+        <h3><i class="fas fa-euro-sign"></i> Coûts publicitaires &amp; ROI</h3>
+        <div>
+          <button class="btn btn-sm btn-outline" id="btn-crmstats-sync-fb"><i class="fab fa-facebook"></i> Sync FB Ads</button>
+          <button class="btn btn-sm btn-outline" id="btn-crmstats-sync-google"><i class="fab fa-google"></i> Sync Google Ads</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        ${totalSpend > 0 ? `
+          <div class="text-small text-muted">Dépense totale synchronisée : <strong>${formatCurrency(totalSpend)}</strong> — ROAS global : <strong>x${overallROAS}</strong></div>
+        ` : `
+          <div class="empty-state">
+            <i class="fas fa-plug"></i>
+            <h4>Sync FB &amp; Google Ads à brancher</h4>
+            <p>La table <code>ad_campaigns</code> est vide. Va dans <strong>Parametres → Intégrations</strong> pour connecter FB Marketing API et Google Ads API. Une fois branché, les colonnes <strong>Dépense / CPL / ROAS</strong> ci-dessus se rempliront automatiquement.</p>
+          </div>
+        `}
+      </div>
+    </div>
+
+    <div class="text-small text-muted mt-16" style="text-align:right">
+      <i class="fas fa-info-circle"></i> Conversion = contact devenu deal <code>gagne</code> / total leads de la source.
+    </div>
+  `;
+  content.innerHTML = html;
+
+  content.querySelector('#btn-crmstats-refresh')?.addEventListener('click', () => pages['crm-stats']());
+  content.querySelector('#btn-crmstats-sync-fb')?.addEventListener('click', () => { toast('Configure la Marketing API dans Parametres', 'warning'); navigate('settings'); });
+  content.querySelector('#btn-crmstats-sync-google')?.addEventListener('click', () => { toast('Configure Google Ads API dans Parametres', 'warning'); navigate('settings'); });
+
+  if (document.getElementById('chart-crmstats-repartition')) {
+    const labels = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].label).concat(['Autres']);
+    const data = Object.keys(SOURCE_GROUPS).map(k => stats[k].leads).concat([stats.other.leads]);
+    const colors = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].color).concat(['#95a5a6']);
+    new Chart($('#chart-crmstats-repartition'), {
+      type: 'doughnut',
+      data: { labels: labels, datasets: [{ data: data, backgroundColor: colors }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+
+  if (document.getElementById('chart-crmstats-conversion')) {
+    const labels = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].label);
+    const data = Object.keys(SOURCE_GROUPS).map(k => parseFloat(convRate(stats[k]).toFixed(1)));
+    const colors = Object.keys(SOURCE_GROUPS).map(k => SOURCE_GROUPS[k].color);
+    new Chart($('#chart-crmstats-conversion'), {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ label: 'Taux de conversion (%)', data: data, backgroundColor: colors }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } } }
+      }
+    });
+  }
+};
+
+// ============================================
 // ANALYTICS (GA4) MODULE
 // ============================================
 pages.analytics = async function() {
@@ -8972,18 +9253,32 @@ window.prmView = async function(contactId) {
           rappelsHtml +
         '</div>' +
 
-        (c.email ? (function(){
+        (function(){
           var prenomM = c.last_name || c.first_name || c.company || 'Prospect';
           var tpls = (window._getMailTemplates ? window._getMailTemplates(cat||'', prenomM, c.company||'') : []);
+          if (!c.email) {
+            return '<div class="panel" style="padding:14px;margin-bottom:14px;background:#fff8e1;border-left:3px solid #f39c12">' +
+              '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:8px"><i class="fas fa-paper-plane"></i> Mails types</div>' +
+              '<div style="font-size:0.8rem;color:var(--text-light);font-style:italic;margin-bottom:8px">Ajoutez un email pour activer les templates ('+tpls.length+' disponibles pour '+(cat||'cette catégorie')+')</div>' +
+              '<button onclick="window._prmEditCoords(\''+c.id+'\')" class="btn" style="width:100%;font-size:0.82rem"><i class="fas fa-pen"></i> Ajouter un email</button>' +
+            '</div>';
+          }
           var tplBtns = tpls.map(function(t){
-            return '<button onclick="window._prmOpenMailTpl(\''+c.id+'\',\''+t.id+'\')" class="btn" style="width:100%;margin-bottom:6px;text-align:left;font-size:0.82rem;padding:8px 10px">'+t.emoji+' '+escHtml(t.nom)+'</button>';
+            return '<button onclick="window._prmOpenMailTpl(\''+c.id+'\',\''+t.id+'\')" style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;margin-bottom:6px;transition:background 0.15s" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'var(--bg)\'">'+
+              '<span style="font-size:1rem">'+t.emoji+'</span>'+
+              '<div style="flex:1;min-width:0">'+
+                '<div style="font-size:0.85rem;font-weight:600;color:var(--text)">'+escHtml(t.nom)+'</div>'+
+                '<div style="font-size:0.72rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(t.sujet)+'</div>'+
+              '</div>'+
+              '<i class="fas fa-chevron-right" style="color:var(--text-light);font-size:0.72rem;flex-shrink:0"></i>'+
+            '</button>';
           }).join('');
           return '<div class="panel" style="padding:14px;margin-bottom:14px">' +
-            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-envelope"></i> Mails types</div>' +
-            tplBtns +
-            '<button onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.company||c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" class="btn btn-primary" style="width:100%;margin-top:6px;font-size:0.82rem"><i class="fas fa-pen"></i> Mail vierge</button>' +
+            '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px"><i class="fas fa-paper-plane"></i> Mails types <span style="color:var(--primary);font-weight:600">('+tpls.length+')</span></div>' +
+            '<div style="display:flex;flex-direction:column;gap:4px">' + tplBtns + '</div>' +
+            '<button onclick="window.emailCompose(\''+c.email.replace(/'/g,"\\'")+'\',\''+(c.company||c.first_name+' '+c.last_name).replace(/'/g,"\\'")+'\',null,\''+c.id+'\')" class="btn btn-primary" style="width:100%;margin-top:10px;font-size:0.82rem"><i class="fas fa-pen"></i> Mail vierge</button>' +
           '</div>';
-        })() : '') +
+        })() +
 
         '<div class="panel" style="padding:14px">' +
           '<button onclick="window._prmDelete(\'' + c.id + '\')" class="btn" style="width:100%;color:#e74c3c;border-color:#e74c3c"><i class="fas fa-trash"></i> Supprimer du PRM</button>' +
