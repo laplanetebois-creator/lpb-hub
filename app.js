@@ -1633,7 +1633,7 @@ window.dealView = async function(id) {
           '</span>' +
         '</div>' +
         '<span class="text-small text-muted"><i class="fas fa-clock"></i> ' + formatDate(ev.start_date) + ' ' + timeStr +
-        '<span style="background:' + (ev.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffffff',rappel:'#e74c3c',autre:'#78909c'})[ev.type] || '#2d6a4f') + ';color:#fff;padding:1px 8px;border-radius:10px;font-size:0.7rem;margin-left:6px">' + (ev.type || '') + '</span></span>' +
+        '<span style="background:' + (ev.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffeb3b',rappel:'#e74c3c',autre:'#78909c'})[ev.type] || '#2d6a4f') + ';color:#fff;padding:1px 8px;border-radius:10px;font-size:0.7rem;margin-left:6px">' + (ev.type || '') + '</span></span>' +
       '</div>';
     }).join('')) +
     '</div></div>';
@@ -3688,7 +3688,7 @@ pages.planning = async function() {
       '<div class="cal-day">' + day + '</div>' +
       dayEvents.slice(0, 3).map(function(ev) {
         var timeStr = ev.start_time ? '<span style="font-weight:600">' + ev.start_time.substring(0,5) + '</span> ' : '';
-        return '<div class="cal-event" style="background:' + (ev.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffffff',rappel:'#e74c3c',autre:'#78909c'})[ev.type] || '#2d6a4f') + '">' + timeStr + ev.title + '</div>';
+        return '<div class="cal-event" style="background:' + (ev.color || ({tache:'#3498db',rdv:'#9b59b6',chantier:'#e67e22',livraison:'#f1c40f',devis:'#16a085',suivi:'#ffeb3b',rappel:'#e74c3c',autre:'#78909c'})[ev.type] || '#2d6a4f') + '">' + timeStr + ev.title + '</div>';
       }).join('') +
       (dayEvents.length > 3 ? '<div class="text-muted text-small">+' + (dayEvents.length - 3) + '</div>' : '') +
     '</div>';
