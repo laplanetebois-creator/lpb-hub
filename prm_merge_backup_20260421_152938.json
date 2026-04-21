@@ -1,0 +1,40 @@
+{
+  "keeper_before": {
+    "id": "a16d48cf-c561-48e6-9b02-185360167fa4",
+    "first_name": "Site",
+    "last_name": "et Cité Architecture",
+    "email": "",
+    "phone": "03 23 79 98 98",
+    "company": "Site et Cité Architecture",
+    "job_title": null,
+    "source": "prm",
+    "status": "prospect",
+    "score": 0,
+    "tags": "[]",
+    "notes": "prm_stage: interesse\nstage_since: 2026-04-21\ncategorie: Architecte\npriorite: B\nsource_prm: leads_consolide\nremarque_prospect: sc.architectur@orange.fr",
+    "address": null,
+    "city": "Laon",
+    "postal_code": null,
+    "created_at": "2026-04-21T12:49:37.894951+00:00",
+    "updated_at": "2026-04-21T12:49:57.377+00:00"
+  },
+  "loser_before": {
+    "id": "fe14b59d-5935-4a48-9f26-13e747d26cc6",
+    "first_name": "Agence",
+    "last_name": "site et cité architecture",
+    "email": "sc.architectur@orange.fr",
+    "phone": "03 23 79 98 98",
+    "company": "Agence site et cité architecture",
+    "job_title": null,
+    "source": "prm",
+    "status": "prospect",
+    "score": 0,
+    "tags": "[]",
+    "notes": "prm_stage: contacte\nstage_since: 2026-04-20\ncategorie: Architecte\npriorite: C\nsource_prm: leads_consolide\netape_prospect: contacte\nremarque_prospect: fonctionne appel d'offre, envoyer info",
+    "address": null,
+    "city": "",
+    "postal_code": null,
+    "created_at": "2026-04-20T15:21:57.712653+00:00",
+    "updated_at": "2026-04-20T15:22:45.549+00:00"
+  }
+}
