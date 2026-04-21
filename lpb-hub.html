@@ -3244,6 +3244,19 @@ function crmImportHelloArtisan() {
 // ============================================
 // STATISTIQUES LEADS MODULE
 // ============================================
+// Cout unitaire moyen par lead (EUR). Modifier ici pour ajuster.
+// Les sources absentes sont considerees comme "gratuit" (organique).
+var LEAD_COSTS = {
+  'helloartisan': 50,
+  'travaux':      50
+  // 'facebook': 0,   // a remplir avec budget FB Ads / nb leads attendu
+  // 'web':      0,   // SEO organique = 0 par defaut
+  // 'google':   0    // separer de 'web' si Google Ads active (voir classifySource)
+};
+function getLeadCost(sourceKey) {
+  return LEAD_COSTS[sourceKey] || 0;
+}
+
 // Classification des sources (regroupement business).
 // Modifier cette fonction pour changer le mapping affiche.
 function classifySource(rawSource) {
@@ -3331,7 +3344,7 @@ async function renderStatsLeads(content) {
   leads.forEach(function(c) {
     var klass = classifySource(c.source);
     if (!bySource[klass.key]) {
-      bySource[klass.key] = { label: klass.label, color: klass.color, total: 0, mois: 0, j30: 0, j7: 0, valid: 0, devis: 0 };
+      bySource[klass.key] = { label: klass.label, color: klass.color, total: 0, mois: 0, j30: 0, j7: 0, valid: 0, devis: 0, costUnit: getLeadCost(klass.key) };
     }
     bySource[klass.key].total += 1;
     if (isValidatedLead(c)) bySource[klass.key].valid += 1;
@@ -3343,6 +3356,18 @@ async function renderStatsLeads(content) {
       if (t >= t7)  bySource[klass.key].j7  += 1;
     }
   });
+
+  // Calcul investissement total (uniquement sources payantes)
+  var totalInvestment = 0;
+  Object.keys(bySource).forEach(function(k){
+    totalInvestment += bySource[k].total * bySource[k].costUnit;
+  });
+  var totalInvestmentMois = 0;
+  Object.keys(bySource).forEach(function(k){
+    totalInvestmentMois += bySource[k].mois * bySource[k].costUnit;
+  });
+  var cacValidGlobal = totalValid > 0 ? Math.round(totalInvestment / totalValid) : 0;
+  var cacDevisGlobal = totalDevis > 0 ? Math.round(totalInvestment / totalDevis) : 0;
 
   // Trier par total desc
   var rows = Object.keys(bySource).map(function(k){
@@ -3392,9 +3417,17 @@ async function renderStatsLeads(content) {
     '</div>' +
 
     // Stat cards - ligne 2 : qualification
-    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">' +
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">' +
       statCard('Leads valides',        totalValid + ' <span style="font-size:1rem;color:var(--text-light);font-weight:500">(' + pctValidGlobal + '%)</span>', 'fas fa-check-circle', '#27ae60') +
       statCard('Devis emis',           totalDevis + ' <span style="font-size:1rem;color:var(--text-light);font-weight:500">(' + pctDevisGlobal + '%)</span>', 'fas fa-file-invoice-dollar', '#8e44ad') +
+    '</div>' +
+
+    // Stat cards - ligne 3 : cout / ROI
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px">' +
+      statCard('Investissement total',    formatCurrency(totalInvestment),     'fas fa-euro-sign',       '#c0392b') +
+      statCard('Investissement ce mois',  formatCurrency(totalInvestmentMois), 'fas fa-calendar-alt',    '#d35400') +
+      statCard('Cout par lead valide',    totalValid > 0 ? formatCurrency(cacValidGlobal) : '—',        'fas fa-user-check',      '#16a085') +
+      statCard('Cout par devis',          totalDevis > 0 ? formatCurrency(cacDevisGlobal) : '—',        'fas fa-file-invoice',    '#6c5ce7') +
     '</div>' +
 
     // Repartition par source
@@ -3448,6 +3481,58 @@ async function renderStatsLeads(content) {
             '</tbody></table></div>'
       ) +
     '</div>' +
+
+    // Panel Cout & ROI par source (uniquement sources payantes)
+    (function(){
+      var paidRows = rows.filter(function(r){ return r.costUnit > 0; });
+      if (paidRows.length === 0) return '';
+      return '<div class="panel" style="padding:20px;margin-bottom:20px">' +
+        '<h3 style="margin:0 0 14px 0;font-size:1rem;display:flex;align-items:center;gap:8px"><i class="fas fa-euro-sign" style="color:#c0392b"></i> Cout & ROI par source payante</h3>' +
+        '<div style="overflow-x:auto"><table class="data-table" style="width:100%;min-width:800px">' +
+          '<thead><tr>' +
+            '<th>Source</th>' +
+            '<th style="text-align:right">Nb leads</th>' +
+            '<th style="text-align:right">Cout unit.</th>' +
+            '<th style="text-align:right">Cout total</th>' +
+            '<th style="text-align:right">Cout / lead valide</th>' +
+            '<th style="text-align:right">Cout / devis</th>' +
+            '<th style="text-align:right">Investi ce mois</th>' +
+          '</tr></thead>' +
+          '<tbody>' +
+          paidRows.map(function(r){
+            var coutTotal = r.total * r.costUnit;
+            var cacValid  = r.valid > 0 ? Math.round(coutTotal / r.valid) : null;
+            var cacDevis  = r.devis > 0 ? Math.round(coutTotal / r.devis) : null;
+            var investMois = r.mois * r.costUnit;
+            // Code couleur CAC : plus c'est cher par validé, plus c'est rouge
+            function cacCell(v) {
+              if (v === null) return '<span style="color:var(--text-light)">—</span>';
+              var col = v <= 100 ? '#27ae60' : (v <= 250 ? '#e0a030' : '#e74c3c');
+              return '<span style="color:'+col+';font-weight:700">'+formatCurrency(v)+'</span>';
+            }
+            return '<tr>' +
+              '<td><div style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:'+r.color+';display:inline-block"></span><strong>'+r.label+'</strong></div></td>' +
+              '<td style="text-align:right;font-weight:700">'+r.total+'</td>' +
+              '<td style="text-align:right">'+formatCurrency(r.costUnit)+'</td>' +
+              '<td style="text-align:right;font-weight:700;color:#c0392b">'+formatCurrency(coutTotal)+'</td>' +
+              '<td style="text-align:right">'+cacCell(cacValid)+'</td>' +
+              '<td style="text-align:right">'+cacCell(cacDevis)+'</td>' +
+              '<td style="text-align:right">'+formatCurrency(investMois)+'</td>' +
+            '</tr>';
+          }).join('') +
+          '<tr style="background:#f8f9fa;font-weight:700;border-top:2px solid var(--border)">' +
+            '<td>Total</td>' +
+            '<td style="text-align:right">'+paidRows.reduce(function(s,r){return s+r.total;},0)+'</td>' +
+            '<td style="text-align:right">—</td>' +
+            '<td style="text-align:right;color:#c0392b">'+formatCurrency(totalInvestment)+'</td>' +
+            '<td style="text-align:right">'+(totalValid > 0 ? formatCurrency(cacValidGlobal) : '—')+'</td>' +
+            '<td style="text-align:right">'+(totalDevis > 0 ? formatCurrency(cacDevisGlobal) : '—')+'</td>' +
+            '<td style="text-align:right">'+formatCurrency(totalInvestmentMois)+'</td>' +
+          '</tr>' +
+          '</tbody></table></div>' +
+        '<div class="text-small text-muted" style="margin-top:10px"><i class="fas fa-info-circle"></i> Couts moyens fixes : modifier <code>LEAD_COSTS</code> dans index.html pour ajuster.</div>' +
+      '</div>';
+    })() +
 
     // Evolution mensuelle (12 mois)
     '<div class="panel" style="padding:20px;margin-bottom:20px">' +
