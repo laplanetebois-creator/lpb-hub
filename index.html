@@ -536,6 +536,7 @@ a:hover { text-decoration: underline; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .deal-card.src-travaux    { border-left-color: #2e7d32; background: linear-gradient(to right, #e8f5e922, var(--card)); }
 .deal-card.src-helloartisan { border-left-color: #1976d2; background: linear-gradient(to right, #bbdefb88, #e3f2fd44); }
+.deal-card.src-habitatpresto { border-left-color: #6a1b9a; background: linear-gradient(to right, #f3e5f588, #fce4ec44); }
 .deal-card.src-website    { border-left-color: #c62828; background: linear-gradient(to right, #ffebee22, var(--card)); }
 .deal-card.src-facebook   { border-left-color: #e65100; background: linear-gradient(to right, #fff3e022, var(--card)); }
 .deal-card.dragging { opacity: 0.4; transform: rotate(2deg); }
@@ -2944,7 +2945,7 @@ function crmForm(contact = null) {
       <div class="form-group">
         <label>Source</label>
         <select id="f-source">
-          ${['manual','website','linkedin','referral','scraping','salon','google','helloartisan','travaux.com'].map(s => `<option value="${s}" ${c.source === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${['manual','website','linkedin','referral','scraping','salon','google','helloartisan','travaux.com','habitatpresto'].map(s => `<option value="${s}" ${c.source === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -2964,9 +2965,9 @@ function crmForm(contact = null) {
         <input type="text" id="f-postal" value="${c.postal_code || ''}">
       </div>
     </div>
-    ${['helloartisan','travaux.com'].includes(c.source || '') ? `
+    ${['helloartisan','travaux.com','habitatpresto'].includes(c.source || '') ? `
     <div class="form-group">
-      <label><i class="fas fa-link" style="font-size:0.75rem;color:var(--primary)"></i> Lien source (helloArtisan / travaux.com)</label>
+      <label><i class="fas fa-link" style="font-size:0.75rem;color:var(--primary)"></i> Lien source (helloArtisan / travaux.com / habitatpresto)</label>
       <input type="url" id="f-source-url" placeholder="https://..." value="${(function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? m[1].trim() : ''; })()}">
     </div>
     ` : ''}
@@ -2984,14 +2985,14 @@ function crmForm(contact = null) {
   function toggleSourceUrl() {
     const src = srcSel ? srcSel.value : '';
     let suRow = document.getElementById('source-url-row');
-    if (['helloartisan','travaux.com'].includes(src)) {
+    if (['helloartisan','travaux.com','habitatpresto'].includes(src)) {
       if (!suRow) {
         const notesGroup = $('#f-notes') ? $('#f-notes').closest('.form-group') : null;
         if (notesGroup) {
           suRow = document.createElement('div');
           suRow.id = 'source-url-row';
           suRow.className = 'form-group';
-          suRow.innerHTML = '<label><i class="fas fa-link" style="font-size:0.75rem;color:var(--primary)"></i> Lien source (helloArtisan / travaux.com)</label><input type="url" id="f-source-url" placeholder="https://">';
+          suRow.innerHTML = '<label><i class="fas fa-link" style="font-size:0.75rem;color:var(--primary)"></i> Lien source (helloArtisan / travaux.com / habitatpresto)</label><input type="url" id="f-source-url" placeholder="https://">';
           notesGroup.parentNode.insertBefore(suRow, notesGroup);
         }
       }
@@ -3250,9 +3251,10 @@ function crmImportHelloArtisan() {
 // Cout unitaire moyen par lead (EUR). Modifier ici pour ajuster.
 // Les sources absentes sont considerees comme "gratuit" (organique).
 var LEAD_COSTS = {
-  'helloartisan': 50,
-  'travaux':      50,
-  'facebook':     7     // Fallback si aucune sync dispo. Override auto par (ordre): fbads_data.json > fbads_daily_data.spend > ad_campaigns.spent
+  'helloartisan':  50,
+  'travaux':       50,
+  'habitatpresto': 50,  // Par-lead si pas de cumul exact fourni dans CHANNEL_TOTAL_COSTS
+  'facebook':      7     // Fallback si aucune sync dispo. Override auto par (ordre): fbads_data.json > fbads_daily_data.spend > ad_campaigns.spent
   // 'web':      0,    // SEO organique = 0 par defaut
   // 'google_ads': 0   // Pur sync depuis 'google_ads_data' (pas de forfait)
 };
@@ -3279,6 +3281,7 @@ function classifySource(rawSource) {
   }
   if (s === 'helloartisan')   return { key: 'helloartisan', label: 'helloArtisan',   color: '#1976d2' };
   if (s === 'travaux.com')    return { key: 'travaux',      label: 'Travaux.com',    color: '#2e7d32' };
+  if (s === 'habitatpresto')  return { key: 'habitatpresto',label: 'Habitatpresto',  color: '#6a1b9a' };
   if (s === 'linkedin')       return { key: 'linkedin',     label: 'LinkedIn',       color: '#0277bd' };
   if (s === 'referral')       return { key: 'referral',     label: 'Bouche a oreille',color: '#7b1fa2' };
   // Fallback : source brute conservee
@@ -3381,6 +3384,7 @@ async function renderStatsLeads(content) {
     else if (src.indexOf('google') !== -1 || src.indexOf('adwords') !== -1 || src.indexOf('sea') !== -1) key = 'google_ads';
     else if (src.indexOf('travaux') !== -1) key = 'travaux';
     else if (src.indexOf('helloartisan') !== -1) key = 'helloartisan';
+    else if (src.indexOf('habitatpresto') !== -1) key = 'habitatpresto';
     if (key) spendByKey[key] = (spendByKey[key] || 0) + spend;
   });
   googleAds.forEach(function(r){ spendByKey['google_ads'] = (spendByKey['google_ads']||0) + (parseFloat(r.spend||0)||0); });
