@@ -3329,18 +3329,26 @@ async function renderStatsLeads(content) {
   function hasDevis(c) { return !!contactsWithDevis[c.id]; }
 
   // Depense synchronisee par cle de classification
-  // FB Ads -> 'facebook'  |  Google Ads -> 'web' (Google + site sont fusionnes dans classifySource)
+  // Sources:
+  //   - ad_campaigns (table FB Ads de la page /fb-ads) : champ 'spent' + 'platform'
+  //   - fbads_daily_data (daily FB sync si active)     : champ 'spend'
+  //   - google_ads_data (table Google Ads de /google-ads): champ 'spend'
   var spendByKey = {};
   adCampaigns.forEach(function(c) {
+    var platform = String(c.platform || '').toLowerCase();
     var src = String(c.source || '').toLowerCase();
-    var spend = parseFloat(c.spend || c.cost || 0) || 0;
+    var spend = parseFloat(c.spent || c.spend || c.cost || 0) || 0;
     if (!spend) return;
-    var key = 'inconnu';
-    if (src.indexOf('facebook') !== -1 || src.indexOf('meta') !== -1) key = 'facebook';
+    var key = null;
+    // Priorite : platform (plus fiable que source pour fb/insta/google)
+    if (['facebook','instagram','meta'].indexOf(platform) !== -1) key = 'facebook';
+    else if (platform === 'google') key = 'web';
+    // Fallback sur source
+    else if (src.indexOf('facebook') !== -1 || src.indexOf('meta') !== -1 || src.indexOf('instagram') !== -1) key = 'facebook';
     else if (src.indexOf('google') !== -1) key = 'web';
     else if (src.indexOf('travaux') !== -1) key = 'travaux';
     else if (src.indexOf('helloartisan') !== -1) key = 'helloartisan';
-    spendByKey[key] = (spendByKey[key] || 0) + spend;
+    if (key) spendByKey[key] = (spendByKey[key] || 0) + spend;
   });
   fbAds.forEach(function(r){ spendByKey['facebook'] = (spendByKey['facebook']||0) + (parseFloat(r.spend||0)||0); });
   googleAds.forEach(function(r){ spendByKey['web']  = (spendByKey['web']||0)      + (parseFloat(r.spend||0)||0); });
@@ -3393,6 +3401,26 @@ async function renderStatsLeads(content) {
       if (t >= startOfMonth.getTime()) bySource[klass.key].mois += 1;
       if (t >= t30) bySource[klass.key].j30 += 1;
       if (t >= t7)  bySource[klass.key].j7  += 1;
+    }
+  });
+
+  // Forcer la creation d'une entree pour chaque cle ayant du spend, meme sans leads directs
+  // (ex: FB Ads tourne mais aucun contact rattache via c.source -> on veut quand meme la voir dans le panel ROI)
+  var KEY_DEFAULTS = {
+    'facebook':     { label: 'Facebook / Meta',      color: '#e65100' },
+    'web':          { label: 'Web (site + Google)',  color: '#c62828' },
+    'helloartisan': { label: 'helloArtisan',         color: '#1976d2' },
+    'travaux':      { label: 'Travaux.com',          color: '#2e7d32' }
+  };
+  Object.keys(spendByKey).forEach(function(k){
+    if (!bySource[k] && spendByKey[k] > 0 && KEY_DEFAULTS[k]) {
+      bySource[k] = {
+        label: KEY_DEFAULTS[k].label,
+        color: KEY_DEFAULTS[k].color,
+        total: 0, mois: 0, j30: 0, j7: 0,
+        valid: 0, devis: 0, won: 0, lost: 0, value: 0,
+        costUnit: getLeadCost(k)
+      };
     }
   });
 
@@ -3512,7 +3540,7 @@ async function renderStatsLeads(content) {
     // Repartition par source
     '<div class="panel" style="padding:20px;margin-bottom:20px">' +
       '<h3 style="margin:0 0 14px 0;font-size:1rem;display:flex;align-items:center;gap:8px"><i class="fas fa-chart-bar" style="color:var(--primary)"></i> Repartition par source</h3>' +
-      (rows.length === 0
+      ((function(){ var rowsWithLeads = rows.filter(function(r){ return r.total > 0; }); return rowsWithLeads.length === 0; })()
         ? '<div class="empty-state"><i class="fas fa-inbox"></i><h4>Aucun lead</h4></div>'
         : '<div style="overflow-x:auto"><table class="data-table" style="width:100%;min-width:1200px">' +
             '<thead><tr>' +
@@ -3532,7 +3560,7 @@ async function renderStatsLeads(content) {
               '<th style="min-width:140px">% volume</th>' +
             '</tr></thead>' +
             '<tbody>' +
-            rows.map(function(r){
+            rows.filter(function(r){ return r.total > 0; }).map(function(r){
               var pct       = totalAll > 0 ? Math.round((r.total / totalAll) * 100) : 0;
               var pctValid  = r.total > 0 ? Math.round((r.valid / r.total) * 100) : 0;
               var pctDevis  = r.total > 0 ? Math.round((r.devis / r.total) * 100) : 0;
@@ -3662,16 +3690,18 @@ async function renderStatsLeads(content) {
   });
 
   // Charts Chart.js : donut repartition + bar conversion
-  if (typeof Chart !== 'undefined' && rows.length > 0) {
+  // Exclure les sources "virtuelles" (spend sans leads) des charts pour rester lisible
+  var rowsChart = rows.filter(function(r){ return r.total > 0; });
+  if (typeof Chart !== 'undefined' && rowsChart.length > 0) {
     var repartitionEl = document.getElementById('chart-stats-repartition');
     if (repartitionEl) {
       new Chart(repartitionEl, {
         type: 'doughnut',
         data: {
-          labels: rows.map(function(r){ return r.label; }),
+          labels: rowsChart.map(function(r){ return r.label; }),
           datasets: [{
-            data: rows.map(function(r){ return r.total; }),
-            backgroundColor: rows.map(function(r){ return r.color; })
+            data: rowsChart.map(function(r){ return r.total; }),
+            backgroundColor: rowsChart.map(function(r){ return r.color; })
           }]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } } } }
@@ -3682,11 +3712,11 @@ async function renderStatsLeads(content) {
       new Chart(convEl, {
         type: 'bar',
         data: {
-          labels: rows.map(function(r){ return r.label; }),
+          labels: rowsChart.map(function(r){ return r.label; }),
           datasets: [{
             label: 'Taux conversion (%)',
-            data: rows.map(function(r){ return r.total > 0 ? parseFloat(((r.won / r.total) * 100).toFixed(1)) : 0; }),
-            backgroundColor: rows.map(function(r){ return r.color; })
+            data: rowsChart.map(function(r){ return r.total > 0 ? parseFloat(((r.won / r.total) * 100).toFixed(1)) : 0; }),
+            backgroundColor: rowsChart.map(function(r){ return r.color; })
           }]
         },
         options: {
