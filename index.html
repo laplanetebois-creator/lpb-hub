@@ -8140,10 +8140,13 @@ pages['crm-stats'] = async function() {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
   var dfCreated = getDateFilters('created_at');
-  const [contacts, deals, adCampaigns] = await Promise.all([
+  var dfDate = getDateFilters('date');
+  const [contacts, deals, adCampaigns, googleAds, fbAds] = await Promise.all([
     dbSelect('contacts', Object.assign({ order: ['created_at', false] }, dfCreated)),
     dbSelect('deals', Object.assign({}, dfCreated)),
-    dbSelect('ad_campaigns')
+    dbSelect('ad_campaigns'),
+    dbSelect('google_ads_data', Object.assign({}, dfDate)),
+    dbSelect('fbads_daily_data', Object.assign({}, dfDate))
   ]);
 
   const SOURCE_GROUPS = {
@@ -8175,6 +8178,8 @@ pages['crm-stats'] = async function() {
     else if (src.indexOf('google') !== -1) spendByGroup.website += spend;
     else spendByGroup.other += spend;
   });
+  fbAds.forEach(r => { spendByGroup.facebook += parseFloat(r.spend || 0) || 0; });
+  googleAds.forEach(r => { spendByGroup.website += parseFloat(r.spend || 0) || 0; });
 
   const stats = {};
   Object.keys(SOURCE_GROUPS).forEach(k => { stats[k] = { leads:0, won:0, lost:0, openDeals:0, value:0 }; });
