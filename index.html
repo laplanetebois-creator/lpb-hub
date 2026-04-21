@@ -6306,8 +6306,17 @@ pages['fb-ads'] = async function() {
 
   let rows = [];
   try {
-    rows = await dbSelect('fbads_daily_data', { eq: [['campaign', CAMPAIGN]], order: ['date', false], limit: 500 });
+    const resp = await fetch('fbads_data.json?t=' + Date.now());
+    if (resp.ok) {
+      const all = await resp.json();
+      rows = Array.isArray(all) ? all.filter(r => r.campaign === CAMPAIGN) : [];
+    }
   } catch(e) { rows = []; }
+  if (rows.length === 0) {
+    try {
+      rows = await dbSelect('fbads_daily_data', { eq: [['campaign', CAMPAIGN]], order: ['date', false], limit: 500 });
+    } catch(e) { rows = []; }
+  }
 
   const totals = { spend:0, impressions:0, clicks:0, leads:0, reach:0 };
   rows.forEach(r => {
