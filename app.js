@@ -2403,6 +2403,91 @@ pages['fb-ads'] = async function() {
     tablePanel.appendChild(tpBody);
     content.appendChild(tablePanel);
 
+    // Rapport Marc
+    let rapportRows = [];
+    try { rapportRows = await dbSelect('fbads_daily_analysis', { order: ['created_at', false], limit: 1 }); } catch(e) { rapportRows = []; }
+
+    const rapportPanel = document.createElement('div');
+    rapportPanel.className = 'panel';
+    rapportPanel.style.marginTop = '20px';
+    const rpHeader = document.createElement('div');
+    rpHeader.className = 'panel-header';
+    rpHeader.style.cssText = 'display:flex;align-items:center;gap:10px';
+    const rpIcon = document.createElement('i');
+    rpIcon.className = 'fas fa-robot';
+    rpIcon.style.color = '#3b5998';
+    const rpTitle = document.createElement('h3');
+    rpTitle.textContent = 'Rapport Marc — Analyse IA';
+    rpHeader.appendChild(rpIcon);
+    rpHeader.appendChild(rpTitle);
+    if (rapportRows.length > 0 && rapportRows[0].created_at) {
+      const rpDate = document.createElement('span');
+      rpDate.className = 'text-small text-muted';
+      rpDate.style.marginLeft = 'auto';
+      rpDate.textContent = 'Mis à jour : ' + new Date(rapportRows[0].created_at).toLocaleDateString('fr-FR');
+      rpHeader.appendChild(rpDate);
+    }
+    rapportPanel.appendChild(rpHeader);
+
+    const rpBody = document.createElement('div');
+    rpBody.className = 'panel-body';
+
+    if (rapportRows.length > 0 && rapportRows[0].analysis_text) {
+      const pre = document.createElement('div');
+      pre.style.cssText = 'white-space:pre-wrap;font-size:13px;line-height:1.6;color:#333';
+      pre.textContent = rapportRows[0].analysis_text;
+      rpBody.appendChild(pre);
+    } else {
+      // Rapport statique du 20/04/2026
+      const staticReport = [
+        { label: '🏆 dome bulle - gonflable', value: '146 prospects — CPL 2,28 € — Très performante ✅ Augmenter à 25 €/jour', color: '#27ae60' },
+        { label: '✅ domes', value: '48 prospects — CPL 8,07 € — Bon. Regarder la recommandation Meta', color: '#27ae60' },
+        { label: '🛑 Campagne trafic web', value: '1 896 clics — 0 lead — 65 € gaspillés. À désactiver maintenant', color: '#e74c3c' },
+        { label: '🆕 lpb V1 19/04/26', value: '0 résultat (normal — 16h de diffusion). Phase apprentissage. Attendre 4 jours', color: '#f39c12' },
+      ];
+      const recosTitle = document.createElement('p');
+      recosTitle.style.cssText = 'font-weight:600;margin-bottom:12px;color:#333';
+      recosTitle.textContent = 'Analyse du 20/04/2026 — Compte Domebulle (30 derniers jours)';
+      rpBody.appendChild(recosTitle);
+
+      staticReport.forEach(item => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0;align-items:flex-start';
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'font-weight:600;min-width:220px;font-size:13px';
+        lbl.textContent = item.label;
+        const val = document.createElement('div');
+        val.style.cssText = 'font-size:13px;color:' + item.color;
+        val.textContent = item.value;
+        row.appendChild(lbl);
+        row.appendChild(val);
+        rpBody.appendChild(row);
+      });
+
+      const recoBox = document.createElement('div');
+      recoBox.style.cssText = 'margin-top:16px;padding:12px 16px;background:#fff8e1;border-left:4px solid #f39c12;border-radius:4px';
+      const recoTitle = document.createElement('strong');
+      recoTitle.textContent = '⚡ Actions prioritaires :';
+      const recoList = document.createElement('ol');
+      recoList.style.cssText = 'margin:8px 0 0 16px;font-size:13px;line-height:1.8';
+      ['Désactiver "Campagne trafic web" → stop 65€+ gaspillés', 'Augmenter "dome bulle - gonflable" → 25 €/jour (CPL exceptionnel)', 'Laisser tourner "lpb V1" → ne pas toucher avant le 23/04'].forEach(t => {
+        const li = document.createElement('li');
+        li.textContent = t;
+        recoList.appendChild(li);
+      });
+      recoBox.appendChild(recoTitle);
+      recoBox.appendChild(recoList);
+      rpBody.appendChild(recoBox);
+
+      const syncNote = document.createElement('p');
+      syncNote.className = 'text-small text-muted';
+      syncNote.style.marginTop = '12px';
+      syncNote.textContent = '⚙️ Rapport automatique disponible après configuration du token Meta API (dimanche 11h)';
+      rpBody.appendChild(syncNote);
+    }
+    rapportPanel.appendChild(rpBody);
+    content.appendChild(rapportPanel);
+
     // Footer
     const footer = document.createElement('div');
     footer.className = 'text-small text-muted text-center';
