@@ -2895,6 +2895,38 @@ pages.crm = async function(subTab) {
   render();
 };
 
+// ============================================
+// DEDUP CRM — normalisation phone/email
+// ============================================
+// Compare phones sans le 0 ni +33 pour matcher +33 6 77 37 88 79 == 06 77 37 88 79 == 677378879
+function normalizeContactPhone(p) {
+  var d = String(p || '').replace(/\D/g, '');         // garde uniquement les chiffres
+  if (d.indexOf('33') === 0 && d.length >= 11) d = d.slice(2); // retire code pays 33
+  if (d.charAt(0) === '0') d = d.slice(1);            // retire 0 initial
+  return d.length >= 8 ? d : '';                       // au moins 8 chiffres sinon invalide
+}
+function normalizeContactEmail(e) {
+  return String(e || '').trim().toLowerCase();
+}
+// Cherche un contact existant avec meme email ou meme phone normalise (hors currentId)
+async function findContactDuplicate(row, currentId) {
+  try {
+    var existing = await dbSelect('contacts', { select: 'id,first_name,last_name,email,phone,source' });
+    var tgtPhone = normalizeContactPhone(row.phone);
+    var tgtEmail = normalizeContactEmail(row.email);
+    if (!tgtPhone && !tgtEmail) return null;
+    for (var i = 0; i < existing.length; i++) {
+      var c = existing[i];
+      if (currentId && c.id === currentId) continue;
+      if (tgtEmail && normalizeContactEmail(c.email) === tgtEmail) return { contact: c, reason: 'email' };
+      if (tgtPhone && normalizeContactPhone(c.phone) === tgtPhone) return { contact: c, reason: 'phone' };
+    }
+  } catch (err) {
+    console.warn('Dedup check failed:', err);
+  }
+  return null;
+}
+
 function crmForm(contact = null) {
   const isEdit = !!contact;
   const c = contact || {};
@@ -3054,6 +3086,26 @@ function crmForm(contact = null) {
       postal_code: $('#f-postal').value.trim() || null,
       notes: notesWithUrl || null
     };
+
+    // ============================================
+    // Verification doublons (email + phone normalise sans 0/+33)
+    // ============================================
+    var dup = await findContactDuplicate(row, isEdit ? c.id : null);
+    if (dup) {
+      var dupName = ((dup.contact.first_name || '') + ' ' + (dup.contact.last_name || '')).trim() || 'Sans nom';
+      var reasonLabel = dup.reason === 'email' ? 'meme adresse email' : 'meme telephone (sans 0/+33)';
+      var confirmMsg = '⚠️ Doublon detecte : ' + reasonLabel + '\n\n' +
+        'Contact existant : ' + dupName +
+        (dup.contact.phone ? '\nTel : ' + dup.contact.phone : '') +
+        (dup.contact.email ? '\nEmail : ' + dup.contact.email : '') +
+        (dup.contact.source ? '\nSource : ' + dup.contact.source : '') +
+        '\n\nContinuer quand meme ?';
+      if (!window.confirm(confirmMsg)) {
+        toast('Enregistrement annule (doublon detecte)', 'info');
+        return;
+      }
+    }
+
     if (isEdit) {
       await dbUpdate('contacts', c.id, row);
       if (pendingPhoto) setContactPhoto(c.id, pendingPhoto);
