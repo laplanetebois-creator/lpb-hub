@@ -1570,7 +1570,7 @@ a.att-item { position: relative; display: block; }
   font-size: 1.4rem;
 }
 .photo-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-.photo-upload-zone input[type="file"] { display: none; }
+.photo-upload-zone input[type="file"] { opacity:0; position:absolute; width:1px; height:1px; overflow:hidden; pointer-events:none; }
 
 /* ============================================
    ADS TOGGLE BAR — segmented control mobile-first pour switcher FB/Google
@@ -3062,7 +3062,7 @@ function crmForm(contact = null) {
       <div>
         <div style="font-weight:600;font-size:0.88rem;margin-bottom:4px">Photo du contact</div>
         <div style="font-size:0.78rem;color:var(--text-light);margin-bottom:8px">PNG, JPG — recadrage auto en cercle</div>
-        <button type="button" class="btn btn-outline btn-sm" id="btn-pick-photo"><i class="fas fa-upload"></i> Choisir une photo</button>
+        <label for="f-photo-input" class="btn btn-outline btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i class="fas fa-upload"></i> Choisir une photo</label>
         ${existingPhoto ? '<button type="button" class="btn btn-sm" id="btn-remove-photo" style="color:#e74c3c;background:none;border:1px solid #e74c3c;margin-left:6px"><i class="fas fa-trash"></i></button>' : ''}
       </div>
       <input type="file" id="f-photo-input" accept="image/*">
@@ -3162,13 +3162,14 @@ function crmForm(contact = null) {
   var pendingPhoto = null; // base64 PNG, set when user picks a file
   var removePhoto = false;
 
-  var pickBtn = document.getElementById('btn-pick-photo');
   var fileInput = document.getElementById('f-photo-input');
   var previewZone = document.getElementById('photo-preview-zone');
 
-  if (pickBtn && fileInput) {
-    pickBtn.addEventListener('click', function() { fileInput.click(); });
-    previewZone.addEventListener('click', function() { fileInput.click(); });
+  // Le label[for="f-photo-input"] ouvre le picker nativement — plus besoin de .click() JS
+  if (fileInput) {
+    // Clic sur la zone de preview ouvre aussi le picker
+    if (previewZone) previewZone.style.cursor = 'pointer';
+    if (previewZone) previewZone.addEventListener('click', function() { fileInput.click(); });
     fileInput.addEventListener('change', async function() {
       var file = fileInput.files[0];
       if (!file) return;
