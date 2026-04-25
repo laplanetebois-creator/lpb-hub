@@ -2221,16 +2221,50 @@ function initials(first, last) {
   return ((first?.[0] || '') + (last?.[0] || '')).toUpperCase();
 }
 
-// ── Photo contacts (localStorage) ──────────────────────────────────────────
+// ── Photo contacts (Supabase colonne photo + localStorage fallback) ─────────
+// Les photos sont stockees dans contacts.photo (Supabase) → visibles sur tous les appareils.
+// localStorage sert uniquement de fallback pour les anciennes photos avant migration.
 function contactPhotoKey(id) { return 'crm_photo_' + id; }
-function getContactPhoto(id) { return id ? localStorage.getItem(contactPhotoKey(id)) : null; }
-function setContactPhoto(id, base64) { if (id) localStorage.setItem(contactPhotoKey(id), base64); }
-function removeContactPhoto(id) { if (id) localStorage.removeItem(contactPhotoKey(id)); }
 
-// Returns inner HTML for an avatar: photo <img> or initials text
+// Lit la photo : contact.photo (Supabase) en priorite, localStorage en fallback
+function getContactPhoto(contact_or_id) {
+  if (contact_or_id && typeof contact_or_id === 'object') {
+    return contact_or_id.photo || (contact_or_id.id ? localStorage.getItem(contactPhotoKey(contact_or_id.id)) : null) || null;
+  }
+  return contact_or_id ? localStorage.getItem(contactPhotoKey(contact_or_id)) : null;
+}
+
+// Ecrit dans Supabase (cross-device) + vide localStorage
+async function setContactPhoto(id, base64) {
+  if (!id) return;
+  try { await dbUpdate('contacts', id, { photo: base64 }); } catch(e) { localStorage.setItem(contactPhotoKey(id), base64); return; }
+  localStorage.removeItem(contactPhotoKey(id));
+}
+
+// Supprime de Supabase ET localStorage
+async function removeContactPhoto(id) {
+  if (!id) return;
+  try { await dbUpdate('contacts', id, { photo: null }); } catch(e) {}
+  localStorage.removeItem(contactPhotoKey(id));
+}
+
+// Migration automatique : photos localStorage → Supabase (silencieuse, en arriere-plan)
+async function migratePhotosToSupabase(contacts) {
+  if (!contacts || !contacts.length) return;
+  for (var i = 0; i < contacts.length; i++) {
+    var c = contacts[i];
+    if (!c.id || c.photo) continue; // deja dans Supabase
+    var local = localStorage.getItem(contactPhotoKey(c.id));
+    if (local) {
+      try { await dbUpdate('contacts', c.id, { photo: local }); localStorage.removeItem(contactPhotoKey(c.id)); } catch(e) {}
+    }
+  }
+}
+
+// Returns inner HTML for an avatar: photo <img> ou initiales
 function avatarHtml(contact, size) {
   if (!contact) return 'NN';
-  var photo = getContactPhoto(contact.id);
+  var photo = contact.photo || getContactPhoto(contact.id);
   if (photo) return '<img src="' + photo + '" alt="' + initials(contact.first_name, contact.last_name) + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
   return initials(contact.first_name, contact.last_name);
 }
@@ -3294,7 +3328,7 @@ async function findContactDuplicate(row, currentId) {
 function crmForm(contact = null) {
   const isEdit = !!contact;
   const c = contact || {};
-  const existingPhoto = c.id ? getContactPhoto(c.id) : null;
+  const existingPhoto = c.id ? (c.photo || getContactPhoto(c.id)) : null;
   openModal(isEdit ? 'Modifier le contact' : 'Nouveau contact', `
     <div class="photo-upload-zone">
       <div class="photo-preview" id="photo-preview-zone" title="Cliquer pour ajouter une photo PNG">
@@ -3473,12 +3507,12 @@ function crmForm(contact = null) {
 
     if (isEdit) {
       await dbUpdate('contacts', c.id, row);
-      if (pendingPhoto) setContactPhoto(c.id, pendingPhoto);
-      else if (removePhoto) removeContactPhoto(c.id);
+      if (pendingPhoto) await setContactPhoto(c.id, pendingPhoto);
+      else if (removePhoto) await removeContactPhoto(c.id);
       toast('Contact mis a jour');
     } else {
       const inserted = await dbInsert('contacts', row);
-      if (inserted && inserted.id && pendingPhoto) setContactPhoto(inserted.id, pendingPhoto);
+      if (inserted && inserted.id && pendingPhoto) await setContactPhoto(inserted.id, pendingPhoto);
       toast('Contact cree');
     }
     closeModal();
@@ -4271,6 +4305,9 @@ async function renderPipeline(content) {
     dbSelect('deals', { order: ['created_at', false] }),
     dbSelect('contacts')
   ]);
+
+  // Migration silencieuse photos localStorage → Supabase (une seule fois)
+  migratePhotosToSupabase(contacts);
 
   const contactMap = {};
   contacts.forEach(c => { contactMap[c.id] = c; });
