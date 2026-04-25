@@ -2,9 +2,20 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LPB Hub — La Planète Bois</title>
   <link rel="icon" type="image/png" href="favicon-64.png">
+
+  <!-- PWA : manifest + theme color (Android/Chrome) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2d6a4f">
+
+  <!-- PWA iOS : meta Apple obligatoires (Safari ignore en partie le manifest) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LPB Hub">
+  <link rel="apple-touch-icon" href="favicon.png">
+
   <style>
 /* ============================================
    LPB Hub — La Planète Bois Dashboard
@@ -1709,21 +1720,25 @@ a.att-item { position: relative; display: block; }
   </div>
 
   <!-- BOTTOM NAV (mobile only, hidden by CSS on desktop) -->
+  <!-- Ordre = priorite metier : Pipeline en home pour tap immediat sur les deals -->
   <nav class="bottom-nav" id="bottom-nav">
-    <a data-page="dashboard"><i class="fas fa-chart-pie"></i>Accueil</a>
-    <a data-page="crm"><i class="fas fa-users"></i>CRM</a>
-    <a data-page="google-ads"><i class="fab fa-google"></i>Google Ads</a>
-    <a data-page="devis"><i class="fas fa-file-invoice"></i>Devis</a>
-    <a id="bottom-nav-more"><i class="fas fa-th-large"></i>Plus</a>
+    <a data-page="pipeline"><i class="fas fa-stream"></i>Pipeline</a>
+    <a data-page="stats-leads"><i class="fas fa-chart-pie"></i>Stats CRM</a>
+    <a data-page="ads"><i class="fas fa-bullhorn"></i>Ads</a>
+    <a data-page="planning"><i class="fas fa-calendar-alt"></i>Planning</a>
+    <a id="bottom-nav-more"><i class="fas fa-th-large"></i>Autre</a>
   </nav>
 
-  <!-- BOTTOM NAV: "Plus" dropdown menu -->
+  <!-- BOTTOM NAV: "Autre" dropdown menu - tout ce qui n'est pas dans les 4 tabs principales -->
   <div class="bottom-more-overlay" id="bottom-more-overlay"></div>
   <div class="bottom-more-menu" id="bottom-more-menu">
     <div class="bottom-more-handle"></div>
     <div class="bottom-more-grid">
-      <a data-page="planning"><i class="fas fa-calendar-alt"></i>Planning</a>
+      <a data-page="dashboard"><i class="fas fa-home"></i>Accueil</a>
+      <a data-page="crm"><i class="fas fa-users"></i>CRM complet</a>
+      <a data-page="devis"><i class="fas fa-file-invoice"></i>Devis</a>
       <a data-page="fb-ads"><i class="fab fa-facebook"></i>FB Ads</a>
+      <a data-page="google-ads"><i class="fab fa-google"></i>Google Ads</a>
       <a data-page="seo"><i class="fas fa-search"></i>SEO</a>
       <a data-page="analytics"><i class="fas fa-chart-line"></i>Analytics</a>
       <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
@@ -10395,6 +10410,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Auto-sync Windsor.ai on load
   autoSyncWindsor();
 });
+
+// PWA : enregistrement du service worker.
+// Permet l'installation iPhone (icone ecran d'accueil) + offline cache.
+// Hors localhost/HTTPS le SW n'est pas dispo : on tente sans bloquer en cas d'erreur.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .then((reg) => console.log('[PWA] SW enregistre, scope:', reg.scope))
+      .catch((err) => console.warn('[PWA] SW non enregistre (normal en file://):', err.message));
+  });
+}
 
   </script>
 </body>

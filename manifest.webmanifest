@@ -1,0 +1,26 @@
+{
+  "name": "LPB Hub — La Planete Bois",
+  "short_name": "LPB Hub",
+  "description": "Dashboard La Planete Bois : CRM, devis, ads, planning",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a2332",
+  "theme_color": "#2d6a4f",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "250x250",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.png",
+      "sizes": "250x250",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
