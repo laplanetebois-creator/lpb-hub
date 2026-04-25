@@ -2048,7 +2048,10 @@ function planningToGcalEvent(ev, contact) {
     if (contact.company) descLines.push('🏢 ' + contact.company);
     if (contact.phone) descLines.push('📞 ' + contact.phone);
     if (contact.email) descLines.push('✉️ ' + contact.email);
-    if (contact.city) descLines.push('📍 ' + contact.city + (contact.postal_code ? ' ' + contact.postal_code : ''));
+    if (contact.address || contact.city) {
+      var addrParts = [contact.address, contact.city, contact.postal_code].filter(Boolean);
+      descLines.push('📍 ' + addrParts.join(', '));
+    }
     var crmUrl = 'https://laplanetebois-creator.github.io/lpb-hub/';
     descLines.push('🔗 CRM: ' + crmUrl);
     descLines.push('');
@@ -3386,6 +3389,10 @@ function crmForm(contact = null) {
         </select>
       </div>
     </div>
+    <div class="form-group">
+      <label><i class="fas fa-map-marker-alt" style="font-size:0.75rem;color:var(--primary)"></i> Adresse</label>
+      <input type="text" id="f-address" value="${c.address || ''}" placeholder="Ex: 12 rue de la Foret">
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label>Ville</label>
@@ -3481,6 +3488,7 @@ function crmForm(contact = null) {
       job_title: $('#f-job').value.trim() || null,
       source: $('#f-source').value,
       status: $('#f-status').value,
+      address: $('#f-address') ? $('#f-address').value.trim() || null : null,
       city: $('#f-city').value.trim() || null,
       postal_code: $('#f-postal').value.trim() || null,
       notes: notesWithUrl || null
@@ -6017,8 +6025,9 @@ window.dealView = async function(id) {
               ${contact.company ? '<div class="sc-row"><span class="sc-label">Societe</span><span class="sc-val">' + escHtml(contact.company) + '</span></div>' : ''}
               ${contact.email ? '<div class="sc-row"><span class="sc-label">Email</span><span class="sc-val"><a href="javascript:void(0)" onclick="window.emailCompose(\''+contact.email.replace(/'/g,"\\'")+'\',\''+(contact.first_name+' '+contact.last_name).replace(/'/g,"\\'")+'\',\''+d.id+'\',\''+contact.id+'\')" style="color:var(--primary)">' + escHtml(contact.email) + ' <i class="fas fa-paper-plane" style="font-size:0.7rem"></i></a></span></div>' : ''}
               ${contact.phone ? '<div class="sc-row"><span class="sc-label">Tel</span><span class="sc-val"><a href="tel:' + contact.phone.replace(/\\s/g, '') + '" class="deal-phone-call" data-phone="' + escHtml(contact.phone) + '"><i class="fas fa-phone"></i> ' + escHtml(contact.phone) + '</a></span></div>' : ''}
+              ${contact.address ? '<div class="sc-row"><span class="sc-label">Adresse</span><span class="sc-val">' + escHtml(contact.address) + '</span></div>' : ''}
               ${contact.city ? '<div class="sc-row"><span class="sc-label">Ville</span><span class="sc-val">' + escHtml(contact.city) + (contact.postal_code ? ' <span style="color:var(--text-light);font-size:0.8em">(' + escHtml(contact.postal_code) + ')</span>' : '') + '</span></div>' : ''}
-              ${contact.city ? '<div class="sc-row"><span class="sc-label">Distance</span><span class="sc-val"><a href="https://www.google.com/maps/dir/Soissons,02200/' + encodeURIComponent((contact.city || '') + (contact.postal_code ? ' ' + contact.postal_code : '')) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem" id="dist-maps-link"><i class="fas fa-route"></i> <span id="dist-info"><i class="fas fa-spinner fa-spin" style="font-size:0.7rem"></i> calcul...</span></a></span></div>' : ''}
+              ${(contact.address || contact.city) ? '<div class="sc-row"><span class="sc-label">Distance</span><span class="sc-val"><a href="https://www.google.com/maps/dir/Soissons,02200/' + encodeURIComponent([contact.address, contact.city, contact.postal_code].filter(Boolean).join(' ')) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem" id="dist-maps-link"><i class="fas fa-route"></i> <span id="dist-info"><i class="fas fa-spinner fa-spin" style="font-size:0.7rem"></i> calcul...</span></a></span></div>' : ''}
               ${(function(){ var m = (contact.notes||'').match(/^source_url:\s*(.+)$/m); return m ? '<div class="sc-row"><span class="sc-label">Lien</span><span class="sc-val"><a href="' + escHtml(m[1].trim()) + '" target="_blank" rel="noopener" style="color:var(--primary);font-size:0.82rem"><i class="fas fa-external-link-alt"></i> Voir le lead</a></span></div>' : ''; })()}
             ` : '<div class="text-muted text-small">Aucun contact associe</div>'}
           </div>
@@ -6254,10 +6263,14 @@ window.dealView = async function(id) {
 
   // ── Distance atelier → client (Nominatim + OSRM, gratuit) ──────────────────
   var distInfo = popupBody.querySelector('#dist-info');
-  if (distInfo && contact && contact.city) {
+  if (distInfo && contact && (contact.address || contact.city)) {
     (async function() {
       try {
-        var q = encodeURIComponent(contact.city + (contact.postal_code ? ' ' + contact.postal_code : '') + ' France');
+        // Priorite adresse exacte, sinon ville + CP
+        var queryStr = contact.address
+          ? [contact.address, contact.city, contact.postal_code, 'France'].filter(Boolean).join(' ')
+          : [contact.city, contact.postal_code, 'France'].filter(Boolean).join(' ');
+        var q = encodeURIComponent(queryStr);
         var geo = await fetch('https://nominatim.openstreetmap.org/search?q=' + q + '&format=json&limit=1', { headers: { 'Accept-Language': 'fr' } });
         var geoData = await geo.json();
         if (!geoData || !geoData[0]) { distInfo.textContent = 'Itinéraire depuis l\'atelier'; return; }
