@@ -2573,6 +2573,60 @@ $$('.sidebar-nav a[data-page]').forEach(a => {
   a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
 });
 
+// ============================================
+// BOTTOM NAV (mobile) — cablage des taps
+// ============================================
+// La bottom-nav reutilise le pattern data-page de la sidebar mais a son propre
+// listener parce que ses items sont rendus dans un <nav> different.
+
+// Tap sur les 4 tabs principales (Pipeline / Stats CRM / Ads / Planning)
+$$('#bottom-nav a[data-page]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(a.dataset.page);
+    // Highlight visuel de la tab active
+    $$('#bottom-nav a').forEach(x => x.classList.toggle('active', x === a));
+  });
+});
+
+// Tap sur "Autre" : toggle du menu deroulant
+const moreMenuEl = $('#bottom-more-menu');
+const moreOverlayEl = $('#bottom-more-overlay');
+const moreBtnEl = $('#bottom-nav-more');
+function openMoreMenu() {
+  // Le CSS attend la classe 'show' (cf. .bottom-more-menu.show et .bottom-more-overlay.show)
+  if (moreMenuEl) moreMenuEl.classList.add('show');
+  if (moreOverlayEl) moreOverlayEl.classList.add('show');
+}
+function closeMoreMenu() {
+  if (moreMenuEl) moreMenuEl.classList.remove('show');
+  if (moreOverlayEl) moreOverlayEl.classList.remove('show');
+}
+moreBtnEl?.addEventListener('click', e => { e.preventDefault(); openMoreMenu(); });
+moreOverlayEl?.addEventListener('click', closeMoreMenu);
+
+// Tap sur un item du menu "Autre" : navigate puis ferme le menu
+$$('#bottom-more-menu a[data-page]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(a.dataset.page);
+    closeMoreMenu();
+  });
+});
+
+// Sync le highlight de la bottom-nav au demarrage et a chaque navigate
+function syncBottomNavActive() {
+  $$('#bottom-nav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.page === currentPage);
+  });
+}
+// Hook sur navigate (wrap l'existant pour ajouter le sync sans le re-ecrire)
+const _origNavigate = window.navigate;
+window.navigate = function(page) {
+  _origNavigate(page);
+  syncBottomNavActive();
+};
+
 $('#btn-refresh')?.addEventListener('click', () => navigate(currentPage));
 
 // ============================================
