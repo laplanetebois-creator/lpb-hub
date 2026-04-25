@@ -4464,7 +4464,7 @@ async function renderPipeline(content) {
                 var devisAtM = (d.notes || '').match(/^devis_at:\s*(\S+)/m);
                 var devisRef = devisAtM ? new Date(devisAtM[1]) : new Date(d.updated_at || d.created_at);
                 var daysInDevis = Math.max(0, Math.floor((now - devisRef) / 86400000));
-                var dvColor = daysInDevis > 7 ? '#e74c3c' : daysInDevis > 3 ? '#e67e22' : '#27ae60';
+                var dvColor = daysInDevis >= 2 ? '#e74c3c' : '#27ae60';
                 var dvLabel = daysInDevis === 0 ? "Aujourd'hui" : daysInDevis === 1 ? '1 jour en retard' : daysInDevis + ' jours en retard';
                 lateHtml += '<div style="margin-top:4px"><span style="background:' + dvColor + '18;color:' + dvColor + ';font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid ' + dvColor + '44"><i class="fas fa-file-invoice"></i> ' + dvLabel + '</span></div>';
               }
