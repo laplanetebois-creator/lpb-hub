@@ -5664,7 +5664,7 @@ window.dealView = async function(id) {
   const contactMap = {};
   contacts.forEach(function(c) { contactMap[c.id] = c; });
   const contact = contactMap[d.contact_id];
-  const dealActivities = activities.filter(function(a) { return a.deal_id === d.id || a.contact_id === d.contact_id; });
+  const dealActivities = activities.filter(function(a) { return a.deal_id === d.id || (d.contact_id && a.contact_id === d.contact_id); });
 
   // Parse description for structured fields
   var parsedFields = parseDescription(d.notes || '');
