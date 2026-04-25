@@ -3,7 +3,10 @@
 // puis met a jour en arriere-plan si reseau dispo).
 // Permet a l'app de s'ouvrir hors-ligne avec la derniere version vue.
 
-const CACHE = 'lpb-hub-v1';
+// Bump ce nom a chaque deploiement majeur pour forcer le SW a jeter l'ancien cache.
+// Le cycle install (skipWaiting) + activate (claim + delete old caches) garantit
+// que le nouveau code arrive sur le client en moins d'un reload.
+const CACHE = 'lpb-hub-v2';
 const ASSETS = [
   './',
   './index.html',
