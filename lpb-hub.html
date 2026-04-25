@@ -2,9 +2,20 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LPB Hub — La Planète Bois</title>
   <link rel="icon" type="image/png" href="favicon-64.png">
+
+  <!-- PWA : manifest + theme color (Android/Chrome) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2d6a4f">
+
+  <!-- PWA iOS : meta Apple obligatoires (Safari ignore en partie le manifest) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LPB Hub">
+  <link rel="apple-touch-icon" href="favicon.png">
+
   <style>
 /* ============================================
    LPB Hub — La Planète Bois Dashboard
@@ -917,6 +928,20 @@ a:hover { text-decoration: underline; }
    MOBILE — max 768px
    ============================================ */
 @media (max-width: 768px) {
+  /* PWA app-like : pas de bounce iOS (sensation d'app native) */
+  html, body { overscroll-behavior: none; }
+
+  /* Safe-area iPhone : la topbar etant sticky, c'est elle qui doit reserver
+     l'espace de l'encoche / Dynamic Island. Le body reste a 0 pour preserver
+     le comportement de scroll standard. */
+  .topbar {
+    padding-top: env(safe-area-inset-top, 0);
+    height: calc(var(--topbar-h) + env(safe-area-inset-top, 0));
+  }
+  /* Bottom-nav : reserve la barre de gestes iOS (deja partiel dans le base CSS,
+     on rappelle ici pour etre explicite et eviter les regressions) */
+  .bottom-nav { padding-bottom: env(safe-area-inset-bottom, 0); }
+
   /* Sidebar: off-canvas with overlay */
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
@@ -927,8 +952,11 @@ a:hover { text-decoration: underline; }
   }
   .sidebar-overlay.show { opacity: 1; pointer-events: auto; }
 
-  /* Main area */
-  .main { margin-left: 0; padding-bottom: 72px; }
+  /* Main area : compense le safe-area-bottom pour que la bottom-nav ne masque pas le contenu */
+  .main {
+    margin-left: 0;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0));
+  }
 
   /* Topbar */
   .topbar { padding: 0 12px; height: 56px; gap: 8px; }
@@ -1544,6 +1572,42 @@ a.att-item { position: relative; display: block; }
 .photo-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .photo-upload-zone input[type="file"] { display: none; }
 
+/* ============================================
+   ADS TOGGLE BAR — segmented control mobile-first pour switcher FB/Google
+   ============================================ */
+.ads-toggle-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--border);
+  border-radius: 12px;
+  margin: 0 0 16px 0;
+  width: 100%;
+  max-width: 360px;
+}
+.ads-toggle-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-light);
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.ads-toggle-btn.active {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.ads-toggle-btn:hover:not(.active) { color: var(--text); }
+
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1709,21 +1773,25 @@ a.att-item { position: relative; display: block; }
   </div>
 
   <!-- BOTTOM NAV (mobile only, hidden by CSS on desktop) -->
+  <!-- Ordre = priorite metier : Pipeline en home pour tap immediat sur les deals -->
   <nav class="bottom-nav" id="bottom-nav">
-    <a data-page="dashboard"><i class="fas fa-chart-pie"></i>Accueil</a>
-    <a data-page="crm"><i class="fas fa-users"></i>CRM</a>
-    <a data-page="google-ads"><i class="fab fa-google"></i>Google Ads</a>
-    <a data-page="devis"><i class="fas fa-file-invoice"></i>Devis</a>
-    <a id="bottom-nav-more"><i class="fas fa-th-large"></i>Plus</a>
+    <a data-page="pipeline"><i class="fas fa-stream"></i>Pipeline</a>
+    <a data-page="stats-leads"><i class="fas fa-chart-pie"></i>Stats CRM</a>
+    <a data-page="ads"><i class="fas fa-bullhorn"></i>Ads</a>
+    <a data-page="planning"><i class="fas fa-calendar-alt"></i>Planning</a>
+    <a id="bottom-nav-more"><i class="fas fa-th-large"></i>Autre</a>
   </nav>
 
-  <!-- BOTTOM NAV: "Plus" dropdown menu -->
+  <!-- BOTTOM NAV: "Autre" dropdown menu - tout ce qui n'est pas dans les 4 tabs principales -->
   <div class="bottom-more-overlay" id="bottom-more-overlay"></div>
   <div class="bottom-more-menu" id="bottom-more-menu">
     <div class="bottom-more-handle"></div>
     <div class="bottom-more-grid">
-      <a data-page="planning"><i class="fas fa-calendar-alt"></i>Planning</a>
+      <a data-page="dashboard"><i class="fas fa-home"></i>Accueil</a>
+      <a data-page="crm"><i class="fas fa-users"></i>CRM complet</a>
+      <a data-page="devis"><i class="fas fa-file-invoice"></i>Devis</a>
       <a data-page="fb-ads"><i class="fab fa-facebook"></i>FB Ads</a>
+      <a data-page="google-ads"><i class="fab fa-google"></i>Google Ads</a>
       <a data-page="seo"><i class="fas fa-search"></i>SEO</a>
       <a data-page="analytics"><i class="fas fa-chart-line"></i>Analytics</a>
       <a data-page="gbp"><i class="fab fa-google"></i>Google Business</a>
@@ -2486,6 +2554,7 @@ window.navigate = function navigate(page) {
   $$('.sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
   const titles = {
     dashboard: 'Tableau de bord', crm: 'CRM', 'stats-leads': 'Statistiques leads',
+    pipeline: 'Pipeline CRM', ads: 'Publicités',
     'google-ads': 'Google Ads', 'fb-ads': 'Facebook Ads',
     seo: 'SEO', analytics: 'Analytics — Google', gbp: 'Google Business Profile',
     devis: 'Devis', 'dashboard-devis': 'Dashboard Devis', suivi: 'Suivi client', prm: 'PRM Professionnels',
@@ -3387,6 +3456,44 @@ pages['stats-leads'] = async function() {
   return renderStatsLeads($('#content'));
 };
 
+// ============================================
+// MOBILE BOTTOM-NAV TABS — raccourcis dedies
+// ============================================
+
+// Tab "Pipeline" : ouvre directement le kanban CRM (shortcut mobile vers crm > pipeline)
+pages['pipeline'] = async function() {
+  return renderPipeline($('#content'));
+};
+
+// Tab "Ads" : toggle FB / Google Ads. Le dernier vu est memorise en localStorage
+// pour eviter de redemander a chaque ouverture (UX app-like).
+pages['ads'] = async function() {
+  const which = localStorage.getItem('ads_view') === 'google' ? 'google' : 'fb';
+  // Delegue au render existant (FB ou Google) — il rend dans #content
+  if (which === 'google') {
+    await pages['google-ads']();
+  } else {
+    await pages['fb-ads']();
+  }
+  // Injecte un toggle segmente flottant en haut de la page rendue
+  const content = $('#content');
+  if (!content) return;
+  const toggle = document.createElement('div');
+  toggle.className = 'ads-toggle-bar';
+  toggle.innerHTML =
+    '<button type="button" class="ads-toggle-btn ' + (which === 'fb' ? 'active' : '') + '" data-ads="fb">' +
+      '<i class="fab fa-facebook"></i> Facebook Ads</button>' +
+    '<button type="button" class="ads-toggle-btn ' + (which === 'google' ? 'active' : '') + '" data-ads="google">' +
+      '<i class="fab fa-google"></i> Google Ads</button>';
+  content.insertBefore(toggle, content.firstChild);
+  toggle.querySelectorAll('[data-ads]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      localStorage.setItem('ads_view', btn.dataset.ads);
+      navigate('ads');
+    });
+  });
+};
+
 async function renderStatsLeads(content) {
   content.innerHTML = '<div class="text-center text-muted" style="padding:60px"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
@@ -4008,6 +4115,91 @@ async function renderPipeline(content) {
       pages.crm('pipeline');
     });
   });
+
+  // ============================================
+  // MOBILE : swipe gauche/droite sur les cartes deal pour changer de stage
+  // ============================================
+  // Desktop garde le drag&drop natif, mobile a son propre systeme touch.
+  // Direction droite = stage suivant, gauche = stage precedent.
+  // Visuellement on tinte la carte (vert/rouge) pendant le swipe pour feedback immediat.
+  var SWIPE_STAGES = ['nouveaux_leads', 'foireux', 'nrp', 'suivi', 'rdv_sur_place', 'devis', 'attente_reponse', 'r2', 'gagne', 'perdu'];
+  var isMobileSwipe = window.matchMedia('(max-width: 768px)').matches;
+  if (isMobileSwipe) {
+    content.querySelectorAll('.deal-card').forEach(function(card) {
+      // On retire le onclick inline pour pouvoir distinguer tap vs swipe.
+      // Le tap est re-emule au touchend si delta faible.
+      var dealId = card.dataset.dealId;
+      card.removeAttribute('onclick');
+      card.style.touchAction = 'pan-y';  // autorise le scroll vertical natif
+
+      var startX = 0, startY = 0, deltaX = 0, deltaY = 0;
+      var direction = null;  // 'h' = swipe horizontal, 'v' = laisse le scroll natif
+      var isSwiping = false;
+
+      card.addEventListener('touchstart', function(e) {
+        var t = e.touches[0];
+        startX = t.clientX; startY = t.clientY;
+        deltaX = 0; deltaY = 0; direction = null; isSwiping = false;
+        card.style.transition = 'none';
+      }, { passive: true });
+
+      card.addEventListener('touchmove', function(e) {
+        var t = e.touches[0];
+        deltaX = t.clientX - startX;
+        deltaY = t.clientY - startY;
+        // Decide la direction au 1er mouvement significatif (>8px)
+        if (direction === null && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
+          direction = Math.abs(deltaX) > Math.abs(deltaY) ? 'h' : 'v';
+        }
+        if (direction === 'h') {
+          isSwiping = true;
+          var clamped = Math.max(-150, Math.min(150, deltaX));
+          card.style.transform = 'translateX(' + clamped + 'px)';
+          var opacity = Math.min(0.35, Math.abs(clamped) / 200);
+          card.style.background = clamped > 0
+            ? 'rgba(45, 106, 79, ' + opacity + ')'    // vert : avancer
+            : 'rgba(231, 76, 60, ' + opacity + ')';   // rouge : reculer
+        }
+      }, { passive: true });
+
+      card.addEventListener('touchend', async function() {
+        card.style.transition = 'transform 0.25s ease, background 0.25s ease, opacity 0.25s ease';
+
+        // Swipe valide : seuil 100px + direction horizontale + stage adjacent dispo
+        if (direction === 'h' && isSwiping && Math.abs(deltaX) > 100) {
+          var colEl = card.closest('[data-stage]');
+          var idx = colEl ? SWIPE_STAGES.indexOf(colEl.dataset.stage) : -1;
+          var newIdx = -1;
+          if (deltaX > 0 && idx !== -1 && idx < SWIPE_STAGES.length - 1) newIdx = idx + 1;
+          else if (deltaX < 0 && idx > 0) newIdx = idx - 1;
+
+          if (newIdx !== -1) {
+            var newStage = SWIPE_STAGES[newIdx];
+            // Animation de sortie puis update DB + re-render
+            card.style.transform = 'translateX(' + (deltaX > 0 ? 400 : -400) + 'px)';
+            card.style.opacity = '0';
+            try { await dbUpdate('deals', dealId, { stage: newStage }); }
+            catch (err) { console.error('Swipe update failed:', err); }
+            toast('Deal → ' + newStage.replace(/_/g, ' '));
+            setTimeout(function() { navigate('pipeline'); }, 250);
+            return;
+          }
+        }
+        // Snap back si swipe insuffisant
+        card.style.transform = ''; card.style.background = '';
+
+        // Tap (delta faible, pas de direction horizontale) : ouvre le modal deal
+        if (direction !== 'h' && Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
+          dealView(dealId);
+        }
+      });
+
+      card.addEventListener('touchcancel', function() {
+        card.style.transition = 'transform 0.2s, background 0.2s';
+        card.style.transform = ''; card.style.background = '';
+      });
+    });
+  }
 
   // Auto-scroll pipeline on mouse near edges (and during drag)
   var pipelineEl = content.querySelector('.pipeline');
@@ -10326,7 +10518,10 @@ function showApp() {
   $('#login-overlay').classList.add('hidden');
   document.querySelector('.sidebar').style.display = '';
   document.querySelector('.main').style.display = '';
-  navigate('dashboard');
+  // Mobile-first : ouvre directement le pipeline CRM (priorite metier definie par Yoann).
+  // Sur desktop on garde le tableau de bord classique.
+  const startPage = window.matchMedia('(max-width: 768px)').matches ? 'pipeline' : 'dashboard';
+  navigate(startPage);
 
   // Auto-sync Google Calendar at login
   // Tente un token silencieux si Client ID configuré, sinon utilise le token existant
@@ -10395,6 +10590,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Auto-sync Windsor.ai on load
   autoSyncWindsor();
 });
+
+// PWA : enregistrement du service worker.
+// Permet l'installation iPhone (icone ecran d'accueil) + offline cache.
+// On SKIP en localhost pour eviter le piege "stale cache" pendant le dev :
+// le SW servirait l'ancienne version en cache sans laisser voir nos modifs.
+// En prod (GitHub Pages) le SW est actif et offre l'experience offline.
+const isLocalDev = ['localhost', '127.0.0.1', ''].indexOf(location.hostname) !== -1;
+if ('serviceWorker' in navigator && !isLocalDev) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .then((reg) => console.log('[PWA] SW enregistre, scope:', reg.scope))
+      .catch((err) => console.warn('[PWA] SW non enregistre:', err.message));
+  });
+} else if (isLocalDev && 'serviceWorker' in navigator) {
+  // Auto-cleanup du SW en dev local (au cas ou il aurait ete enregistre par erreur)
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+}
 
   </script>
 </body>
