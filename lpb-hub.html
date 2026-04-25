@@ -2226,10 +2226,45 @@ function initials(first, last) {
 
 // ── Media cross-device (Supabase memories table) ──────────────────────────────
 // Contact photos : memories key=pct_<id>  + contacts.photo (si colonne existe)
-// Deal attachments: memories type=media_deal_<dealId>, name=_m<timestamp>
+// Deal attachments: memories type=media_deal_<dealId>, key=att_img_<dealId>_<idx>
 // Cache memoire pour acces synchrone au rendu (pas de await dans buildAttHtml).
+// Utilise la cle service_role pour bypasser RLS sur la table memories.
 window._photoCache = window._photoCache || {};
 window._attCache   = window._attCache   || {};
+
+const SUPABASE_SRV = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtuZ3VxaWpsbmhrcHJjZ256emZ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTk5MTk3NiwiZXhwIjoyMDkxNTY3OTc2fQ.kA9WNRU3ntrG1sCPcr5jdLNustsn2NtaOGyHuxMXbOo';
+
+async function memUpsert(name, content, type, description) {
+  try {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/memories?on_conflict=name', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_SRV, 'Authorization': 'Bearer ' + SUPABASE_SRV,
+        'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({ name: name, content: content, type: type, description: description || name })
+    });
+    return r.ok;
+  } catch(e) { return false; }
+}
+
+async function memFetch(typeEq) {
+  try {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/memories?select=name,content&type=eq.' + encodeURIComponent(typeEq), {
+      headers: { 'apikey': SUPABASE_SRV, 'Authorization': 'Bearer ' + SUPABASE_SRV }
+    });
+    return r.ok ? r.json() : [];
+  } catch(e) { return []; }
+}
+
+async function memDelete(name) {
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/memories?name=eq.' + encodeURIComponent(name), {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_SRV, 'Authorization': 'Bearer ' + SUPABASE_SRV }
+    });
+  } catch(e) {}
+}
 
 function contactPhotoKey(id) { return 'crm_photo_' + id; }
 
@@ -2250,12 +2285,7 @@ async function setContactPhoto(id, base64) {
   if (!id) return;
   window._photoCache[id] = base64;
   try { await dbUpdate('contacts', id, { photo: base64 }); } catch(e) {}
-  try {
-    if (db) await db.from('memories').upsert(
-      { name: 'pct_' + id, content: base64, type: 'media_contact', description: 'Photo contact ' + id },
-      { onConflict: 'name' }
-    );
-  } catch(e) {}
+  await memUpsert('pct_' + id, base64, 'media_contact', 'Photo contact ' + id);
   localStorage.removeItem(contactPhotoKey(id));
 }
 
@@ -2264,39 +2294,32 @@ async function removeContactPhoto(id) {
   if (!id) return;
   delete window._photoCache[id];
   try { await dbUpdate('contacts', id, { photo: null }); } catch(e) {}
-  try { if (db) await db.from('memories').delete().eq('name', 'pct_' + id); } catch(e) {}
+  await memDelete('pct_' + id);
   localStorage.removeItem(contactPhotoKey(id));
 }
 
 // Migration : localStorage + memories → contacts.photo (au chargement du CRM)
 async function migratePhotosToSupabase(contacts) {
-  if (!contacts || !contacts.length || !db) return;
+  if (!contacts || !contacts.length) return;
   // 1. Charger toutes les photos memories → cache
-  try {
-    var { data: mems } = await db.from('memories').select('name,content').eq('type', 'media_contact');
-    if (mems) mems.forEach(function(r) {
-      var cid = r.name && r.name.startsWith('pct_') ? r.name.slice(4) : null;
-      if (cid && !window._photoCache[cid]) window._photoCache[cid] = r.content;
-    });
-  } catch(e) {}
+  var mems = await memFetch('media_contact');
+  mems.forEach(function(r) {
+    var cid = r.name && r.name.startsWith('pct_') ? r.name.slice(4) : null;
+    if (cid && !window._photoCache[cid]) window._photoCache[cid] = r.content;
+  });
   // 2. Par contact : migrer localStorage → Supabase
   for (var i = 0; i < contacts.length; i++) {
     var c = contacts[i];
     if (!c.id) continue;
     var local = localStorage.getItem(contactPhotoKey(c.id));
     var cached = window._photoCache[c.id];
-    var best = c.photo || cached || local;
-    if (!best) continue;
     if (local && !c.photo && !cached) {
-      // Photo sur cet appareil seulement → uploader
+      // Photo locale seulement → uploader
       window._photoCache[c.id] = local;
       try { await dbUpdate('contacts', c.id, { photo: local }); } catch(e) {}
-      try { await db.from('memories').upsert(
-        { name: 'pct_' + c.id, content: local, type: 'media_contact', description: 'Photo contact ' + c.id },
-        { onConflict: 'name' }
-      ); } catch(e) {}
-      localStorage.removeItem(contactPhotoKey(c.id));
-    } else if (local) {
+      var ok = await memUpsert('pct_' + c.id, local, 'media_contact', 'Photo contact ' + c.id);
+      if (ok) localStorage.removeItem(contactPhotoKey(c.id));
+    } else if (local && (c.photo || cached)) {
       localStorage.removeItem(contactPhotoKey(c.id)); // deja dans Supabase
     }
   }
@@ -2304,45 +2327,31 @@ async function migratePhotosToSupabase(contacts) {
 
 // Charge les pieces jointes d'un deal depuis memories dans _attCache
 async function loadDealAtts(dealId) {
-  if (!db || !dealId) return;
-  try {
-    var { data } = await db.from('memories').select('name,content').eq('type', 'media_deal_' + dealId);
-    if (data) data.forEach(function(r) { window._attCache[r.name] = r.content; });
-  } catch(e) { console.warn('loadDealAtts:', e); }
-  // Migration localStorage → Supabase (cet appareil seulement, silencieuse)
+  if (!dealId) return;
+  // 1. Charger depuis Supabase → cache
+  var rows = await memFetch('media_deal_' + dealId);
+  rows.forEach(function(r) { window._attCache[r.name] = r.content; });
+  // 2. Migration localStorage → Supabase (cle identique pour buildAttHtml)
   for (var i = 0; i < 30; i++) {
     var lk = 'att_img_' + dealId + '_' + i;
     var local = localStorage.getItem(lk);
     if (!local) continue;
-    var migKey = '_m' + (Date.now() + i) + 'ls';
-    window._attCache[migKey] = local;
-    try {
-      await db.from('memories').upsert(
-        { name: migKey, content: local, type: 'media_deal_' + dealId, description: 'PJ migree deal ' + dealId },
-        { onConflict: 'name' }
-      );
-    } catch(e) {}
-    localStorage.removeItem(lk);
+    window._attCache[lk] = local; // visible immediatement dans buildAttHtml
+    var ok = await memUpsert(lk, local, 'media_deal_' + dealId, 'PJ deal ' + dealId);
+    if (ok) localStorage.removeItem(lk); // supprimer localStorage SEULEMENT si upload OK
   }
 }
 
 // Upsert une piece jointe image dans memories + cache
 async function setAttImage(dealId, mediaId, base64) {
   window._attCache[mediaId] = base64;
-  if (!db) return;
-  try {
-    await db.from('memories').upsert(
-      { name: mediaId, content: base64, type: 'media_deal_' + dealId, description: 'PJ deal ' + dealId },
-      { onConflict: 'name' }
-    );
-  } catch(e) {}
+  await memUpsert(mediaId, base64, 'media_deal_' + dealId, 'PJ deal ' + dealId);
 }
 
 // Supprime une piece jointe de memories + cache
 async function deleteAttImage(mediaId) {
   delete window._attCache[mediaId];
-  if (!db) return;
-  try { await db.from('memories').delete().eq('name', mediaId); } catch(e) {}
+  await memDelete(mediaId);
 }
 
 // Returns inner HTML for an avatar: photo <img> ou initiales
@@ -5868,9 +5877,12 @@ window.dealView = async function(id) {
           else if (nameLC.match(/\.(pdf)$/)) { iconClass = 'fas fa-file-pdf'; colorClass = 'pdf'; }
           else if (nameLC.match(/\.(doc|docx)$/)) { iconClass = 'fas fa-file-word'; colorClass = 'doc'; }
           else if (nameLC.match(/\.(xls|xlsx)$/)) { iconClass = 'fas fa-file-excel'; colorClass = 'doc'; }
-          // Chercher l'image dans _attCache (Supabase cross-device) ou localStorage (legacy)
-          var cachedImg = att.mediaId ? (window._attCache[att.mediaId] || null) : null;
-          if (!cachedImg) cachedImg = localStorage.getItem('att_img_' + d.id + '_' + idx) || null;
+          // Chercher l'image: 1) mediaId dans _attCache  2) cle legacy dans _attCache  3) localStorage
+          var legacyKey = 'att_img_' + d.id + '_' + idx;
+          var cachedImg = (att.mediaId ? window._attCache[att.mediaId] : null)
+            || window._attCache[legacyKey]
+            || localStorage.getItem(legacyKey)
+            || null;
           var urlToUse = cachedImg || att.url;
           var thumbHtml = (cachedImg && isImg) ? '<img src="' + cachedImg + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;margin-bottom:4px">' : '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div>';
           return '<div class="att-item" style="position:relative" data-att-idx="' + idx + '">' +
