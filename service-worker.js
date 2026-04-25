@@ -6,7 +6,7 @@
 // Bump ce nom a chaque deploiement majeur pour forcer le SW a jeter l'ancien cache.
 // Le cycle install (skipWaiting) + activate (claim + delete old caches) garantit
 // que le nouveau code arrive sur le client en moins d'un reload.
-const CACHE = 'lpb-hub-v2';
+const CACHE = 'lpb-hub-v3';
 const ASSETS = [
   './',
   './index.html',

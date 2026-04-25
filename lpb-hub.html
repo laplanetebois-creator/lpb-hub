@@ -1608,6 +1608,107 @@ a.att-item { position: relative; display: block; }
 }
 .ads-toggle-btn:hover:not(.active) { color: var(--text); }
 
+/* ============================================
+   MOBILE SEARCH MODAL — recherche rapide CRM
+   ============================================ */
+/* Bouton loupe : visible mobile uniquement */
+.mobile-only { display: none; }
+
+/* Overlay plein ecran */
+.mobile-search-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 200;
+  flex-direction: column;
+  /* Safe-area iPhone : encoche au top */
+  padding-top: env(safe-area-inset-top, 0);
+}
+.mobile-search-overlay.show { display: flex; }
+
+.mobile-search-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: env(safe-area-inset-top, 0);
+}
+.mobile-search-icon { color: var(--text-muted); font-size: 1.05rem; }
+#mobile-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 1rem;
+  padding: 10px 4px;
+  background: transparent;
+  color: var(--text);
+  /* Empeche iOS de zoomer (input doit faire >= 16px) */
+  font-size: 16px;
+}
+#mobile-search-close {
+  background: var(--border);
+  border: none;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+#mobile-search-close i { color: var(--text-light); }
+
+.mobile-search-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px env(safe-area-inset-bottom, 12px) 12px;
+}
+.mobile-search-hint {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 60px 20px;
+  font-size: 0.9rem;
+}
+.mobile-search-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--card);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  /* Tactile : feedback visuel rapide */
+  transition: transform 0.1s, background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-search-result:active { transform: scale(0.98); background: var(--primary-light); }
+.mobile-search-result .avatar-sm { width: 38px; height: 38px; flex-shrink: 0; }
+.mobile-search-result-info { flex: 1; min-width: 0; }
+.mobile-search-result-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mobile-search-result-meta {
+  font-size: 0.78rem;
+  color: var(--text-light);
+  margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mobile-search-no-results {
+  text-align: center;
+  color: var(--text-light);
+  padding: 40px 20px;
+}
+
+/* Visible uniquement sur mobile */
+@media (max-width: 768px) {
+  .mobile-only { display: flex; align-items: center; justify-content: center; }
+}
+
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1665,6 +1766,8 @@ a.att-item { position: relative; display: block; }
           <i class="fas fa-search"></i>
           <input type="text" placeholder="Rechercher..." id="global-search">
         </div>
+        <!-- Bouton loupe mobile : remplace la barre cachee. Ouvre une modale plein ecran. -->
+        <button class="btn-icon mobile-only" id="btn-mobile-search" title="Recherche rapide"><i class="fas fa-search"></i></button>
         <button class="btn-icon" id="btn-refresh" title="Rafraichir"><i class="fas fa-sync-alt"></i></button>
         <button class="btn-icon" id="btn-windsor-sync" title="Sync Windsor.ai (Google)" style="position:relative"><i class="fab fa-google"></i></button>
         <button class="btn-icon" id="btn-notif" title="Notifications">
@@ -1801,6 +1904,29 @@ a.att-item { position: relative; display: block; }
       <a data-page="rapport"><i class="fas fa-clipboard-list"></i>Rapports</a>
       <a data-page="presentation"><i class="fas fa-desktop"></i>Présentation</a>
       <a data-page="settings"><i class="fas fa-cog"></i>Paramètres</a>
+    </div>
+  </div>
+
+  <!-- MOBILE SEARCH MODAL : recherche rapide CRM (nom/email/telephone) -->
+  <!-- Ouverte par #btn-mobile-search dans la topbar. Filtre client-side instantane. -->
+  <div class="mobile-search-overlay" id="mobile-search-overlay">
+    <div class="mobile-search-header">
+      <i class="fas fa-search mobile-search-icon"></i>
+      <input
+        type="search"
+        id="mobile-search-input"
+        placeholder="Nom, email, telephone..."
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="none"
+        spellcheck="false"
+      >
+      <button class="btn-icon" id="mobile-search-close" title="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="mobile-search-results" id="mobile-search-results">
+      <div class="mobile-search-hint">
+        <i class="fas fa-keyboard"></i> Tape pour chercher dans le CRM
+      </div>
     </div>
   </div>
 
@@ -2626,6 +2752,121 @@ window.navigate = function(page) {
   _origNavigate(page);
   syncBottomNavActive();
 };
+
+// ============================================
+// MOBILE SEARCH MODAL — recherche rapide CRM
+// ============================================
+// Charge tous les contacts une fois (cache 60s) puis filtre client-side
+// pendant la frappe. Filtre sur nom complet, email, telephone.
+(function setupMobileSearch() {
+  const btn = $('#btn-mobile-search');
+  const overlay = $('#mobile-search-overlay');
+  const input = $('#mobile-search-input');
+  const closeBtn = $('#mobile-search-close');
+  const results = $('#mobile-search-results');
+  if (!btn || !overlay || !input || !results) return;
+
+  // Cache local des contacts (evite les requetes a chaque ouverture).
+  // TTL 60s : suffisant pour une session active sans rater les nouveaux leads.
+  let contactsCache = null;
+  let contactsCacheTime = 0;
+  const CACHE_TTL = 60_000;
+
+  async function getContacts() {
+    if (contactsCache && Date.now() - contactsCacheTime < CACHE_TTL) {
+      return contactsCache;
+    }
+    contactsCache = await dbSelect('contacts', { order: ['updated_at', false] });
+    contactsCacheTime = Date.now();
+    return contactsCache;
+  }
+
+  // Normalise un numero pour comparaison robuste : enleve espaces, tirets, points,
+  // prefixe international (+33 → 0). Ainsi "06 12 34 56 78" matche "+33612345678".
+  function normalizePhone(p) {
+    if (!p) return '';
+    return String(p).replace(/[\s.\-]/g, '').replace(/^\+33/, '0');
+  }
+
+  function openModal() {
+    overlay.classList.add('show');
+    // Petit delai pour que le focus marche apres l'animation iOS
+    setTimeout(() => input.focus(), 50);
+  }
+  function closeModal() {
+    overlay.classList.remove('show');
+    input.value = '';
+    results.innerHTML = '<div class="mobile-search-hint"><i class="fas fa-keyboard"></i> Tape pour chercher dans le CRM</div>';
+  }
+
+  btn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  // Fermer aussi avec la touche Echap (utile si clavier physique branche)
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // Recherche debouncee : 200ms apres la derniere frappe
+  let searchTimer = null;
+  input.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runSearch, 200);
+  });
+
+  async function runSearch() {
+    const q = input.value.trim().toLowerCase();
+    if (!q) {
+      results.innerHTML = '<div class="mobile-search-hint"><i class="fas fa-keyboard"></i> Tape pour chercher dans le CRM</div>';
+      return;
+    }
+    if (q.length < 2) {
+      results.innerHTML = '<div class="mobile-search-hint">Au moins 2 caracteres...</div>';
+      return;
+    }
+
+    let contacts;
+    try {
+      contacts = await getContacts();
+    } catch (e) {
+      results.innerHTML = '<div class="mobile-search-no-results">Erreur de chargement</div>';
+      return;
+    }
+
+    const qPhone = normalizePhone(q);
+    // Filtre : nom, prenom, email, telephone normalise, ville
+    const matches = contacts.filter(c => {
+      const fullName = ((c.first_name || '') + ' ' + (c.last_name || '')).toLowerCase();
+      if (fullName.includes(q)) return true;
+      if ((c.email || '').toLowerCase().includes(q)) return true;
+      if (qPhone && normalizePhone(c.phone).includes(qPhone)) return true;
+      if ((c.city || '').toLowerCase().includes(q)) return true;
+      return false;
+    }).slice(0, 30);  // limite a 30 resultats pour rester reactif
+
+    if (matches.length === 0) {
+      results.innerHTML = '<div class="mobile-search-no-results"><i class="fas fa-search"></i><br>Aucun contact trouve pour "' + q.replace(/[<>]/g, '') + '"</div>';
+      return;
+    }
+
+    results.innerHTML = matches.map(c => {
+      const name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || 'Sans nom';
+      const meta = [c.phone, c.email, c.city].filter(Boolean).join(' · ');
+      return '<div class="mobile-search-result" data-contact-id="' + c.id + '">' +
+               '<div class="avatar-sm">' + avatarHtml(c) + '</div>' +
+               '<div class="mobile-search-result-info">' +
+                 '<div class="mobile-search-result-name">' + name + '</div>' +
+                 '<div class="mobile-search-result-meta">' + (meta || '—') + '</div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+
+    // Tap sur un resultat : ouvre la fiche contact + ferme la modale
+    results.querySelectorAll('.mobile-search-result').forEach(el => {
+      el.addEventListener('click', () => {
+        closeModal();
+        if (typeof contactView === 'function') contactView(el.dataset.contactId);
+      });
+    });
+  }
+})();
 
 $('#btn-refresh')?.addEventListener('click', () => navigate(currentPage));
 
