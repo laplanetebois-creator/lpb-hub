@@ -5758,7 +5758,7 @@ window.dealView = async function(id) {
   var attHtml = buildAttHtml(attachments);
 
   // Planning events for this contact
-  var contactEvents = planningEvents.filter(function(ev) { return ev.contact_id === d.contact_id; });
+  var contactEvents = planningEvents.filter(function(ev) { return d.contact_id && ev.contact_id === d.contact_id; });
   var planningHtml = '<div class="deal-sidebar-card">' +
     '<div class="sc-header" style="display:flex;justify-content:space-between;align-items:center"><span><i class="fas fa-calendar-alt"></i> Planning' + (contactEvents.length ? ' (' + contactEvents.length + ')' : '') + '</span><button class="btn-ghost" onclick="planAddFromDeal(\'' + d.contact_id + '\',\'' + d.id + '\')" title="Ajouter un evenement"><i class="fas fa-plus"></i></button></div>' +
     '<div class="sc-body">' +
