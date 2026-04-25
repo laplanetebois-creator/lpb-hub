@@ -4459,7 +4459,7 @@ async function renderPipeline(content) {
                 daysLate = Math.floor(diff / 86400000);
               }
               var lateHtml = daysLate > 0 ? '<div style="margin-top:6px"><span style="background:#fee;color:#e74c3c;font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px"><i class="fas fa-exclamation-triangle"></i> ' + daysLate + 'j en retard</span></div>' : '';
-              // Badge "age dans devis" — rouge si >7j, orange si >3j
+              // Badge "age dans devis"
               if (st.key === 'devis') {
                 var devisAtM = (d.notes || '').match(/^devis_at:\s*(\S+)/m);
                 var devisRef = devisAtM ? new Date(devisAtM[1]) : new Date(d.updated_at || d.created_at);
@@ -4467,6 +4467,14 @@ async function renderPipeline(content) {
                 var dvColor = daysInDevis >= 2 ? '#e74c3c' : '#27ae60';
                 var dvLabel = daysInDevis === 0 ? "Aujourd'hui" : daysInDevis === 1 ? '1 jour en retard' : daysInDevis + ' jours en retard';
                 lateHtml += '<div style="margin-top:4px"><span style="background:' + dvColor + '18;color:' + dvColor + ';font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid ' + dvColor + '44"><i class="fas fa-file-invoice"></i> ' + dvLabel + '</span></div>';
+              }
+              // Badge "age dans attente_reponse" — vert <5j / orange 5-10j / rouge >10j
+              if (st.key === 'attente_reponse') {
+                var attRef = new Date(d.updated_at || d.created_at);
+                var daysAtt = Math.max(0, Math.floor((now - attRef) / 86400000));
+                var attColor = daysAtt >= 10 ? '#e74c3c' : daysAtt >= 5 ? '#e67e22' : '#27ae60';
+                var attLabel = daysAtt === 0 ? "Aujourd'hui" : daysAtt === 1 ? '1 jour' : daysAtt + ' jours';
+                lateHtml += '<div style="margin-top:4px"><span style="background:' + attColor + '18;color:' + attColor + ';font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid ' + attColor + '44"><i class="fas fa-hourglass-half"></i> ' + attLabel + ' en attente</span></div>';
               }
               var dateStr = d.created_at ? formatDate(d.created_at) : '';
               var cCity = c && c.city ? c.city : '';
