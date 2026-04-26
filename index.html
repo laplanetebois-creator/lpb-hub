@@ -578,6 +578,42 @@ a:hover { text-decoration: underline; }
 .modal-overlay.show { display: flex; }
 #modal-overlay { z-index: 1000; } /* Toujours devant le deal popup */
 
+/* Lightbox pour pieces jointes images (contourne le blocage Chrome des data: URLs) */
+.img-lightbox {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.88);
+  z-index: 5000;
+  display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+  padding: 20px;
+  cursor: zoom-out;
+}
+.img-lightbox.show { display: flex; }
+.img-lightbox img {
+  max-width: 95%; max-height: 85vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  cursor: default;
+}
+.img-lightbox-name {
+  color: #fff; margin-top: 14px;
+  font-size: 0.9rem; opacity: 0.85;
+  max-width: 90%; text-align: center;
+  word-break: break-word;
+}
+.img-lightbox-close {
+  position: absolute; top: 18px; right: 24px;
+  background: rgba(255,255,255,0.12);
+  border: none; color: #fff;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  font-size: 1.5rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.img-lightbox-close:hover { background: rgba(255,255,255,0.22); }
+
 .modal {
   background: var(--card);
   border-radius: 14px;
@@ -2323,6 +2359,52 @@ async function migratePhotosToSupabase(contacts) {
       localStorage.removeItem(contactPhotoKey(c.id)); // deja dans Supabase
     }
   }
+}
+
+// ============================================================================
+// LIGHTBOX IMAGE — Ouverture/fermeture des photos en pieces jointes
+// ============================================================================
+window.openImgLightbox = function(triggerEl) {
+  var src = triggerEl.dataset.imgSrc;
+  var name = triggerEl.dataset.imgName || '';
+  if (!src) return;
+  var lb = document.getElementById('img-lightbox');
+  var img = document.getElementById('img-lightbox-img');
+  var nameEl = document.getElementById('img-lightbox-name');
+  img.src = src;
+  img.alt = name;
+  nameEl.textContent = name;
+  lb.classList.add('show');
+  document.body.style.overflow = 'hidden';
+};
+
+window.closeImgLightbox = function() {
+  var lb = document.getElementById('img-lightbox');
+  var img = document.getElementById('img-lightbox-img');
+  if (!lb) return;
+  lb.classList.remove('show');
+  img.src = '';
+  document.body.style.overflow = '';
+};
+
+function _wireImgLightbox() {
+  var lb = document.getElementById('img-lightbox');
+  var btn = document.getElementById('img-lightbox-close');
+  if (!lb || !btn) { requestAnimationFrame(_wireImgLightbox); return; }
+  if (lb.dataset.wired) return;
+  lb.dataset.wired = '1';
+  btn.addEventListener('click', window.closeImgLightbox);
+  lb.addEventListener('click', function(e) {
+    if (e.target === lb) window.closeImgLightbox();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && lb.classList.contains('show')) window.closeImgLightbox();
+  });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _wireImgLightbox);
+} else {
+  _wireImgLightbox();
 }
 
 // Charge les pieces jointes d'un deal depuis memories dans _attCache
@@ -5911,13 +5993,26 @@ window.dealView = async function(id) {
             || null;
           var urlToUse = cachedImg || att.url;
           var thumbHtml = (cachedImg && isImg) ? '<img src="' + cachedImg + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;margin-bottom:4px">' : '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div>';
-          return '<div class="att-item" style="position:relative" data-att-idx="' + idx + '">' +
-            (urlToUse ? '<a href="' + escHtml(urlToUse) + '" target="_blank" style="text-decoration:none;color:inherit;display:contents">' : '') +
+          // Image -> onclick lightbox sur le .att-item. Sinon -> <a target="_blank"> classique.
+          var itemAttrs, openHtml, closeHtml;
+          if (urlToUse && isImg) {
+            itemAttrs = ' style="position:relative;cursor:zoom-in" onclick="window.openImgLightbox(this)" data-img-src="' + escHtml(urlToUse) + '" data-img-name="' + escHtml(att.name) + '"';
+            openHtml = ''; closeHtml = '';
+          } else if (urlToUse) {
+            itemAttrs = ' style="position:relative"';
+            openHtml = '<a href="' + escHtml(urlToUse) + '" target="_blank" style="text-decoration:none;color:inherit;display:contents">';
+            closeHtml = '</a>';
+          } else {
+            itemAttrs = ' style="position:relative"';
+            openHtml = ''; closeHtml = '';
+          }
+          return '<div class="att-item"' + itemAttrs + ' data-att-idx="' + idx + '">' +
+            openHtml +
             thumbHtml +
             '<div class="att-name" title="' + escHtml(att.name) + '">' + escHtml(att.name) + '</div>' +
             (att.date ? '<div class="att-date">' + att.date + '</div>' : '') +
-            (urlToUse ? '</a>' : '') +
-            '<button class="btn-ghost att-del-btn" data-att-idx="' + idx + '" title="Supprimer" style="position:absolute;top:2px;right:2px;font-size:0.65rem;color:var(--danger);opacity:0;background:var(--card);border-radius:50%;width:18px;height:18px;padding:0;line-height:18px;text-align:center" onclick="event.preventDefault();event.stopPropagation()"><i class="fas fa-times"></i></button>' +
+            closeHtml +
+            '<button class="btn-ghost att-del-btn" data-att-idx="' + idx + '" title="Supprimer" style="position:absolute;top:2px;right:2px;font-size:0.65rem;color:var(--danger);opacity:0;background:var(--card);border-radius:50%;width:18px;height:18px;padding:0;line-height:18px;text-align:center;z-index:2" onclick="event.preventDefault();event.stopPropagation()"><i class="fas fa-times"></i></button>' +
           '</div>';
         }).join('') +
       '</div>') +
@@ -11013,5 +11108,12 @@ if ('serviceWorker' in navigator && !isLocalDev) {
 }
 
   </script>
+
+  <!-- Lightbox pour pieces jointes images -->
+  <div class="img-lightbox" id="img-lightbox">
+    <button class="img-lightbox-close" id="img-lightbox-close" title="Fermer (Echap)">&times;</button>
+    <img id="img-lightbox-img" alt="">
+    <div class="img-lightbox-name" id="img-lightbox-name"></div>
+  </div>
 </body>
 </html>
