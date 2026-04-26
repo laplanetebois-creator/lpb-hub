@@ -2361,6 +2361,62 @@ async function migratePhotosToSupabase(contacts) {
   }
 }
 
+// ============================================================================
+// LIGHTBOX IMAGE — Ouverture/fermeture des photos en pieces jointes
+// ============================================================================
+// Le markup HTML existe (voir #img-lightbox en bas du body).
+// Elements disponibles :
+//   - document.getElementById('img-lightbox')        → l'overlay (toggle .show)
+//   - document.getElementById('img-lightbox-img')    → la balise <img>
+//   - document.getElementById('img-lightbox-name')   → le nom du fichier
+//   - document.getElementById('img-lightbox-close')  → le bouton X
+//
+// Appele depuis buildAttHtml : onclick="window.openImgLightbox(this)"
+// L'element clique a deux data-attributes : data-img-src et data-img-name
+//
+// A TOI DE JOUER : implemente les 2 fonctions ci-dessous.
+// Choix de design a faire :
+//   1. Doit-on fermer la lightbox au clic sur le fond noir ? (UX standard : oui)
+//   2. Doit-on fermer avec la touche Echap ? (UX standard : oui)
+//   3. Bloquer le scroll du body en arriere-plan ?
+// ----------------------------------------------------------------------------
+
+window.openImgLightbox = function(triggerEl) {
+  // TODO : ouvrir la lightbox avec l'image cliquee
+  // Etapes suggerees :
+  // a) Recuperer src et name depuis triggerEl.dataset (imgSrc, imgName)
+  // b) Mettre a jour #img-lightbox-img.src et #img-lightbox-name.textContent
+  // c) Ajouter la classe 'show' sur #img-lightbox
+  // ===== ECRIS TON CODE ICI =====
+
+
+  // ===== FIN =====
+};
+
+window.closeImgLightbox = function() {
+  // TODO : fermer la lightbox
+  // a) Retirer la classe 'show' de #img-lightbox
+  // b) Vider l'image (#img-lightbox-img.src = '') pour liberer la memoire
+  // ===== ECRIS TON CODE ICI =====
+
+
+  // ===== FIN =====
+};
+
+// Wiring : clic sur le fond ferme, clic sur l'image ne ferme pas, Echap ferme
+document.addEventListener('DOMContentLoaded', function() {
+  var lb = document.getElementById('img-lightbox');
+  var btn = document.getElementById('img-lightbox-close');
+  if (!lb || !btn) return;
+  btn.addEventListener('click', window.closeImgLightbox);
+  lb.addEventListener('click', function(e) {
+    if (e.target === lb) window.closeImgLightbox(); // clic sur le fond uniquement
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && lb.classList.contains('show')) window.closeImgLightbox();
+  });
+});
+
 // Charge les pieces jointes d'un deal depuis memories dans _attCache
 async function loadDealAtts(dealId) {
   if (!dealId) return;
@@ -5947,12 +6003,24 @@ window.dealView = async function(id) {
             || null;
           var urlToUse = cachedImg || att.url;
           var thumbHtml = (cachedImg && isImg) ? '<img src="' + cachedImg + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;margin-bottom:4px">' : '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div>';
+          // Si c'est une image, ouvrir dans la lightbox (contourne le blocage Chrome des data: URLs).
+          // Sinon (PDF/Word/...), garder le lien classique target="_blank".
+          var openHtml, closeHtml;
+          if (urlToUse && isImg) {
+            openHtml = '<div style="cursor:zoom-in;display:contents" onclick="window.openImgLightbox(this)" data-img-src="' + escHtml(urlToUse) + '" data-img-name="' + escHtml(att.name) + '">';
+            closeHtml = '</div>';
+          } else if (urlToUse) {
+            openHtml = '<a href="' + escHtml(urlToUse) + '" target="_blank" style="text-decoration:none;color:inherit;display:contents">';
+            closeHtml = '</a>';
+          } else {
+            openHtml = ''; closeHtml = '';
+          }
           return '<div class="att-item" style="position:relative" data-att-idx="' + idx + '">' +
-            (urlToUse ? '<a href="' + escHtml(urlToUse) + '" target="_blank" style="text-decoration:none;color:inherit;display:contents">' : '') +
+            openHtml +
             thumbHtml +
             '<div class="att-name" title="' + escHtml(att.name) + '">' + escHtml(att.name) + '</div>' +
             (att.date ? '<div class="att-date">' + att.date + '</div>' : '') +
-            (urlToUse ? '</a>' : '') +
+            closeHtml +
             '<button class="btn-ghost att-del-btn" data-att-idx="' + idx + '" title="Supprimer" style="position:absolute;top:2px;right:2px;font-size:0.65rem;color:var(--danger);opacity:0;background:var(--card);border-radius:50%;width:18px;height:18px;padding:0;line-height:18px;text-align:center" onclick="event.preventDefault();event.stopPropagation()"><i class="fas fa-times"></i></button>' +
           '</div>';
         }).join('') +
