@@ -4185,6 +4185,12 @@ async function renderStatsLeads(content) {
   });
   var pctConvGlobal  = totalAll > 0 ? ((totalWon / totalAll) * 100).toFixed(1) : '0.0';
 
+  // CA en attente = somme des values des deals au stage 'attente_reponse'
+  // Cohérent avec la colonne "Attente reponse devis" du pipeline (renderPipeline)
+  var totalCApending = deals
+    .filter(function(d){ return d && d.stage === 'attente_reponse'; })
+    .reduce(function(s,d){ return s + (parseFloat(d.value) || 0); }, 0);
+
   // Investissement total = somme costTotal (sync si dispo, sinon forfait)
   var totalInvestment = 0;
   Object.keys(bySource).forEach(function(k){ totalInvestment += bySource[k].costTotal; });
@@ -4254,6 +4260,7 @@ async function renderStatsLeads(content) {
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">' +
       statCard('Deals signes',            totalWon,                                           'fas fa-trophy',          '#f39c12') +
       statCard('Taux conversion',         pctConvGlobal + '%',                                'fas fa-percentage',      '#9b59b6') +
+      statCard('CA en attente',           formatCurrency(totalCApending),                     'fas fa-hourglass-half',  '#e67e22') +
       statCard('CA signe',                formatCurrency(totalCA),                            'fas fa-euro-sign',       '#2980b9') +
       statCard('ROAS global',             roasGlobal !== null ? 'x' + roasGlobal.toFixed(2) : '—', 'fas fa-chart-line',      '#00b894') +
     '</div>' +
