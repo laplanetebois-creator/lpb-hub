@@ -578,6 +578,42 @@ a:hover { text-decoration: underline; }
 .modal-overlay.show { display: flex; }
 #modal-overlay { z-index: 1000; } /* Toujours devant le deal popup */
 
+/* Lightbox pour pieces jointes images (contourne le blocage Chrome des data: URLs) */
+.img-lightbox {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.88);
+  z-index: 5000;
+  display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+  padding: 20px;
+  cursor: zoom-out;
+}
+.img-lightbox.show { display: flex; }
+.img-lightbox img {
+  max-width: 95%; max-height: 85vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  cursor: default;
+}
+.img-lightbox-name {
+  color: #fff; margin-top: 14px;
+  font-size: 0.9rem; opacity: 0.85;
+  max-width: 90%; text-align: center;
+  word-break: break-word;
+}
+.img-lightbox-close {
+  position: absolute; top: 18px; right: 24px;
+  background: rgba(255,255,255,0.12);
+  border: none; color: #fff;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  font-size: 1.5rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.img-lightbox-close:hover { background: rgba(255,255,255,0.22); }
+
 .modal {
   background: var(--card);
   border-radius: 14px;
@@ -11013,5 +11049,12 @@ if ('serviceWorker' in navigator && !isLocalDev) {
 }
 
   </script>
+
+  <!-- Lightbox pour pieces jointes images -->
+  <div class="img-lightbox" id="img-lightbox">
+    <button class="img-lightbox-close" id="img-lightbox-close" title="Fermer (Echap)">&times;</button>
+    <img id="img-lightbox-img" alt="">
+    <div class="img-lightbox-name" id="img-lightbox-name"></div>
+  </div>
 </body>
 </html>
