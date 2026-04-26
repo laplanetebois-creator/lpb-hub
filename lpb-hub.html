@@ -2382,25 +2382,26 @@ async function migratePhotosToSupabase(contacts) {
 // ----------------------------------------------------------------------------
 
 window.openImgLightbox = function(triggerEl) {
-  // TODO : ouvrir la lightbox avec l'image cliquee
-  // Etapes suggerees :
-  // a) Recuperer src et name depuis triggerEl.dataset (imgSrc, imgName)
-  // b) Mettre a jour #img-lightbox-img.src et #img-lightbox-name.textContent
-  // c) Ajouter la classe 'show' sur #img-lightbox
-  // ===== ECRIS TON CODE ICI =====
-
-
-  // ===== FIN =====
+  var src = triggerEl.dataset.imgSrc;
+  var name = triggerEl.dataset.imgName || '';
+  if (!src) return;
+  var lb = document.getElementById('img-lightbox');
+  var img = document.getElementById('img-lightbox-img');
+  var nameEl = document.getElementById('img-lightbox-name');
+  img.src = src;
+  img.alt = name;
+  nameEl.textContent = name;
+  lb.classList.add('show');
+  document.body.style.overflow = 'hidden'; // bloque le scroll arriere-plan
 };
 
 window.closeImgLightbox = function() {
-  // TODO : fermer la lightbox
-  // a) Retirer la classe 'show' de #img-lightbox
-  // b) Vider l'image (#img-lightbox-img.src = '') pour liberer la memoire
-  // ===== ECRIS TON CODE ICI =====
-
-
-  // ===== FIN =====
+  var lb = document.getElementById('img-lightbox');
+  var img = document.getElementById('img-lightbox-img');
+  if (!lb) return;
+  lb.classList.remove('show');
+  img.src = '';                              // libere la memoire (base64 lourds)
+  document.body.style.overflow = '';         // restore le scroll
 };
 
 // Wiring : clic sur le fond ferme, clic sur l'image ne ferme pas, Echap ferme
