@@ -2364,23 +2364,6 @@ async function migratePhotosToSupabase(contacts) {
 // ============================================================================
 // LIGHTBOX IMAGE — Ouverture/fermeture des photos en pieces jointes
 // ============================================================================
-// Le markup HTML existe (voir #img-lightbox en bas du body).
-// Elements disponibles :
-//   - document.getElementById('img-lightbox')        → l'overlay (toggle .show)
-//   - document.getElementById('img-lightbox-img')    → la balise <img>
-//   - document.getElementById('img-lightbox-name')   → le nom du fichier
-//   - document.getElementById('img-lightbox-close')  → le bouton X
-//
-// Appele depuis buildAttHtml : onclick="window.openImgLightbox(this)"
-// L'element clique a deux data-attributes : data-img-src et data-img-name
-//
-// A TOI DE JOUER : implemente les 2 fonctions ci-dessous.
-// Choix de design a faire :
-//   1. Doit-on fermer la lightbox au clic sur le fond noir ? (UX standard : oui)
-//   2. Doit-on fermer avec la touche Echap ? (UX standard : oui)
-//   3. Bloquer le scroll du body en arriere-plan ?
-// ----------------------------------------------------------------------------
-
 window.openImgLightbox = function(triggerEl) {
   var src = triggerEl.dataset.imgSrc;
   var name = triggerEl.dataset.imgName || '';
@@ -2392,7 +2375,7 @@ window.openImgLightbox = function(triggerEl) {
   img.alt = name;
   nameEl.textContent = name;
   lb.classList.add('show');
-  document.body.style.overflow = 'hidden'; // bloque le scroll arriere-plan
+  document.body.style.overflow = 'hidden';
 };
 
 window.closeImgLightbox = function() {
@@ -2400,21 +2383,19 @@ window.closeImgLightbox = function() {
   var img = document.getElementById('img-lightbox-img');
   if (!lb) return;
   lb.classList.remove('show');
-  img.src = '';                              // libere la memoire (base64 lourds)
-  document.body.style.overflow = '';         // restore le scroll
+  img.src = '';
+  document.body.style.overflow = '';
 };
 
-// Wiring : clic sur le fond ferme, clic sur l'image ne ferme pas, Echap ferme.
-// Wiring lazy : si la lightbox n'existe pas encore, on retry au prochain animation frame.
 function _wireImgLightbox() {
   var lb = document.getElementById('img-lightbox');
   var btn = document.getElementById('img-lightbox-close');
   if (!lb || !btn) { requestAnimationFrame(_wireImgLightbox); return; }
-  if (lb.dataset.wired) return; // idempotent
+  if (lb.dataset.wired) return;
   lb.dataset.wired = '1';
   btn.addEventListener('click', window.closeImgLightbox);
   lb.addEventListener('click', function(e) {
-    if (e.target === lb) window.closeImgLightbox(); // clic sur le fond uniquement
+    if (e.target === lb) window.closeImgLightbox();
   });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && lb.classList.contains('show')) window.closeImgLightbox();
@@ -6019,8 +6000,7 @@ window.dealView = async function(id) {
             || null;
           var urlToUse = cachedImg || att.url;
           var thumbHtml = (cachedImg && isImg) ? '<img src="' + cachedImg + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;margin-bottom:4px">' : '<div class="att-icon ' + colorClass + '"><i class="' + iconClass + '"></i></div>';
-          // Si c'est une image -> onclick lightbox sur le .att-item directement.
-          // Sinon (PDF/Word/...) -> on entoure d'un <a target="_blank"> qui marche pour les URLs http(s).
+          // Image -> onclick lightbox sur le .att-item. Sinon -> <a target="_blank"> classique.
           var itemAttrs, openHtml, closeHtml;
           if (urlToUse && isImg) {
             itemAttrs = ' style="position:relative;cursor:zoom-in" onclick="window.openImgLightbox(this)" data-img-src="' + escHtml(urlToUse) + '" data-img-name="' + escHtml(att.name) + '"';
