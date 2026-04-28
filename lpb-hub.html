@@ -1779,7 +1779,6 @@ a.att-item { position: relative; display: block; }
       <a data-page="commandes"><i class="fas fa-box"></i> Commandes</a>
       <a data-page="planning"><i class="fas fa-calendar-alt"></i> Planning</a>
       <a data-page="rapport"><i class="fas fa-clipboard-list"></i> Rapports</a>
-      <a data-page="api"><i class="fas fa-coins"></i> API & Coûts</a>
       <div class="section-label">Commercial</div>
       <a data-page="presentation"><i class="fas fa-desktop"></i> Présentation</a>
       <div class="section-label">Outils</div>
@@ -3333,6 +3332,49 @@ pages.dashboard = async function() {
 };
 
 // ============================================
+// CRM — Délai chantier (parsing + ordre de tri)
+// ============================================
+// Mapping libelle → ordre (nombre de mois).
+// Le lookup est case-insensitive et tolere underscores/espaces.
+const DELAI_BUCKETS = {
+  'immédiat': 0,
+  '0_à_3_mois': 1,
+  'Entre 3 et 6 mois': 2,
+  'Plus de 6 mois': 5,
+};
+
+// Extrait le delai chantier depuis le champ notes (3 formats supportes).
+// Retourne { label: string affichable, order: number (mois) }.
+function parseDelaiChantier(notes) {
+  if (!notes) return { label: '', order: 999 };
+  // 1) HelloArtisan + Lovable : "date projet: <val>" ou "Delais: <val>"
+  var m = notes.match(/^\s*date projet\s*:\s*(.+?)\s*$/im)
+       || notes.match(/^\s*[Dd]elais?\s*:\s*(.+?)\s*$/m);
+  if (m) {
+    var raw = m[1].trim();
+    if (!raw) return { label: '', order: 999 };
+    // Lookup tolerant : minuscules + underscores/espaces equivalents
+    var norm = function(s){ return String(s).toLowerCase().replace(/[_\s]+/g,' ').trim(); };
+    var rawNorm = norm(raw);
+    var matchKey = Object.keys(DELAI_BUCKETS).find(function(k){ return norm(k) === rawNorm; });
+    var order = matchKey !== undefined ? DELAI_BUCKETS[matchKey] : undefined;
+    if (order === undefined) {
+      // Fallback : extraire un nombre de mois si present ("3 mois", "6 mois")
+      var n = raw.match(/(\d+)\s*mois/i);
+      order = n ? parseInt(n[1], 10) : 50;
+    }
+    return { label: raw, order: order };
+  }
+  // 2) Edition manuelle : "chantier_date: YYYY-MM-DD" → mois restants
+  var d = notes.match(/^\s*chantier_date\s*:\s*(\d{4}-\d{2}-\d{2})/m);
+  if (d) {
+    var diff = Math.round((new Date(d[1]) - new Date()) / (1000*60*60*24*30));
+    return { label: 'Chantier ' + d[1], order: Math.max(0, diff) };
+  }
+  return { label: '', order: 999 };
+}
+
+// ============================================
 // CRM MODULE
 // ============================================
 pages.crm = async function(subTab) {
@@ -3349,6 +3391,8 @@ pages.crm = async function(subTab) {
   let contacts = filterCrmLeads(contactsAll);
   let filterStatus = 'all';
   let searchTerm = '';
+  let sortCol = '';   // '' = ordre par defaut (created_at desc) | 'delai'
+  let sortDir = 1;    // 1 = ascendant (urgent d'abord), -1 = descendant
 
   function render() {
     let filtered = contacts;
@@ -3358,6 +3402,13 @@ pages.crm = async function(subTab) {
       filtered = filtered.filter(c =>
         (c.first_name + ' ' + c.last_name + ' ' + (c.email || '') + ' ' + (c.company || '') + ' ' + (c.city || '')).toLowerCase().includes(s)
       );
+    }
+    if (sortCol === 'delai') {
+      filtered = filtered.slice().sort((a, b) => {
+        const oa = parseDelaiChantier(a.notes).order;
+        const ob = parseDelaiChantier(b.notes).order;
+        return (oa - ob) * sortDir;
+      });
     }
 
     const statusCounts = {
@@ -3412,6 +3463,7 @@ pages.crm = async function(subTab) {
                   <th>Entreprise</th>
                   <th>Source</th>
                   <th>Statut</th>
+                  <th id="th-crm-delai" style="cursor:pointer;user-select:none" title="Cliquer pour trier par delai chantier">Delai chantier ${sortCol==='delai'?(sortDir>0?'↑':'↓'):'⇅'}</th>
                   <th>Date</th>
                   <th></th>
                 </tr>
@@ -3433,6 +3485,16 @@ pages.crm = async function(subTab) {
                     <td class="text-small">${c.company || '—'}</td>
                     <td><span class="text-small">${c.source || '—'}</span>${(function(){ var m = (c.notes||'').match(/^source_url:\s*(.+)$/m); return m ? ' <a href="' + m[1].trim() + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir le lead sur ' + (c.source||'') + '" style="color:var(--primary)"><i class="fas fa-external-link-alt" style="font-size:0.75rem"></i></a>' : ''; })()}</td>
                     <td><span class="badge-status ${c.status}">${c.status}</span></td>
+                    <td class="text-small nowrap">${(function(){
+                      var d = parseDelaiChantier(c.notes);
+                      if (!d.label) return '<span class="text-muted">—</span>';
+                      // Couleurs alignees sur le mapping DELAI_BUCKETS (0, 1, 2, 5)
+                      var col = d.order <= 0 ? '#e53935'   // rouge — Immediat
+                              : d.order <= 1 ? '#fb8c00'   // orange — 0 a 3 mois
+                              : d.order <= 2 ? '#f1c40f'   // jaune — 3 a 6 mois
+                              : '#43a047';                 // vert  — plus de 6 mois
+                      return '<span style="background:'+col+'22;color:'+col+';border:1px solid '+col+';padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600">'+escHtml(d.label)+'</span>';
+                    })()}</td>
                     <td class="text-small text-muted nowrap">${formatDate(c.created_at)}</td>
                     <td class="text-right nowrap">
                       <button class="btn-ghost" title="Modifier" onclick="crmEdit('${c.id}')"><i class="fas fa-pen"></i></button>
@@ -3454,6 +3516,12 @@ pages.crm = async function(subTab) {
     // Search
     const si = content.querySelector('#crm-search');
     if (si) si.addEventListener('input', e => { searchTerm = e.target.value; render(); });
+    // Sort par delai chantier (clic sur entete)
+    content.querySelector('#th-crm-delai')?.addEventListener('click', () => {
+      if (sortCol === 'delai') { sortDir = -sortDir; }
+      else { sortCol = 'delai'; sortDir = 1; }
+      render();
+    });
     // Add button
     content.querySelector('#btn-add-contact')?.addEventListener('click', () => crmForm());
     // Import button
