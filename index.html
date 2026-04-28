@@ -3334,16 +3334,13 @@ pages.dashboard = async function() {
 // ============================================
 // CRM — Délai chantier (parsing + ordre de tri)
 // ============================================
-// TODO (utilisateur) : completer le mapping ci-dessous selon les valeurs
-// reelles utilisees par tes leads (HelloArtisan, Lovable, edition manuelle).
-// La cle = libelle exact dans les notes. La valeur = nombre de mois (ordre).
-// Plus le nombre est petit, plus le projet est urgent.
+// Mapping libelle → ordre (nombre de mois).
+// Le lookup est case-insensitive et tolere underscores/espaces.
 const DELAI_BUCKETS = {
-  // exemples — a completer/modifier :
-  // 'Immédiat': 0,
-  // 'Moins de 3 mois': 1,
-  // 'Entre 3 et 6 mois': 4,
-  // 'Plus de 6 mois': 9,
+  'immédiat': 0,
+  '0_à_3_mois': 1,
+  'Entre 3 et 6 mois': 2,
+  'Plus de 6 mois': 5,
 };
 
 // Extrait le delai chantier depuis le champ notes (3 formats supportes).
@@ -3356,7 +3353,11 @@ function parseDelaiChantier(notes) {
   if (m) {
     var raw = m[1].trim();
     if (!raw) return { label: '', order: 999 };
-    var order = DELAI_BUCKETS[raw];
+    // Lookup tolerant : minuscules + underscores/espaces equivalents
+    var norm = function(s){ return String(s).toLowerCase().replace(/[_\s]+/g,' ').trim(); };
+    var rawNorm = norm(raw);
+    var matchKey = Object.keys(DELAI_BUCKETS).find(function(k){ return norm(k) === rawNorm; });
+    var order = matchKey !== undefined ? DELAI_BUCKETS[matchKey] : undefined;
     if (order === undefined) {
       // Fallback : extraire un nombre de mois si present ("3 mois", "6 mois")
       var n = raw.match(/(\d+)\s*mois/i);
@@ -3487,7 +3488,11 @@ pages.crm = async function(subTab) {
                     <td class="text-small nowrap">${(function(){
                       var d = parseDelaiChantier(c.notes);
                       if (!d.label) return '<span class="text-muted">—</span>';
-                      var col = d.order <= 0 ? '#e53935' : d.order <= 3 ? '#fb8c00' : d.order <= 6 ? '#f1c40f' : '#43a047';
+                      // Couleurs alignees sur le mapping DELAI_BUCKETS (0, 1, 2, 5)
+                      var col = d.order <= 0 ? '#e53935'   // rouge — Immediat
+                              : d.order <= 1 ? '#fb8c00'   // orange — 0 a 3 mois
+                              : d.order <= 2 ? '#f1c40f'   // jaune — 3 a 6 mois
+                              : '#43a047';                 // vert  — plus de 6 mois
                       return '<span style="background:'+col+'22;color:'+col+';border:1px solid '+col+';padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600">'+escHtml(d.label)+'</span>';
                     })()}</td>
                     <td class="text-small text-muted nowrap">${formatDate(c.created_at)}</td>
