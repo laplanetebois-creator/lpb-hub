@@ -3332,6 +3332,48 @@ pages.dashboard = async function() {
 };
 
 // ============================================
+// CRM — Délai chantier (parsing + ordre de tri)
+// ============================================
+// TODO (utilisateur) : completer le mapping ci-dessous selon les valeurs
+// reelles utilisees par tes leads (HelloArtisan, Lovable, edition manuelle).
+// La cle = libelle exact dans les notes. La valeur = nombre de mois (ordre).
+// Plus le nombre est petit, plus le projet est urgent.
+const DELAI_BUCKETS = {
+  // exemples — a completer/modifier :
+  // 'Immédiat': 0,
+  // 'Moins de 3 mois': 1,
+  // 'Entre 3 et 6 mois': 4,
+  // 'Plus de 6 mois': 9,
+};
+
+// Extrait le delai chantier depuis le champ notes (3 formats supportes).
+// Retourne { label: string affichable, order: number (mois) }.
+function parseDelaiChantier(notes) {
+  if (!notes) return { label: '', order: 999 };
+  // 1) HelloArtisan + Lovable : "date projet: <val>" ou "Delais: <val>"
+  var m = notes.match(/^\s*date projet\s*:\s*(.+?)\s*$/im)
+       || notes.match(/^\s*[Dd]elais?\s*:\s*(.+?)\s*$/m);
+  if (m) {
+    var raw = m[1].trim();
+    if (!raw) return { label: '', order: 999 };
+    var order = DELAI_BUCKETS[raw];
+    if (order === undefined) {
+      // Fallback : extraire un nombre de mois si present ("3 mois", "6 mois")
+      var n = raw.match(/(\d+)\s*mois/i);
+      order = n ? parseInt(n[1], 10) : 50;
+    }
+    return { label: raw, order: order };
+  }
+  // 2) Edition manuelle : "chantier_date: YYYY-MM-DD" → mois restants
+  var d = notes.match(/^\s*chantier_date\s*:\s*(\d{4}-\d{2}-\d{2})/m);
+  if (d) {
+    var diff = Math.round((new Date(d[1]) - new Date()) / (1000*60*60*24*30));
+    return { label: 'Chantier ' + d[1], order: Math.max(0, diff) };
+  }
+  return { label: '', order: 999 };
+}
+
+// ============================================
 // CRM MODULE
 // ============================================
 pages.crm = async function(subTab) {
@@ -3348,6 +3390,8 @@ pages.crm = async function(subTab) {
   let contacts = filterCrmLeads(contactsAll);
   let filterStatus = 'all';
   let searchTerm = '';
+  let sortCol = '';   // '' = ordre par defaut (created_at desc) | 'delai'
+  let sortDir = 1;    // 1 = ascendant (urgent d'abord), -1 = descendant
 
   function render() {
     let filtered = contacts;
@@ -3357,6 +3401,13 @@ pages.crm = async function(subTab) {
       filtered = filtered.filter(c =>
         (c.first_name + ' ' + c.last_name + ' ' + (c.email || '') + ' ' + (c.company || '') + ' ' + (c.city || '')).toLowerCase().includes(s)
       );
+    }
+    if (sortCol === 'delai') {
+      filtered = filtered.slice().sort((a, b) => {
+        const oa = parseDelaiChantier(a.notes).order;
+        const ob = parseDelaiChantier(b.notes).order;
+        return (oa - ob) * sortDir;
+      });
     }
 
     const statusCounts = {
