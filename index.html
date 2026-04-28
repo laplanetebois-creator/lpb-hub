@@ -4474,7 +4474,15 @@ async function renderPipeline(content) {
     </div>
     <div class="pipeline">
       ${stages.map(st => {
-        const stageDeals = deals.filter(d => d.stage === st.key);
+        let stageDeals = deals.filter(d => d.stage === st.key);
+        // Tri par delai chantier (urgents en haut) uniquement pour Nouveaux leads
+        if (st.key === 'nouveaux_leads') {
+          stageDeals = stageDeals.slice().sort(function(a, b) {
+            var ca = contactMap[a.contact_id];
+            var cb = contactMap[b.contact_id];
+            return parseDelaiChantier(ca && ca.notes).order - parseDelaiChantier(cb && cb.notes).order;
+          });
+        }
         const stageValue = stageDeals.reduce((s, d) => s + (parseFloat(d.value) || 0), 0);
         return '<div class="pipeline-col">' +
           '<div class="pipeline-col-header" style="border-bottom-color:' + st.color + '">' +
@@ -4509,6 +4517,17 @@ async function renderPipeline(content) {
                 var attColor = daysAtt >= 10 ? '#e74c3c' : daysAtt >= 5 ? '#e67e22' : '#27ae60';
                 var attLabel = daysAtt === 0 ? "Aujourd'hui" : daysAtt === 1 ? '1 jour' : daysAtt + ' jours';
                 lateHtml += '<div style="margin-top:4px"><span style="background:' + attColor + '18;color:' + attColor + ';font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid ' + attColor + '44"><i class="fas fa-hourglass-half"></i> ' + attLabel + ' en attente</span></div>';
+              }
+              // Badge "delai chantier" — uniquement dans Nouveaux leads
+              if (st.key === 'nouveaux_leads') {
+                var dl = parseDelaiChantier(c && c.notes);
+                if (dl.label) {
+                  var dlCol = dl.order <= 0 ? '#e53935'   // rouge — Immediat
+                            : dl.order <= 1 ? '#fb8c00'   // orange — 0 a 3 mois
+                            : dl.order <= 2 ? '#f1c40f'   // jaune — 3 a 6 mois
+                            : '#43a047';                  // vert  — plus de 6 mois
+                  lateHtml += '<div style="margin-top:4px"><span style="background:' + dlCol + '18;color:' + dlCol + ';font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid ' + dlCol + '44"><i class="fas fa-clock"></i> ' + escHtml(dl.label) + '</span></div>';
+                }
               }
               var dateStr = d.created_at ? formatDate(d.created_at) : '';
               var cCity = c && c.city ? c.city : '';
